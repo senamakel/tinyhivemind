@@ -40,10 +40,14 @@
 //!   its content is still `CommonMark` code, so [`fenced_ranges`] masks it
 //!   too, and a directive quoted inside one cannot reach a line-leading
 //!   grammar;
-//! - an indented block cannot interrupt a paragraph: the indented *opener*
-//!   must be the first line of the body or follow a blank line, so a wrapped,
-//!   indented continuation line right after live text stays live rather than
-//!   being read as a new block.
+//! - an indented block cannot interrupt a paragraph, so the indented *opener*
+//!   must be a line with no paragraph open above it: the first line of the
+//!   body, a line after a blank one, or a line after one that ends the block
+//!   it belongs to — a fenced block, an ATX heading, a thematic break, or a
+//!   setext underline. A wrapped, indented continuation line right after live
+//!   text stays live rather than being read as a new block, and a quoted
+//!   directive indented under a heading is masked rather than reaching a
+//!   line-leading grammar.
 //!
 //! # Inline span rules
 //!
@@ -70,6 +74,10 @@
 //! differently than a renderer would show it — see the private
 //! `indented_block_ranges` helper's doc comment in this module's source for
 //! why that trade is made rather than growing this into a block-level parser.
+//!
+//! For the same reason, the block kinds this scanner does not recognise at
+//! all — an HTML block above an indented line, most of all — leave that line
+//! read as paragraph continuation where `CommonMark` would call it code.
 //!
 //! [spec]: https://spec.commonmark.org/current/#fenced-code-blocks
 //! [span-spec]: https://spec.commonmark.org/current/#code-spans
