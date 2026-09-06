@@ -157,10 +157,10 @@ pure (`packages/core/src/cron.ts:166-230`, `croner`).
 ## Model/provider selection
 
 The decision is a **pure function**, `selectConfiguredModel`
-(`packages/adapters/src/model-selection.ts:7-40`), over four inputs already held
-by the caller: the bot's override, the credential for that override, the default
-credential, space settings, and the deployment default. Two design points worth
-stealing:
+(`packages/adapters/src/model-selection.ts:7-40`), over five inputs already
+held by the caller: the bot's override, the credential for that override, the
+default credential, space settings, and the deployment default. Two design
+points worth stealing:
 
 - "The override provider, model and credential must win together" (line 20):
   an override without a usable credential is discarded *whole*, and its
