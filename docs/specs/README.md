@@ -71,6 +71,9 @@ See [`example-retry-policy.md`](example-retry-policy.md) for a complete sample.
 - [`approval.md`](approval.md) — proposed: a pure gate for a side-effecting
   action — `approve` as a total fold, standing grants as a liveness and
   coverage predicate, and epoch-scoped consent that cannot apply backwards.
+  - [`approval-testing.md`](approval-testing.md) — the full one-test-per-
+    failure-path list, split out to keep the spec itself under the per-file
+    line budget.
 
 ## Decisions these specifications rest on
 
