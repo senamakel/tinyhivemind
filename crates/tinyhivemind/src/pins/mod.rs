@@ -31,6 +31,7 @@
 //!
 //! ```
 //! use tinyhivemind::{LogMessage, Sequence, SessionAuthor, pins::fold_pins};
+//! use tinyhivemind::aside::{Audience, Viewer};
 //!
 //! let author = SessionAuthor::Agent { id: "alice".into(), label: "Alice".into() };
 //! let rows = [
@@ -40,6 +41,7 @@
 //!         parent: None,
 //!         author: author.clone(),
 //!         content: "The rate limiter resets at midnight UTC.".into(),
+//!         audience: Audience::Desk,
 //!     },
 //!     LogMessage {
 //!         sequence: Sequence(2),
@@ -47,9 +49,10 @@
 //!         parent: None,
 //!         author,
 //!         content: "!pin ^1 #limits worth remembering".into(),
+//!         audience: Audience::Desk,
 //!     },
 //! ];
-//! let board = fold_pins(&rows, 12);
+//! let board = fold_pins(&rows, &Viewer::Agent { id: "alice".into() }, 12);
 //! assert_eq!(board[0].sequence, Sequence(1));
 //! assert_eq!(board[0].label.as_deref(), Some("limits"));
 //! assert_eq!(board[0].note.as_deref(), Some("worth remembering"));

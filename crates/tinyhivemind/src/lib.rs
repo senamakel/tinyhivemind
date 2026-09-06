@@ -29,6 +29,7 @@
 //!         description: None,
 //!     }],
 //!     brevity: Default::default(),
+//!     asides: Default::default(),
 //! };
 //! assert!(briefing.system_text().contains("@bob"));
 //! ```
