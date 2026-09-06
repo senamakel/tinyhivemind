@@ -51,7 +51,6 @@ use tinyhivemind_hive::{
 };
 
 use crate::rng::{Rng, mix};
-use tinyhivemind_hive::aside::Audience;
 
 /// Names drawn on, in order, for a room's options.
 pub(crate) const TOPIC_NAMES: [&str; 8] = [

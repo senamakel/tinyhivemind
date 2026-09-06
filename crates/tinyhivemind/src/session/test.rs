@@ -209,8 +209,35 @@ fn session_records_pin_their_wire_shape() {
             "elided": null
         }),
     );
-    // An elided row keeps its sequence, its author and its audience, and
-    // carries the range and settlement pointer instead of content.
+    assert_wire_round_trip(
+        &SessionQuery {
+            conversation: Conversation {
+                desk_id: "engineering".into(),
+                desk_name: "Engineering".into(),
+                thread_root: None,
+            },
+            before: Some(Sequence(10)),
+            window: 30,
+            viewer: Viewer::Operator,
+        },
+        serde_json::json!({
+            "conversation": {
+                "desk_id": "engineering",
+                "desk_name": "Engineering",
+                "thread_root": null
+            },
+            "before": 10,
+            "window": 30,
+            "viewer": {"kind": "operator"}
+        }),
+    );
+    assert_eq!(Sequence(7).to_string(), "7");
+}
+
+/// An elided row keeps its sequence, its author and its audience, and carries
+/// the range and settlement pointer in place of content.
+#[test]
+fn an_elided_row_pins_its_wire_shape() {
     assert_wire_round_trip(
         &SessionMessage {
             sequence: Sequence(7),
@@ -236,29 +263,6 @@ fn session_records_pin_their_wire_shape() {
             "elided": {"through": 10, "messages": 4, "settled_at": 11}
         }),
     );
-    assert_wire_round_trip(
-        &SessionQuery {
-            conversation: Conversation {
-                desk_id: "engineering".into(),
-                desk_name: "Engineering".into(),
-                thread_root: None,
-            },
-            before: Some(Sequence(10)),
-            window: 30,
-            viewer: Viewer::Operator,
-        },
-        serde_json::json!({
-            "conversation": {
-                "desk_id": "engineering",
-                "desk_name": "Engineering",
-                "thread_root": null
-            },
-            "before": 10,
-            "window": 30,
-            "viewer": {"kind": "operator"}
-        }),
-    );
-    assert_eq!(Sequence(7).to_string(), "7");
 }
 
 #[test]

@@ -34,7 +34,6 @@ use tinyhivemind_hive::{HiveTurn, SessionMessage};
 use crate::live::AgentPrompt;
 use crate::run::Participant;
 use crate::swarm::SwarmMember;
-use tinyhivemind_hive::aside::Audience;
 
 /// Which wire format the backend speaks.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
