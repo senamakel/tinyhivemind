@@ -56,7 +56,7 @@ accidental:
 | what ends a token | whitespace **or** `,;.?!:)]}'"` | whitespace only |
 | position rule | must follow start-of-body, ASCII whitespace, `(`, `[`, `{` | must lead its line after any Unicode whitespace |
 | case | alias lookup folds case | kind spellings and topic ids are verbatim |
-| masking | fenced **and** inline code | fenced code only |
+| masking | fenced, indented, **and** inline code | fenced, indented, **and** inline code |
 | supplied input | authoritative about existence; revalidated, stale entries kept quiet | selects extracted traces only; cannot assert anything |
 | cap | `MENTION_CAP` 50 pinging | `TRACE_CAP` 16 total |
 
