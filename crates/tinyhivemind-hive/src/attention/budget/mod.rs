@@ -70,7 +70,7 @@ pub use types::{BudgetPolicy, BudgetRequest, BudgetShare, BudgetVerdict};
 ///
 /// ```
 /// use tinyhivemind_hive::attention::{
-///     BudgetPolicy, BudgetRequest, BudgetShare, BudgetVerdict, allocate_chars,
+///     BudgetPolicy, BudgetRequest, BudgetVerdict, allocate_chars,
 /// };
 ///
 /// // A tight budget, four sources, and one of them enormous.
