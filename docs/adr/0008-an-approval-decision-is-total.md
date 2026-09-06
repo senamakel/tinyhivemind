@@ -44,8 +44,11 @@ pub fn approve(..) -> ApprovalDecision
 
 and it adds no variant to the crate-wide `Error`. Every condition that would
 otherwise be an error is a `DenyReason`, and every one of them denies:
-`MalformedRequest`, `UnknownActor`, `UnclassifiedAction`,
-`UnresolvableApprover`, `NoApprover`, `NoRule`.
+`Disabled`, `MalformedRequest`, `UnknownActor`, `UnclassifiedAction`,
+`PolicyDenied`, `RememberedRefusal`, `UnresolvableApprover`, `NoApprover`,
+`NoRule`. `PolicyDenied` and `RememberedRefusal` are ordinary policy
+decisions rather than malformed input, and are listed here for the same
+reason: none of the nine is a `Result::Err` anywhere in this gate.
 
 The failure modes do not disappear; they change category. They stop being
 something a caller may propagate and become something a caller must read out of
