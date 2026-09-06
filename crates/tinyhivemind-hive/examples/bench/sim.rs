@@ -886,6 +886,87 @@ impl SimAgent {
         i32::try_from(total / divisor).unwrap_or(*own)
     }
 
+    /// Take in every second reading this member can read and has not yet.
+    ///
+    /// Marked by sequence rather than by content, so a line is folded once
+    /// however many turns it stays in the window.
+    fn absorb(&mut self, visible: &[SessionMessage]) {
+        for message in visible {
+            let Some(body) = message.readable() else {
+                continue;
+            };
+            if self.handled.contains(&message.sequence) || !body.starts_with(ASIDE_MARKER) {
+                continue;
+            }
+            let author = match &message.author {
+                SessionAuthor::Agent { id, .. } => id.as_str(),
+                _ => continue,
+            };
+            if author == self.id {
+                continue;
+            }
+            let Some((topic, reading)) = parse_reading(body) else {
+                continue;
+            };
+            self.handled.push(message.sequence);
+            self.import(&topic, reading);
+        }
+    }
+
+    /// Answer a check addressed to this member, with its own reading.
+    fn answer_check(&mut self, visible: &[SessionMessage]) -> Option<String> {
+        let asked = visible.iter().rev().find(|message| {
+            message.readable().is_some_and(|body| {
+                body.starts_with(ASIDE_MARKER)
+                    && body.contains(&format!("@{}", self.id))
+                    && parse_reading(body).is_none()
+            }) && !self.handled.contains(&message.sequence)
+        })?;
+        let asker = match &asked.author {
+            SessionAuthor::Agent { id, .. } => id.clone(),
+            _ => return None,
+        };
+        let topic = parse_topic(asked.readable()?)?;
+        self.handled.push(asked.sequence);
+        let reading = self.score(&topic);
+        Some(format!(
+            "{ASIDE_MARKER} @{asker} #{topic} My own {ASIDE_READS} {reading}."
+        ))
+    }
+
+    /// Ask one peer what they read, when this member cannot separate its own
+    /// two best options.
+    fn open_check(&mut self, visible: &[SessionMessage]) -> Option<String> {
+        if self.asides_spent >= self.aside_cap {
+            return None;
+        }
+        let mut ranked: Vec<(&TopicId, i32)> = self
+            .evals
+            .iter()
+            .map(|(topic, _)| (topic, self.score(topic)))
+            .collect();
+        ranked.sort_by_key(|(_, score)| std::cmp::Reverse(*score));
+        let [(best, top), (_, second), ..] = ranked.as_slice() else {
+            return None;
+        };
+        if top.saturating_sub(*second) > ASIDE_UNCERTAINTY {
+            return None;
+        }
+        let topic = (*best).clone();
+
+        // The first peer that has spoken here and has not already been asked
+        // about this option. Deterministic, and drawn from the transcript
+        // rather than from the roster, so a member asks somebody the room has
+        // actually heard from.
+        let peer = visible.iter().find_map(|message| match &message.author {
+            SessionAuthor::Agent { id, .. } if *id != self.id => Some(id.clone()),
+            _ => None,
+        })?;
+        Some(format!(
+            "{ASIDE_MARKER} @{peer} #{topic} What do you make of this one?"
+        ))
+    }
+
     /// Produce the body of one turn, seeing exactly what the turn authorized.
     fn compose(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> String {
         let view = View::fold(visible, self.quorum);
@@ -898,6 +979,36 @@ impl SimAgent {
                 "Thinking about this; {} still looks strongest to me.",
                 self.favourite
             );
+        }
+
+        // A pairwise check, and the three parts of it. Every one of them reads
+        // the transcript the library authorized this turn to see, so under a
+        // private exchange a member outside it parses a stub and takes
+        // nothing, and under a public one every member parses the same line
+        // and takes the same reading. That difference is the whole of what the
+        // aside arms measure, and it is produced by the projection rather than
+        // by anything here.
+        if self.aside_cap > 0 {
+            // Fold in every reading addressed to anybody that this member can
+            // actually read. A reading is not a position: it changes what this
+            // member believes and it still has to spend a turn saying so
+            // before the room counts anything.
+            self.absorb(visible);
+
+            // Somebody asked. Answering costs this turn, which is what makes
+            // the exchange cost two turns rather than one.
+            if let Some(line) = self.answer_check(visible) {
+                return line;
+            }
+
+            // Two options this member cannot separate, and a peer it has not
+            // asked. This is the only condition under which the move fires:
+            // a member that already knows its own mind spends its turn saying
+            // so instead.
+            if let Some(line) = self.open_check(visible) {
+                self.asides_spent = self.asides_spent.saturating_add(1);
+                return line;
+            }
         }
 
         // The evidence-first opening: while nobody can read anybody, say what
