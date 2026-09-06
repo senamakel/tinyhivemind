@@ -43,6 +43,7 @@
 //! | `--model ID` | model id for the seats and the selector (default `flash`) |
 //! | `--agent-cmd "CMD"` | run an agent CLI per turn instead of an endpoint |
 //! | `--timeout N` | per-request deadline in seconds (default 120) |
+//! | `--thinking on\|off` | let the endpoint reason first, or not (default `off`) |
 //! | `--hops N` | host hop budget for agent-to-agent dispatch (default 3) |
 //! | `--instruction TEXT` | what the operator posts to open the desk |
 //! | `--thread` | run the agents' exchange in a thread rooted at the instruction |
@@ -54,7 +55,7 @@ mod host;
 use std::process::ExitCode;
 use std::sync::Arc;
 
-use agent::{Ask, Backend, Seat, author_label};
+use agent::{Ask, Backend, Seat, Thinking, author_label};
 use host::{Cast, DESK_ID, DESK_NAME, Journal, OPERATOR_ID, Queue};
 
 use tinyhivemind::dispatch::{
@@ -147,6 +148,7 @@ impl Options {
         let mut model = "flash".to_owned();
         let mut agent_cmd = None;
         let mut timeout_secs = 120_u64;
+        let mut thinking = Thinking::Off;
         let mut hops = 3_u32;
         let mut instruction = INSTRUCTION.to_owned();
         let mut thread = false;
@@ -160,6 +162,11 @@ impl Options {
                 "--model" => model = next(&mut args, "--model")?,
                 "--agent-cmd" => agent_cmd = Some(next(&mut args, "--agent-cmd")?),
                 "--timeout" => timeout_secs = number(&mut args, "--timeout")?,
+                "--thinking" => {
+                    let value = next(&mut args, "--thinking")?;
+                    thinking = Thinking::parse(&value)
+                        .ok_or_else(|| format!("--thinking takes on or off, not {value}"))?;
+                }
                 "--hops" => {
                     hops = u32::try_from(number(&mut args, "--hops")?)
                         .map_err(|_| "--hops is too large".to_owned())?;
@@ -187,6 +194,7 @@ impl Options {
                     key,
                     model,
                     timeout_secs,
+                    thinking,
                 }
             }
             (None, Some(command)) => {
@@ -283,7 +291,8 @@ impl Selector for LadderSelector {
                     key,
                     model,
                     timeout_secs,
-                } => agent::http_turn(base, key, model, *timeout_secs, &system, &user),
+                    thinking,
+                } => agent::http_turn(base, key, model, *timeout_secs, *thinking, &system, &user),
                 // A CLI seat is driven per turn; the selector reuses the same
                 // last mile so a `--agent-cmd` run still exercises this rung.
                 Backend::Command { .. } => Err("no selector on a CLI backend".to_owned()),

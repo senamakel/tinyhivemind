@@ -22,6 +22,34 @@ use std::process::{Command, Stdio};
 use serde_json::{Value, json};
 use tinyhivemind::{SessionAuthor, SessionMessage};
 
+/// Whether the endpoint is asked to think before it answers.
+///
+/// It is worth a flag because the two regimes cost about an order of
+/// magnitude apart on the same prompt, and because the cheap one is not
+/// merely cheaper: a router that spends its whole completion budget reasoning
+/// its way to a one-line answer returns an *empty* content field, which looks
+/// exactly like a broken endpoint. The default is [`Thinking::Off`] for that
+/// reason — this harness asks for one line, and one line does not need a
+/// scratchpad.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Thinking {
+    /// Send no thinking directive; the endpoint's own default applies.
+    On,
+    /// Ask the endpoint not to think before answering.
+    Off,
+}
+
+impl Thinking {
+    /// Parse a `--thinking` flag's value.
+    pub(crate) fn parse(text: &str) -> Option<Self> {
+        match text {
+            "on" => Some(Self::On),
+            "off" => Some(Self::Off),
+            _ => None,
+        }
+    }
+}
+
 /// Where a seat's answer comes from.
 #[derive(Clone)]
 pub(crate) enum Backend {
@@ -35,6 +63,8 @@ pub(crate) enum Backend {
         model: String,
         /// Per-request deadline in seconds.
         timeout_secs: u64,
+        /// Whether the endpoint is asked to think first.
+        thinking: Thinking,
     },
     /// An agent CLI taking the prompt as its final argument.
     Command {
@@ -51,6 +81,7 @@ impl fmt::Debug for Backend {
                 base,
                 model,
                 timeout_secs,
+                thinking,
                 ..
             } => formatter
                 .debug_struct("Http")
@@ -58,6 +89,7 @@ impl fmt::Debug for Backend {
                 .field("key", &"<redacted>")
                 .field("model", model)
                 .field("timeout_secs", timeout_secs)
+                .field("thinking", thinking)
                 .finish(),
             Self::Command { argv } => formatter
                 .debug_struct("Command")
@@ -71,7 +103,12 @@ impl Backend {
     /// A short label naming this backend in the run header.
     pub(crate) fn label(&self) -> String {
         match self {
-            Self::Http { base, model, .. } => format!("http {base} model={model}"),
+            Self::Http {
+                base,
+                model,
+                thinking,
+                ..
+            } => format!("http {base} model={model} thinking={thinking:?}"),
             Self::Command { argv } => format!("cmd {}", argv.join(" ")),
         }
     }
@@ -122,7 +159,8 @@ impl Seat {
                 key,
                 model,
                 timeout_secs,
-            } => http_turn(base, key, model, *timeout_secs, &system, &user),
+                thinking,
+            } => http_turn(base, key, model, *timeout_secs, *thinking, &system, &user),
             Backend::Command { argv } => command_turn(argv, &format!("{system}\n\n{user}")),
         }?;
         Ok(first_line(&reply))
@@ -221,24 +259,29 @@ fn first_line(reply: &str) -> String {
 }
 
 /// Post one chat completion and return the assistant's content.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn http_turn(
     base: &str,
     key: &str,
     model: &str,
     timeout_secs: u64,
+    thinking: Thinking,
     system: &str,
     user: &str,
 ) -> Result<String, String> {
-    let body = json!({
+    let mut body = json!({
         "model": model,
         "temperature": 0,
-        "max_tokens": 200,
+        "max_tokens": 400,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
-    })
-    .to_string();
+    });
+    if thinking == Thinking::Off {
+        body["thinking"] = json!({"type": "disabled"});
+    }
+    let body = body.to_string();
 
     let mut child = Command::new("curl")
         .args(["--config", "-", "--data-binary", &body])
@@ -278,7 +321,18 @@ pub(crate) fn http_turn(
         .as_str()
         .map(|content| content.trim().to_owned())
         .filter(|content| !content.is_empty())
-        .ok_or_else(|| "the endpoint returned no assistant content".to_owned())
+        .ok_or_else(|| {
+            // Empty content is usually a budget the endpoint spent reasoning
+            // rather than a broken endpoint, so say which and say what to do.
+            let finish = payload["choices"][0]["finish_reason"]
+                .as_str()
+                .unwrap_or("unknown");
+            format!(
+                "the endpoint returned no assistant content (finish_reason {finish}); \
+                 a reasoning model can spend its whole completion budget before \
+                 writing a line — try --thinking off"
+            )
+        })
 }
 
 /// Run one agent CLI with the prompt as its final argument.
