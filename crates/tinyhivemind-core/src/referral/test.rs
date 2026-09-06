@@ -7,7 +7,7 @@ use crate::{
     desk::{Desk, ResponderMode},
     dispatch::{
         DispatchKey, MentionDispatchDecision, MentionDispatchInput, MentionDispatchPolicy,
-        mention_dispatch,
+        NO_AVAILABLE_TARGET, NoDispatchReason, mention_dispatch,
     },
     roster::RosterMember,
 };

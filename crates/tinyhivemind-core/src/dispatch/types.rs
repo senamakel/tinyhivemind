@@ -29,8 +29,9 @@ pub const NO_AVAILABLE_TARGET: &str = "there is no available agent to pass this 
 /// [`NoDispatchReason::HopOverflow`] shares it with
 /// [`NoDispatchReason::HopLimitReached`]: the overflow is only reachable once
 /// the target has been resolved, so wording of its own would report that the
-/// mentioned agent exists.
-const HOP_BUDGET_SPENT: &str = "this has already been passed along as far as it may go";
+/// mentioned agent exists. [`NoReferralReason`](crate::referral::NoReferralReason)
+/// borrows both — one budget, one vocabulary.
+pub(crate) const HOP_BUDGET_SPENT: &str = "this has already been passed along as far as it may go";
 
 /// Explicit host policy for agent-to-agent mention dispatch.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
