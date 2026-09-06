@@ -159,7 +159,14 @@ fn inline_ranges(body: &str, fenced: &[(usize, usize)]) -> Vec<(usize, usize)> {
         let mut candidate = offset + run;
         let mut closing = None;
         while candidate < bytes.len() {
-            if is_masked(candidate, fenced) || bytes[candidate] != b'`' {
+            // A fenced block ends the paragraph this opener lives in, so the
+            // search for a closing run must not cross it: pairing across a
+            // fenced block would mask live text after the block as if it
+            // were still inside this opener's inline span.
+            if is_masked(candidate, fenced) {
+                break;
+            }
+            if bytes[candidate] != b'`' {
                 candidate += 1;
                 continue;
             }
