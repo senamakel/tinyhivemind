@@ -47,6 +47,7 @@
 //! | `--hops N` | host hop budget for agent-to-agent dispatch (default 3) |
 //! | `--instruction TEXT` | what the operator posts to open the desk |
 //! | `--thread` | run the agents' exchange in a thread rooted at the instruction |
+//! | `--aside` | let an agent address one peer privately, and show what the desk sees instead |
 //! | `--window N` | messages projected into one turn (default 30) |
 
 mod agent;
@@ -71,6 +72,7 @@ use tinyhivemind::{
     project_session,
 };
 use tinyhivemind_core::aside::Viewer;
+use tinyhivemind_core::aside::{AsideDecision, AsidePolicy, Audience, Viewer, aside};
 use tinyhivemind_core::mention::{MentionAuthor, resolve as resolve_mentions};
 
 /// The desk this harness seats, and what each seat is for.
@@ -93,6 +95,19 @@ const SEATS: [(&str, &str); 3] = [
         "archivist, who remembers what this team did before and what it cost",
     ),
 ];
+
+/// The aside policy the harness runs under when `--aside` is given.
+///
+/// A pair, four rows, and a settlement owed before another may be opened —
+/// small on purpose, because the point is to watch the mechanism rather than
+/// to give a room somewhere to hide.
+const ASIDES: AsidePolicy = AsidePolicy {
+    enabled: true,
+    max_members: 1,
+    max_messages: 4,
+    must_surface: true,
+    require_thread: false,
+};
 
 /// The default opening instruction.
 const INSTRUCTION: &str = "We need to move the payments table to the new schema this week. \
@@ -140,6 +155,7 @@ struct Options {
     instruction: String,
     thread: bool,
     window: usize,
+    asides: bool,
 }
 
 impl Options {
@@ -154,6 +170,7 @@ impl Options {
         let mut instruction = INSTRUCTION.to_owned();
         let mut thread = false;
         let mut window = SESSION_WINDOW;
+        let mut asides = false;
 
         let mut args = args.peekable();
         while let Some(argument) = args.next() {
@@ -174,6 +191,7 @@ impl Options {
                 }
                 "--instruction" => instruction = next(&mut args, "--instruction")?,
                 "--thread" => thread = true,
+                "--aside" => asides = true,
                 "--window" => {
                     window = usize::try_from(number(&mut args, "--window")?)
                         .map_err(|_| "--window is too large".to_owned())?;
@@ -222,6 +240,7 @@ impl Options {
             instruction,
             thread,
             window,
+            asides,
         })
     }
 }
