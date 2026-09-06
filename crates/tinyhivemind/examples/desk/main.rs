@@ -23,6 +23,7 @@ mod memory;
 
 use std::{
     collections::{HashMap, VecDeque},
+    fmt::Write as _,
     error::Error as StdError,
     fs,
     path::PathBuf,
@@ -314,9 +315,10 @@ async fn main() -> Result<(), BoxError> {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .pop_front();
-        let job = match job {
-            Some(job) => job,
-            None => {
+        let job = if let Some(job) = job {
+            job
+        } else {
+            {
                 // The chain stopped. The chair either closes the desk or nudges
                 // the next seat: whose turn it is when nobody was mentioned is
                 // a host policy, not something the library decides.
@@ -593,7 +595,6 @@ fn compose_prompt(
             SessionAuthor::Operator => "operator".to_string(),
             SessionAuthor::System { kind, .. } => format!("system/{kind}"),
         };
-        use std::fmt::Write as _;
         let _ = write!(
             prompt,
             "\n[{}] {who}: {}\n",
