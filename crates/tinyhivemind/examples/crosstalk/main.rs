@@ -475,7 +475,9 @@ async fn run_chain(
                 conversation: floor.clone(),
                 before: None,
                 window: options.window,
-                viewer: Viewer::Operator,
+                viewer: Viewer::Agent {
+                    id: seat.id.clone(),
+                },
             },
         )
         .await
