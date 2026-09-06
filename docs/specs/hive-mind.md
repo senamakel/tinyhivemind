@@ -160,6 +160,72 @@ Two adjustments fold into the bid:
 A member whose urge does not clear its threshold does not bid. Speaking raises
 the speaker's threshold; a silent round lowers it.
 
+### The context budget
+
+The market above decides who speaks. The same module decides how much of what
+a turn already holds fits in front of them, because a pinboard, a thread index,
+a digest and a set of host notes all want room in one bounded prompt and
+together they want more than there is.
+
+```rust
+pub struct BudgetRequest { pub source_id: String, pub wanted: usize }
+pub struct BudgetPolicy { pub total_chars: usize, pub min_useful_chars: usize }
+pub enum BudgetVerdict { Whole, Truncated, Dropped }
+pub struct BudgetShare {
+    pub source_id: String,
+    pub granted: usize,
+    pub omitted: usize,
+    pub verdict: BudgetVerdict,
+}
+
+pub fn allocate_chars(requests: &[BudgetRequest], policy: &BudgetPolicy) -> Vec<BudgetShare>;
+```
+
+`allocate_chars` is **max-min fairness**, the standard allocation: each source
+is offered an equal share, a source wanting less than its share takes what it
+needs and releases the remainder, and the surplus is redistributed until it is
+exhausted. It is computed as its fixed point rather than by iterating the
+hand-out — one level `L` such that each source is granted `min(wanted, L)` and
+`L` is the largest level that fits `total_chars`, found by binary search on a
+monotone predicate. A small source is therefore never squeezed by a large one,
+and a large one never takes more than an equal share of what the small ones
+leave.
+
+Fairness alone still yields rubbish, so there is a second rule. A source cut
+below `min_useful_chars` is a fragment that spends budget and teaches the
+reader nothing; it is **dropped and marked** — `BudgetVerdict::Dropped`, with
+`omitted` carrying every character withheld — rather than carried unreadable.
+The floor applies only to a claim the budget had to *cut*: a source small
+enough to arrive whole is whole, however short it is. The fold decides the
+numbers and marks the outcome; cutting the text and rendering the mark are the
+caller's, exactly as nothing else in this crate produces prose.
+
+`BudgetPolicy::DEFAULT` is derived from the stated per-message budget in
+[`recall.md`](recall.md) rather than invented: `total_chars` is one full window
+written at `BrevityPolicy::message_chars` (18,000) and `min_useful_chars` is a
+third of one such message (200).
+
+Every share is a function of the *set* of requests, the budget and the floor,
+never of the position a request occupied: reordering the requests permutes the
+result identically and changes no number. Two places would have broken that,
+and both are settled by refusing a positional tie-break.
+
+- **The remainder.** `total_chars` rarely divides evenly. What is left over
+  stays unspent, because handing it to somebody means choosing whom, and
+  nothing but position distinguishes equal claimants.
+- **Who yields.** When the budget cannot usefully serve everyone, sources are
+  dropped one at a time, greediest first, with the level recomputed after each
+  — so a room of `n` equal claims loses claims one by one rather than losing
+  all context the moment `n` grows too large. Equal claims tie on `wanted` and
+  the tie breaks on `source_id`. Two requests identical in *both* are
+  interchangeable, and which of them is dropped then follows request order;
+  that is the one place the fold is not order-independent, and it is stated
+  here because it cannot be removed without inventing a rank the caller did
+  not supply.
+
+Arithmetic is integer and saturating throughout, so a source asking for
+`usize::MAX` is cut like any other rather than wrapping the running sum.
+
 ### The episode
 
 ```rust
@@ -260,6 +326,9 @@ establishes.
   no IO. `.github/scripts/assert-pure.sh` asserts it.
 - An episode terminates: `spent` strictly increases on every `Speak`, and
   `turn_budget` is finite.
+- `allocate_chars` never grants more than `total_chars` in total, never grants
+  a source more than it asked for, and never carries a truncated source below
+  `min_useful_chars`.
 - A trace never resolves against a retired or inactive member.
 
 ## Acceptance criteria
@@ -276,6 +345,12 @@ establishes.
 - `project_for` hides peer messages under `Blind` and reveals them under `Full`.
 - A point restated past `repetition_cap` scores zero.
 - `standings` over a shuffled trace list equals `standings` over the ordered one.
+- `allocate_chars` over a rotated or reversed request slice equals the same
+  allocation permuted the same way, over rotations, a reversal, and a
+  deterministic sweep of arbitrary claims.
+- A source released by a small claim reaches the large ones rather than being
+  wasted, and a claim the budget cannot usefully serve is reported `Dropped`
+  with the whole of `wanted` in `omitted`.
 - A quorum with no recorded `Commit` trace does not converge; it runs to its
   budget instead.
 - A trace authored by a retired agent, or by one who is not a member of the
