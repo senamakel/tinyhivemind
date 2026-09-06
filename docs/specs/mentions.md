@@ -49,7 +49,10 @@ UTF-8 byte `offset`, its target, and a `quiet` flag omitted from JSON when false
 An extracted mention opens at the start of the body or after ASCII whitespace
 or one of `([{`. `@#` restricts lookup to desks. The alias begins with a Unicode
 alphanumeric character or `_` and ends at the body end, whitespace, or one of
-`,;.?!:)]}'\"`. Current aliases are tried longest-first, case-insensitively.
+`,;.?!:)]}'\"`. The whole token is then compared for case-insensitive equality
+against each current alias; the alias table is sorted longest-first, but the
+token boundary is already fixed by the closer rule, so the sort changes no
+outcome and there is no greedy or prefix matching.
 Aliases include agent ids and nonempty names, person labels and stable ASCII
 label slugs, desk ids and names, and `everyone`, `channel`, and `here`.
 Ambiguity across distinct targets resolves nothing; `@#` deliberately bypasses
