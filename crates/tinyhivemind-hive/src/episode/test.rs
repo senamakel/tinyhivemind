@@ -1052,7 +1052,7 @@ fn surfacing_the_same_support_in_the_open_does_count() {
     .expect("stands");
     let stage = standings
         .iter()
-        .find(|standing| standing.topic == TopicId::new("stage").expect("a topic"))
+        .find(|standing| standing.topic.as_str() == "stage")
         .expect("the staged option");
     // One supporter, not two: the private line contributed nothing and the
     // open one contributed once.
@@ -1073,7 +1073,7 @@ fn every_participant_counts_the_same_medium() {
         crate::quorum::standings(&traces, Sequence(3), &QuorumPolicy::DEFAULT).expect("stands");
     let stage = standings
         .iter()
-        .find(|standing| standing.topic == TopicId::new("stage").expect("a topic"))
+        .find(|standing| standing.topic.as_str() == "stage")
         .expect("the staged option");
     assert_eq!(stage.supporters, vec!["scout".to_owned()]);
 }
