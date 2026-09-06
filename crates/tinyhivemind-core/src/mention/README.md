@@ -22,8 +22,16 @@ neutral roster record.
 1. Validate structural roster and desk invariants. Invalid snapshots fail
    closed.
 2. Build current aliases for active agents, people, desks, and everyone.
-3. Mask closed inline code spans and fenced code blocks without changing body
-   offsets.
+3. Mask closed inline code spans and code blocks without changing body
+   offsets, using the shared `masking::code_ranges` scanner. Every authored
+   grammar in the workspace reads that same level — the hive's traces and the
+   runtime's pin directives included — so none of them can disagree about
+   which span of a body is code. A line-leading marker needs inline spans
+   masked too: a span opened on one line and closed on a later one quotes
+   whole lines between them, so a marker with no backtick ahead of it on its
+   own line can still be inside quoted code. `masking::fenced_ranges` is the
+   block-only half of the same scanner, for a caller that wants exactly
+   CommonMark's fenced and indented blocks.
 4. Extract authored spans, or validate supplied spans when the host has already
    parsed them.
 5. Sort in reading order, remove self and duplicate-offset entries, quiet
@@ -39,6 +47,24 @@ Supplied metadata is authoritative about whether extraction should happen, but
 it is not trusted as a routing bypass. Out-of-bounds, non-boundary, code-span,
 and non-mention-shaped records are dropped. Structurally sound stale or
 wrong-current-alias records remain visible as quiet context.
+
+## One refusal, so a resolver is not a roster oracle
+
+An agent that never existed, one that has been retired, one that has been
+tombstoned, and a name two teammates share are all refused the *same way*: an
+extracted mention is simply not produced, and a supplied one is kept as quiet
+context. No outcome and no error tells the four apart.
+
+That is deliberate. A resolver whose refusals differ is a directory: an agent
+that can author a message can read a roster it was never shown by watching
+which names come back differently. The rule is taken from CopilotKit/OpenBot,
+whose handoff resolver returns one sentence for "no such bot" and "not yours to
+see" for exactly this reason — see
+[`../../../../docs/research/grok-bots/copilotkit-openbot.md`](../../../../docs/research/grok-bots/copilotkit-openbot.md).
+
+`Roster::registered_member` is the one lookup that does see a retired or
+tombstoned agent, because attribution of a message already committed has to
+name its author. It is not a routing input and no fold here calls it.
 
 ## Operational constraints
 

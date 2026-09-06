@@ -1,7 +1,13 @@
 //! Stable payloads for one bounded cross-desk referral decision.
 
-use crate::{dispatch::DispatchConversation, dispatch::DispatchKey, mention::Mention};
+use crate::{
+    dispatch::DispatchConversation,
+    dispatch::DispatchKey,
+    dispatch::{HOP_BUDGET_SPENT, NO_AVAILABLE_TARGET},
+    mention::Mention,
+};
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// How far a referral may travel from the conversation that triggered it.
 ///
@@ -120,6 +126,15 @@ pub enum ReferralKind {
 }
 
 /// Why no child turn was selected.
+///
+/// The variant is the operator's record and `{:?}` prints it. The `Display`
+/// rendering is the acting agent's, and is deliberately coarser: every reason
+/// that turns on whether a named *agent* exists, is active, or is reachable
+/// renders as [`NO_AVAILABLE_TARGET`]. A reason about a *desk* renders its own
+/// wording, because a desk snapshot carries no per-viewer scoping and so has
+/// no hidden state a refusal could disclose. See [ADR 0009].
+///
+/// [ADR 0009]: https://github.com/tinyhumansai/tinyhivemind/blob/main/docs/adr/0009-a-refusal-renders-what-the-caller-already-holds.md
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NoReferralReason {
@@ -145,6 +160,38 @@ pub enum NoReferralReason {
     UnknownDesk,
     /// The child hop could not be represented.
     HopOverflow,
+}
+
+impl fmt::Display for NoReferralReason {
+    /// Render the sentence an acting agent may repeat to a person.
+    ///
+    /// A reason renders wording of its own only when what it reveals is
+    /// something the caller already holds: the policy it supplied, the hop it
+    /// supplied, its own identity, its own desk, or the desk directory that is
+    /// the same for every viewer. Anything that turns on another agent's
+    /// existence, activity or desk membership renders as
+    /// [`NO_AVAILABLE_TARGET`].
+    ///
+    /// [`Self::NoReferralTarget`] is withheld even though some of its paths
+    /// are purely local — a policy that refuses returns, an input carrying no
+    /// origin — because one of them is "nothing addressable was mentioned",
+    /// and a variant is classified by its most disclosing path.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Disabled => "referring this to another desk is turned off here",
+            Self::HopLimitReached | Self::HopOverflow => HOP_BUDGET_SPENT,
+            Self::SourceInactive => {
+                "the agent that wrote this is no longer active, so nothing was passed on"
+            }
+            Self::SelfMention => "an agent cannot pass a message on to itself",
+            Self::SelfDesk => "this is already on the desk it was addressed to",
+            Self::UnknownDesk => "no single desk goes by that name",
+            Self::NoReferralTarget
+            | Self::TargetInactive
+            | Self::EmptyDesk
+            | Self::TargetDeskless => NO_AVAILABLE_TARGET,
+        })
+    }
 }
 
 /// One canonical child-turn referral.

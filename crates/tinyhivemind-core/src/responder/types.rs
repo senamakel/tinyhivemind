@@ -1,6 +1,7 @@
 //! Stable responder selection inputs and decisions.
 
 use serde::{Deserialize, Deserializer, Serialize};
+use std::fmt;
 
 use crate::mention::Mention;
 
@@ -59,6 +60,13 @@ pub struct SelectionRequest {
 }
 
 /// The ladder rung that produced a responder.
+///
+/// The `Display` rendering is a sentence an agent may repeat to a person. It
+/// discloses nothing a refusal would have to withhold: the ladder never
+/// declines, so a rung always arrives beside the responder id it explains, and
+/// no rung can be probed for a fact about anybody else. See [ADR 0009].
+///
+/// [ADR 0009]: https://github.com/tinyhumansai/tinyhivemind/blob/main/docs/adr/0009-a-refusal-renders-what-the-caller-already-holds.md
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ResponderRung {
@@ -75,6 +83,14 @@ pub enum ResponderRung {
 }
 
 /// What happened at the optional selector boundary.
+///
+/// The `Display` rendering is a sentence an agent may repeat to a person.
+/// [`Self::Unavailable`] and [`Self::InvalidOutput`] are worded apart on
+/// purpose: both describe the host's own selector and a fallback that has
+/// already produced an id, so neither reports whether some named agent exists.
+/// See [ADR 0009].
+///
+/// [ADR 0009]: https://github.com/tinyhumansai/tinyhivemind/blob/main/docs/adr/0009-a-refusal-renders-what-the-caller-already-holds.md
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SelectionDisposition {
@@ -90,6 +106,21 @@ pub enum SelectionDisposition {
     InvalidOutput,
 }
 
+impl fmt::Display for ResponderRung {
+    /// Render why this agent is the one answering.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::ExplicitMention => "the agent this message named answered it",
+            Self::AutoSelection => "this desk picked whoever suited the message best",
+            Self::DeskDefault => {
+                "nobody in particular was named, so this desk's first agent answered"
+            }
+            Self::DirectAgent => "this conversation has one agent, and it answered",
+            Self::Orchestrator => "no desk agent applied here, so the coordinator answered",
+        })
+    }
+}
+
 /// The single responder selected for one input message.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -100,6 +131,23 @@ pub struct ResponderDecision {
     pub rung: ResponderRung,
     /// Selector outcome, when the auto rung applied.
     pub disposition: SelectionDisposition,
+}
+
+impl fmt::Display for SelectionDisposition {
+    /// Render what the optional model rung did, or did not do.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::NotApplicable => "no model was asked to choose who answers",
+            Self::Selected => "a model chose who answers",
+            Self::Disabled => "choosing who answers by model is turned off here",
+            Self::Unavailable => {
+                "no model was available to choose, so this desk's first agent answered"
+            }
+            Self::InvalidOutput => {
+                "the model did not name one agent, so this desk's first agent answered"
+            }
+        })
+    }
 }
 
 /// A pure plan that either decides immediately or requests one selector call.

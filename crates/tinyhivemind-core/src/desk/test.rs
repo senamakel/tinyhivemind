@@ -429,3 +429,80 @@ fn rejects_an_incomplete_order() {
         })
     );
 }
+
+#[test]
+fn a_tombstoned_agent_leaves_every_desk_answer_without_being_retired_too() {
+    let declared = [desk("eng", "Engineering", &["alice", "bob"])];
+    let additions = [DeskMember {
+        desk_id: "eng".into(),
+        agent_id: "bob".into(),
+    }];
+    let tombstoned = [String::from("bob")];
+    let desks = set(&declared, &[], &additions, &[], &[]).with_tombstoned(&tombstoned);
+
+    assert_eq!(desks.members("eng").unwrap(), vec!["alice"]);
+    assert_eq!(desks.lead("eng").unwrap(), Some("alice"));
+
+    // An order is a permutation of the *remaining* members, so a host does not
+    // have to rewrite its orders when a member is tombstoned.
+    let orders = [DeskOrder {
+        desk_id: "eng".into(),
+        ordered: vec!["alice".into()],
+    }];
+    let ordered = set(&declared, &[], &additions, &orders, &[]).with_tombstoned(&tombstoned);
+    assert_eq!(ordered.validate(), Ok(()));
+}
+
+#[test]
+fn a_stored_order_survives_tombstoning_a_member_it_still_names() {
+    // The host is not required to rewrite a stored order the moment a member
+    // is tombstoned; the stale entry is ignored rather than rejected, so the
+    // desk's other members remain reachable.
+    let declared = [desk("eng", "Engineering", &["alice", "bob"])];
+    let tombstoned = [String::from("bob")];
+    let orders = [DeskOrder {
+        desk_id: "eng".into(),
+        ordered: vec!["alice".into(), "bob".into()],
+    }];
+    let desks = set(&declared, &[], &[], &orders, &[]).with_tombstoned(&tombstoned);
+
+    assert_eq!(desks.validate(), Ok(()));
+    assert_eq!(desks.members("eng").unwrap(), vec!["alice"]);
+    assert_eq!(desks.lead("eng").unwrap(), Some("alice"));
+}
+
+#[test]
+fn a_stored_order_survives_retiring_a_member_it_still_names() {
+    let declared = [desk("eng", "Engineering", &["alice", "bob"])];
+    let retired = [String::from("bob")];
+    let orders = [DeskOrder {
+        desk_id: "eng".into(),
+        ordered: vec!["bob".into(), "alice".into()],
+    }];
+    let desks = set(&declared, &[], &[], &orders, &retired);
+
+    assert_eq!(desks.validate(), Ok(()));
+    assert_eq!(desks.members("eng").unwrap(), vec!["alice"]);
+}
+
+#[test]
+fn a_globally_unavailable_agent_that_never_belonged_to_the_desk_is_still_unknown() {
+    // Tombstoning is global, but the leniency for a stale order entry is not:
+    // an id that is unavailable *elsewhere* but was never a member of *this*
+    // desk is a malformed order, not a stale one, and must still be rejected.
+    let declared = [desk("eng", "Engineering", &["alice"])];
+    let tombstoned = [String::from("carol")];
+    let orders = [DeskOrder {
+        desk_id: "eng".into(),
+        ordered: vec!["alice".into(), "carol".into()],
+    }];
+    let desks = set(&declared, &[], &[], &orders, &[]).with_tombstoned(&tombstoned);
+
+    assert_eq!(
+        desks.validate(),
+        Err(Error::UnknownOrderMember {
+            desk_id: "eng".into(),
+            agent_id: "carol".into()
+        })
+    );
+}

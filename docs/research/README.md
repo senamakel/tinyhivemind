@@ -30,6 +30,10 @@ what actually happened when it was run goes in
 - [`long-context.md`](long-context.md) — position bias in a long window,
   context rot, and recursive language models: why P14 makes the transcript
   queryable instead of making the window bigger.
+- [`grok-bots/`](grok-bots/README.md) — twelve notes on the open-source Grok
+  Bot ecosystem, read at pinned commits: how each one models a roster, what
+  makes a message start a turn, and how four of them shipped uncontrolled
+  fan-out and then bought a bound.
 
 Each closes with a table mapping the mechanisms it covers to the state this
 workspace already holds, and to the state it does not.

@@ -67,6 +67,7 @@ use crate::{
     session::matches_conversation, threads::read_desk_rows,
 };
 use std::collections::BTreeMap;
+use tinyhivemind_core::masking::{code_ranges, is_masked};
 
 /// Default number of pins a board holds.
 ///
@@ -84,7 +85,9 @@ pub const PIN_MARKER_CAP: usize = 8;
 /// Read pin markers from an authored body, in reading order.
 ///
 /// A body carrying no marker yields nothing: ordinary conversation never pins
-/// itself by accident.
+/// itself by accident, and a marker inside code -- a fenced or indented
+/// block, or an inline span opened on an earlier line -- is quoted
+/// documentation rather than a directive.
 #[must_use]
 pub fn read_directives(
     body: &str,
@@ -94,16 +97,13 @@ pub fn read_directives(
     if !body.contains('!') {
         return Vec::new();
     }
-    let fenced = fenced_ranges(body);
+    let masked = code_ranges(body);
     let mut directives = Vec::new();
     let mut offset = 0;
     for line in body.split_inclusive('\n') {
         let start = offset;
         offset += line.len();
-        if fenced
-            .iter()
-            .any(|(from, to)| *from <= start && start < *to)
-        {
+        if is_masked(start, &masked) {
             continue;
         }
         let trimmed = line.trim_end_matches(['\n', '\r']).trim_start();
@@ -314,45 +314,4 @@ fn opening(content: &str) -> String {
     let mut opening: String = single_line.chars().take(PIN_EXCERPT_CHARS).collect();
     opening.push('…');
     opening
-}
-
-/// Byte ranges covered by fenced code blocks, which markers do not escape.
-///
-/// Follows the Markdown fence rule a marker's author would expect: a closing
-/// fence must use the same character as the opener and be at least as long.
-/// A shorter run of the same character — three backticks closing a
-/// four-backtick block that itself contains an example fence — is content,
-/// not a close, so tracking only the character and not its length would
-/// resume directive parsing one line early and let quoted documentation
-/// mutate the board.
-fn fenced_ranges(body: &str) -> Vec<(usize, usize)> {
-    let mut ranges = Vec::new();
-    let mut open: Option<(usize, char, usize)> = None;
-    let mut offset = 0;
-    for line in body.split_inclusive('\n') {
-        let start = offset;
-        offset += line.len();
-        let trimmed = line.trim_start();
-        let fence = fence_run(trimmed, '`').or_else(|| fence_run(trimmed, '~'));
-        let Some((char, len)) = fence else { continue };
-        match open {
-            None => open = Some((start, char, len)),
-            Some((from, opener, opener_len)) if opener == char && len >= opener_len => {
-                ranges.push((from, offset));
-                open = None;
-            }
-            Some(_) => {}
-        }
-    }
-    if let Some((from, ..)) = open {
-        ranges.push((from, body.len()));
-    }
-    ranges
-}
-
-/// Whether a trimmed line opens or closes a fence built from `char`, and how
-/// long the leading run of it is.
-fn fence_run(trimmed: &str, char: char) -> Option<(char, usize)> {
-    let len = trimmed.chars().take_while(|&c| c == char).count();
-    (len >= 3).then_some((char, len))
 }

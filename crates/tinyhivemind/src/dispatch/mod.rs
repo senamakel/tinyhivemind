@@ -12,7 +12,8 @@ use crate::{BoxError, Result};
 use std::{future::Future, pin::Pin};
 pub use tinyhivemind_core::dispatch::{
     DispatchConversation, DispatchKey, MentionDispatchDecision, MentionDispatchInput,
-    MentionDispatchPolicy, MentionTurnRequest, NoDispatchReason, mention_dispatch,
+    MentionDispatchPolicy, MentionTurnRequest, NO_AVAILABLE_TARGET, NoDispatchReason,
+    mention_dispatch,
 };
 use tinyhivemind_core::roster::Roster;
 

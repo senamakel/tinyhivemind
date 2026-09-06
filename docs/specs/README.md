@@ -28,6 +28,15 @@ See [`example-retry-policy.md`](example-retry-policy.md) for a complete sample.
   General conversation.
 - [`desks.md`](desks.md) — host-owned desk overlays and the borrowed membership
   algebra.
+- [`grammar.md`](grammar.md) — the index to the authoritative grammar
+  reference for both textual grammars, with the code/prose discrepancies it
+  resolved.
+  - [`grammar-mentions.md`](grammar-mentions.md) — the complete `@` grammar:
+    lexical rules, the alias table, resolution, normalization, and which
+    mention wins for each consumer.
+  - [`grammar-traces.md`](grammar-traces.md) — the complete `!marker` grammar:
+    the eight kinds, the `#topic`, `>target` and `^cite` qualifiers, fence
+    masking, and the markers that fail closed.
 - [`mentions.md`](mentions.md) — roster records, mention grammar, normalization,
   and pure routing decisions.
 - [`sessions.md`](sessions.md) — host-owned paging, attributed projection, and
@@ -36,8 +45,8 @@ See [`example-retry-policy.md`](example-retry-policy.md) for a complete sample.
   and stateless attributed transcript deltas.
 - [`responders.md`](responders.md) — deterministic one-responder selection and
   the model selector boundary.
-- [`mention-dispatch.md`](mention-dispatch.md) — bounded one-target dispatch and
-  the atomic host enqueue contract.
+- [`mention-dispatch.md`](mention-dispatch.md) — bounded one-target dispatch,
+  the atomic host enqueue contract, and the sentences a refusal comes back in.
 - [`cross-desk-referral.md`](cross-desk-referral.md) — one bounded child turn
   that may run on another channel, and the one answer that comes back.
 - [`hive-mind.md`](hive-mind.md) — bounded group deliberation: traces, salience,
@@ -59,3 +68,23 @@ See [`example-retry-policy.md`](example-retry-policy.md) for a complete sample.
   the host.
 - [`shared-medium-schema.md`](shared-medium-schema.md) — draft: what a projected
   message carries, per-conversation read state, digests, and supersession.
+- [`approval.md`](approval.md) — proposed: a pure gate for a side-effecting
+  action — `approve` as a total fold, standing grants as a liveness and
+  coverage predicate, and epoch-scoped consent that cannot apply backwards.
+  - [`approval-testing.md`](approval-testing.md) — the full one-test-per-
+    failure-path list, split out to keep the spec itself under the per-file
+    line budget.
+
+## Decisions these specifications rest on
+
+An accepted specification cites the record that settled its contested question
+rather than restating it. Two run across several specifications:
+
+- [ADR 0008](../adr/0008-an-approval-decision-is-total.md) — an approval
+  decision denies rather than fails, so a gate cannot be bypassed by failing.
+- [ADR 0009](../adr/0009-a-refusal-renders-what-the-caller-already-holds.md) —
+  a refusal renders only what the caller already holds. The library owns the
+  words, and every reason that turns on a named other collapses to one shared
+  sentence, so a set of refusals cannot be probed for a roster. It settles what
+  [`mention-dispatch.md`](mention-dispatch.md), [`responders.md`](responders.md)
+  and [`approval.md`](approval.md) each left open.

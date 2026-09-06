@@ -45,7 +45,7 @@ Coordination is stigmergic: a message deposits a typed trace, and the traces are
 the stimulus for the next turn. No agent addresses another.
 
 ```rust
-pub enum TraceKind { Propose, Support, Object, Evidence, Question, Commit }
+pub enum TraceKind { Propose, Support, Object, Refute, Evidence, Question, Commit, Defer }
 pub struct TopicId(String);
 
 pub struct Trace {
@@ -64,13 +64,34 @@ pub struct Trace {
 rather than a flag so that a decision can be audited back to the messages that
 carried it, the way a reflection in a memory stream cites its source nodes.
 
-`resolve(body, supplied, author, sequence)` mirrors `mention::resolve` exactly:
-either extract traces from authored text, or revalidate an authoritative
-supplied list. Authored spans and UTF-8 byte offsets are preserved, inline and
-fenced code spans are masked, and the grammar is line-leading markers —
-`!propose #id`, `!support #id`, `!object`, `!evidence`, `!question`, `!commit` —
-with an optional trailing `^123` citing a sequence. A body with no marker yields
-no trace; ordinary conversation is not silently coerced into a vote.
+`resolve(body, supplied, author, sequence)` either extracts traces from
+authored text or, given a supplied list, *selects* from what extraction finds.
+The supplied mode is deliberately **narrower** than `mention::resolve`: a
+supplied mention is authoritative about existence and is revalidated against
+live snapshots, whereas parsing a trace is fully determined by the body, so a
+supplied entry can only name which extracted trace to keep, by
+`(offset, kind)`. Anything else it claims — a different topic, target, citation
+or text — is discarded in favour of what the body says, and a repeated offset
+is rejected rather than selecting the same trace twice.
+
+Authored spans and UTF-8 byte offsets are preserved. Fenced and indented code
+blocks are masked, and so are inline code spans: a span opened on one line and
+closed on a later one quotes every whole line between them, so a marker with
+no backtick ahead of it on its own line can still sit inside quoted code — a
+marker sharing a line with its backtick needs no masking to be rejected,
+because that line does not start with the marker's own leading character. The
+grammar is
+line-leading markers of the eight kinds above, qualified by `#topic`, `>target`
+and `^cite`. Qualifiers are read wherever they appear after the kind rather
+than in a fixed order, and `^cite` may repeat, so a trace carries a list of
+grounds. `!refute` requires both a `#topic` and a `^cite`, and `!defer`
+requires a `#topic`; either yields no trace at all without them. A body with no
+marker yields no trace; ordinary conversation is not silently coerced into a
+vote.
+
+The full productions, the lexical rules, and the worked-examples table are in
+[`grammar-traces.md`](grammar-traces.md); this specification does not restate
+them.
 
 `read(messages)` folds a projected transcript into traces in sequence order.
 
@@ -142,6 +163,72 @@ Two adjustments fold into the bid:
 
 A member whose urge does not clear its threshold does not bid. Speaking raises
 the speaker's threshold; a silent round lowers it.
+
+### The context budget
+
+The market above decides who speaks. The same module decides how much of what
+a turn already holds fits in front of them, because a pinboard, a thread index,
+a digest and a set of host notes all want room in one bounded prompt and
+together they want more than there is.
+
+```rust
+pub struct BudgetRequest { pub source_id: String, pub wanted: usize }
+pub struct BudgetPolicy { pub total_chars: usize, pub min_useful_chars: usize }
+pub enum BudgetVerdict { Whole, Truncated, Dropped }
+pub struct BudgetShare {
+    pub source_id: String,
+    pub granted: usize,
+    pub omitted: usize,
+    pub verdict: BudgetVerdict,
+}
+
+pub fn allocate_chars(requests: &[BudgetRequest], policy: &BudgetPolicy) -> Vec<BudgetShare>;
+```
+
+`allocate_chars` is **max-min fairness**, the standard allocation: each source
+is offered an equal share, a source wanting less than its share takes what it
+needs and releases the remainder, and the surplus is redistributed until it is
+exhausted. It is computed as its fixed point rather than by iterating the
+hand-out — one level `L` such that each source is granted `min(wanted, L)` and
+`L` is the largest level that fits `total_chars`, found by binary search on a
+monotone predicate. A small source is therefore never squeezed by a large one,
+and a large one never takes more than an equal share of what the small ones
+leave.
+
+Fairness alone still yields rubbish, so there is a second rule. A source cut
+below `min_useful_chars` is a fragment that spends budget and teaches the
+reader nothing; it is **dropped and marked** — `BudgetVerdict::Dropped`, with
+`omitted` carrying every character withheld — rather than carried unreadable.
+The floor applies only to a claim the budget had to *cut*: a source small
+enough to arrive whole is whole, however short it is. The fold decides the
+numbers and marks the outcome; cutting the text and rendering the mark are the
+caller's, exactly as nothing else in this crate produces prose.
+
+`BudgetPolicy::DEFAULT` is derived from the stated per-message budget in
+[`recall.md`](recall.md) rather than invented: `total_chars` is one full window
+written at `BrevityPolicy::message_chars` (18,000) and `min_useful_chars` is a
+third of one such message (200).
+
+Every share is a function of the *set* of requests, the budget and the floor,
+never of the position a request occupied: reordering the requests permutes the
+result identically and changes no number. Two places would have broken that,
+and both are settled by refusing a positional tie-break.
+
+- **The remainder.** `total_chars` rarely divides evenly. What is left over
+  stays unspent, because handing it to somebody means choosing whom, and
+  nothing but position distinguishes equal claimants.
+- **Who yields.** When the budget cannot usefully serve everyone, sources are
+  dropped one at a time, greediest first, with the level recomputed after each
+  — so a room of `n` equal claims loses claims one by one rather than losing
+  all context the moment `n` grows too large. Equal claims tie on `wanted` and
+  the tie breaks on `source_id`. Two requests identical in *both* are
+  interchangeable, and which of them is dropped then follows request order;
+  that is the one place the fold is not order-independent, and it is stated
+  here because it cannot be removed without inventing a rank the caller did
+  not supply.
+
+Arithmetic is integer and saturating throughout, so a source asking for
+`usize::MAX` is cut like any other rather than wrapping the running sum.
 
 ### The episode
 
@@ -243,6 +330,9 @@ establishes.
   no IO. `.github/scripts/assert-pure.sh` asserts it.
 - An episode terminates: `spent` strictly increases on every `Speak`, and
   `turn_budget` is finite.
+- `allocate_chars` never grants more than `total_chars` in total, never grants
+  a source more than it asked for, and never carries a truncated source below
+  `min_useful_chars`.
 - A trace never resolves against a retired or inactive member.
 
 ## Acceptance criteria
@@ -259,6 +349,12 @@ establishes.
 - `project_for` hides peer messages under `Blind` and reveals them under `Full`.
 - A point restated past `repetition_cap` scores zero.
 - `standings` over a shuffled trace list equals `standings` over the ordered one.
+- `allocate_chars` over a rotated or reversed request slice equals the same
+  allocation permuted the same way, over rotations, a reversal, and a
+  deterministic sweep of arbitrary claims.
+- A source released by a small claim reaches the large ones rather than being
+  wasted, and a claim the budget cannot usefully serve is reported `Dropped`
+  with the whole of `wanted` in `omitted`.
 - A quorum with no recorded `Commit` trace does not converge; it runs to its
   budget instead.
 - A trace authored by a retired agent, or by one who is not a member of the

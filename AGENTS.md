@@ -13,8 +13,8 @@ room of them reaches a decision. Stigmergy, decaying salience, quorum sensing,
 cross-inhibition and response thresholds, all as pure folds.
 
 It answers four questions and holds no state doing it — who is here, what a desk
-is and who is on it, who `@this` means, and what one participant sees of the
-shared transcript.
+is and who is on it, who an authored mention addresses, and what one participant
+sees of the shared transcript.
 
 Three rules decide what belongs here:
 

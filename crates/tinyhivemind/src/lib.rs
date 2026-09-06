@@ -45,8 +45,8 @@ pub mod sharing;
 pub mod threads;
 
 pub use briefing::{
-    BrevityPolicy, BriefedTeammate, BriefingNote, SessionContext, SessionInitialization,
-    TeamBriefing, initialize_session, initialize_session_with_context,
+    BrevityPolicy, BriefedTeammate, BriefingNote, MentionDispatchContext, SessionContext,
+    SessionInitialization, TeamBriefing, initialize_session, initialize_session_with_context,
 };
 pub use dispatch::{
     EnqueueOutcome, EnqueueRefusal, MentionDispatchOutcome, MentionTurnFuture, MentionTurnQueue,

@@ -2,6 +2,59 @@
 
 use crate::{SESSION_WINDOW, SessionMessage, ThreadLine, pins::Pin};
 use serde::{Deserialize, Serialize};
+use tinyhivemind_core::dispatch::MentionDispatchPolicy;
+
+/// What one run may actually do with a direct `@agent` mention.
+///
+/// The two values a host already passes to
+/// [`mention_dispatch`](tinyhivemind_core::dispatch::mention_dispatch): the
+/// policy in force, and the hop this run is at. It is carried beside a
+/// [`TeamBriefing`] rather than inside it, because a briefing describes a team
+/// and this describes a run — the same team is briefed again at the next hop
+/// with a different answer here.
+///
+/// # Example
+///
+/// ```
+/// use tinyhivemind::{TeamBriefing, briefing::MentionDispatchContext, dispatch::MentionDispatchPolicy};
+///
+/// let briefing = TeamBriefing {
+///     viewer_id: "alice".into(),
+///     desk_id: "engineering".into(),
+///     desk_name: "Engineering".into(),
+///     teammates: Vec::new(),
+///     brevity: Default::default(),
+/// };
+/// let at_cap = MentionDispatchContext {
+///     policy: MentionDispatchPolicy { enabled: true, max_hops: 1 },
+///     hop: 1,
+/// };
+/// assert!(!at_cap.may_dispatch());
+/// // A run that cannot dispatch is not told that it can.
+/// assert_eq!(briefing.system_text_with_dispatch(at_cap), briefing.system_text());
+/// ```
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct MentionDispatchContext {
+    /// Dispatch policy in force for this run.
+    pub policy: MentionDispatchPolicy,
+    /// Chain depth this run is at, counted as `mention_dispatch` counts it.
+    pub hop: u32,
+}
+
+impl MentionDispatchContext {
+    /// Whether a reply from this run could actually start one child turn.
+    ///
+    /// Mirrors the first two guards of
+    /// [`mention_dispatch`](tinyhivemind_core::dispatch::mention_dispatch): a
+    /// disabled policy dispatches nothing, and a hop at or past `max_hops`
+    /// builds no request. Everything past those guards depends on what the
+    /// reply says, which a briefing written before the turn cannot know.
+    #[must_use]
+    pub const fn may_dispatch(&self) -> bool {
+        self.policy.enabled && self.hop < self.policy.max_hops
+    }
+}
 
 /// One teammate described to the initialized viewer.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
