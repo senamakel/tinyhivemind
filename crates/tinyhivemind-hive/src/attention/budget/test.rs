@@ -95,3 +95,18 @@ fn the_greediest_claim_yields_first_and_frees_its_share_for_the_rest() {
     assert_eq!(shares[1].verdict, BudgetVerdict::Truncated);
     assert_eq!(shares[2].verdict, BudgetVerdict::Truncated);
 }
+
+#[test]
+fn serves_as_many_equal_claims_as_the_budget_usefully_can() {
+    let requests = [
+        BudgetRequest::new("board", 1_000),
+        BudgetRequest::new("digest", 1_000),
+        BudgetRequest::new("threads", 1_000),
+    ];
+    let shares = allocate_chars(&requests, &tight(500, 200));
+    assert_eq!(
+        granted(&shares),
+        [("board", 250), ("digest", 250), ("threads", 0)]
+    );
+    assert_eq!(shares[2].verdict, BudgetVerdict::Dropped);
+}
