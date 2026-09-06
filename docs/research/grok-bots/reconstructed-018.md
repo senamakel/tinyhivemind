@@ -69,8 +69,8 @@ stored hex-encoded under the key `"metadata"` in the agent's SQLite `kv` table:
 
 Alongside it: `profile.json` (`SandAgentProfile` — `name`, `description`,
 `title`, `avatarShape`, `avatarColor`; `host/agents/agent-profile.ts:6`),
-`settings.json` (`notifyOnAgentUpdates`, `hiddenFromSidebar`), and further KV
-keys on the DB (`unreadState`, `awaitingUserResponse`, `origin`, `purpose`,
+`settings.json` (`notifyOnAgentUpdates`, `hiddenFromSidebar`), and KV keys on
+the DB (`unreadState`, `awaitingUserResponse`, `origin`, `purpose`,
 `conversationPartners`; `session/agent-db.ts:62`).
 
 **The roster is the filesystem.** `listAgents`
@@ -111,8 +111,7 @@ The unit is **the agent**. One agent is one conversation is one directory is one
 SQLite file (`store.db`, `session-paths.ts:9`); a group chat is itself an agent
 directory with a `group.json` beside it. There is no separate session, thread or
 channel entity — "channels" (`session/channel-store.ts`) are external connector
-bindings, and threads are only a stamp on entries
-(`send-thread-stamping.ts`).
+bindings, and threads are only a stamp on entries.
 
 The transcript schema is three columns
 (`source/host/extensions/session/agent-db-schema.ts:15`):
@@ -207,10 +206,9 @@ what turns a plain group message into a ten-turn episode.
 Three more pure pieces sit beside them. `isPassContent` (line 11) recognises
 `(pass)` — members are instructed to send exactly that when they have nothing to
 add — and `isPotentialPassPrefix` suppresses the stream before the word
-finishes. `orderRoundSpeakers` (line 3) rotates the opener by round.
-`messagesSinceMemberLastSpoke` (line 16) is the per-viewer projection: it slices
-history from that member's last utterance, which is what its turn prompt is
-built from (`buildGroupTurnPrompt`, line 18).
+finishes; `orderRoundSpeakers` (line 3) rotates the opener by round; and
+`messagesSinceMemberLastSpoke` (line 16) is the per-viewer projection, slicing
+history from that member's last utterance to build its turn prompt.
 
 ### Scheduling
 
@@ -225,9 +223,9 @@ There is a watchdog: after `RUN_WATCHDOG_DEFAULT_MS = 120_000` with a user-lane
 item waiting, the wedged run is interrupted; after a 30-second grace,
 `escapeWedgedRun` force-resolves the stuck promise, parks it in a `zombies` set
 and pumps the next task rather than deadlocking. `TurnRuntime.runTurn`
-(`turn-runtime.ts:327`) short-circuits a stale epoch as `"superseded"`
-(line 367), and `ensureUserReply` (line 534) re-invokes the runner up to
-`MAX_REPLY_NUDGES = 3` times if the model owed a delivery and produced none.
+(`turn-runtime.ts:327`) short-circuits a stale epoch as `"superseded"`, and
+`ensureUserReply` (line 534) re-invokes the runner up to `MAX_REPLY_NUDGES = 3`
+times if the model owed a delivery and produced none.
 
 ### Agent-to-agent messaging
 
