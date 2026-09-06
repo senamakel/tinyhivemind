@@ -123,7 +123,7 @@ impl Options {
             max_turns: 40,
             max_hops: 6,
             window: 40,
-            timeout: Duration::from_secs(2700),
+            timeout: Duration::from_secs(900),
             cortex_base: std::env::var("CORTEX_BASE").ok(),
             cortex_key: std::env::var("CORTEX_API_KEY").ok(),
             library_scope: "org:math/problem:euler1006/kind:library".into(),
@@ -569,8 +569,10 @@ fn compose_prompt(
          - So: end with the one seat you actually need, and put it first among \
            your mentions.\n\
          - Never claim a number you did not compute. Say what you ran.\n\
-         - One turn is one step. You have a bounded amount of tool time; when \
-           it is nearly gone, post what you have rather than posting nothing.\n\
+         - One turn is one step, and the step is small. Use at most about eight \
+           tool calls, then post. A turn that establishes one thing and says so \
+           beats a turn that establishes four and is cut off before it speaks — \
+           a turn that never posts is a turn the room never happened.\n\
          - Wrap the message you want posted in <<<POST and POST>>>. Anything \
            outside those markers is not posted.\n",
     );
