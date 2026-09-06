@@ -196,7 +196,7 @@ fn parse_events(stdout: &str) -> TurnOutput {
 }
 
 /// Pull the room message out of a turn's raw text.
-fn extract_post(text: &str) -> String {
+pub(crate) fn extract_post(text: &str) -> String {
     if let Some(start) = text.rfind("<<<POST") {
         let after = &text[start + "<<<POST".len()..];
         if let Some(end) = after.find("POST>>>") {
