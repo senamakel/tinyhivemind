@@ -8,7 +8,7 @@ mod types;
 pub use types::{ReinitializeReason, SessionDelta, SharingPlan, SharingQuery, SharingState};
 
 use crate::{
-    Error, PAGE_SIZE, Result, SCAN_LIMIT, Sequence, SessionLog, SessionMessage,
+    Error, PAGE_SIZE, Result, SCAN_LIMIT, Sequence, SessionLog,
     session::{matches_conversation, validate_page},
 };
 use std::collections::BTreeSet;
