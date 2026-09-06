@@ -438,5 +438,5 @@ fn is_setext_underline(content: &str) -> bool {
         return false;
     };
     let run = rest.bytes().take_while(|byte| *byte == marker).count();
-    rest[run..].trim().is_empty()
+    is_blank_line(&rest[run..])
 }
