@@ -452,7 +452,8 @@ that table and those tests when it lands.
 - With `enabled: false`, `approve` returns `Deny { Disabled }` for every input
   in the fixture set, asserted rather than documented.
 - Wire forms of `ApprovalDecision`, `ScopeKey`, `StandingGrant` and
-  `ApprovalPolicy` are pinned, including `ScopeKey::render()`'s NUL joining.
+  `ApprovalPolicy` are pinned, including `ScopeKey::render()`'s exact,
+  collision-free byte layout.
 - Every `DenyReason` variant is classified against ADR 0009 by a wildcard-free
   `match`, and the reasons that turn on a named approver render one identical
   sentence.
