@@ -5,7 +5,6 @@
 use super::*;
 use crate::Error;
 use std::{
-use tinyhivemind_core::aside::Audience;
     collections::VecDeque,
     io,
     sync::{Arc, Mutex},
@@ -97,7 +96,6 @@ fn message(sequence: u64, chat: Option<&str>, parent: Option<u64>, content: &str
         content: content.into(),
         audience: Audience::Desk,
     }
-    audience: Audience::Desk,
 }
 
 fn page(messages: Vec<LogMessage>, next: Option<u64>) -> SessionPage {

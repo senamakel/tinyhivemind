@@ -66,7 +66,6 @@ fn message(sequence: u64, chat: Option<&str>, parent: Option<u64>, content: &str
         content: content.to_owned(),
         audience: Audience::Desk,
     }
-    audience: Audience::Desk,
 }
 
 fn conversation(thread_root: Option<u64>) -> Conversation {

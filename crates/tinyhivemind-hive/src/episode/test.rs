@@ -55,8 +55,6 @@ fn said(sequence: u64, author: &str, content: &str) -> SessionMessage {
         audience: Audience::Desk,
         elided: None,
     }
-    audience: Audience::Desk,
-    elided: None,
 }
 
 fn operator(sequence: u64, content: &str) -> SessionMessage {
@@ -67,8 +65,6 @@ fn operator(sequence: u64, content: &str) -> SessionMessage {
         audience: Audience::Desk,
         elided: None,
     }
-    audience: Audience::Desk,
-    elided: None,
 }
 
 struct Room {

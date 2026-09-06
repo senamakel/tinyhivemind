@@ -8,7 +8,6 @@ use crate::{
 };
 use std::io;
 use tinyhivemind_core::{
-use tinyhivemind_core::aside::Audience;
     desk::{Desk, DeskMember, DeskOrder, ResponderMode},
     roster::{Person, RosterMember},
 };
@@ -443,7 +442,6 @@ fn desk_row(sequence: u64, parent: Option<u64>, content: &str) -> LogMessage {
         content: content.into(),
         audience: Audience::Desk,
     }
-    audience: Audience::Desk,
 }
 
 fn viewer_briefing() -> TeamBriefing {
