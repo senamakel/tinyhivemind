@@ -222,7 +222,10 @@ fn asking_whether_a_member_may_run_cannot_tell_the_unavailable_states_apart() {
     }
 
     // The retirement predicate does not split the two kept states either.
-    assert_eq!(roster.is_retired("retired"), roster.is_retired("tombstoned"));
+    assert_eq!(
+        roster.is_retired("retired"),
+        roster.is_retired("tombstoned")
+    );
     assert!(roster.is_retired("tombstoned"));
     assert!(!roster.is_retired("never_existed"));
     assert!(!roster.is_retired("active"));

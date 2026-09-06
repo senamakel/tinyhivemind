@@ -491,7 +491,13 @@ fn a_tombstoned_agent_is_never_an_alias_a_responder_or_part_of_everyone() {
     let desks = DeskSet::new(&desk_records, &[], &[], &[], &[]).with_tombstoned(&tombstoned);
 
     // Neither the id nor the display name of a tombstoned agent parses.
-    let found = resolve("@bob @Bob @alice", None, &MentionAuthor::Other, &roster, &desks);
+    let found = resolve(
+        "@bob @Bob @alice",
+        None,
+        &MentionAuthor::Other,
+        &roster,
+        &desks,
+    );
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].target, target_agent("alice"));
 
@@ -509,7 +515,11 @@ fn a_tombstoned_agent_is_never_an_alias_a_responder_or_part_of_everyone() {
         mentioned_members(&everyone, Some("eng"), None, &roster, &desks),
         vec!["alice"]
     );
-    let desk_mention = [mention(MentionTarget::Desk { id: "eng".into() }, "@#eng", 0)];
+    let desk_mention = [mention(
+        MentionTarget::Desk { id: "eng".into() },
+        "@#eng",
+        0,
+    )];
     assert_eq!(
         mentioned_members(&desk_mention, None, None, &roster, &desks),
         vec!["alice"]
