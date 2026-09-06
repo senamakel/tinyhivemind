@@ -20,8 +20,8 @@ performs only validation and projection over those arguments.
 - Define string-ID data-transfer types compatible with host records.
 - Merge declared desks before added desks, and founding members before member
   additions.
-- Remove retired agents and deduplicate members while preserving first
-  appearance.
+- Remove retired and tombstoned agents and deduplicate members while preserving
+  first appearance.
 - Apply an explicit order only when it is a stable permutation of the complete
   final member set.
 - Resolve an exact desk id or exact display name without weakening the
@@ -71,9 +71,9 @@ preserving P2's exact four-field desk wire form. `Auto` serializes as
 ## Borrowed desk set
 
 `DeskSet<'a>` borrows five host snapshots: declared desks, added desks, member
-additions, desk orders, and retired agent ids. Its fields are private. Its
-constructor stores those views without doing I/O or allocating a persistent
-merged model.
+additions, desk orders, and retired agent ids. `with_tombstoned` adds a sixth,
+the tombstoned agent ids. Its fields are private. Its constructor stores those
+views without doing I/O or allocating a persistent merged model.
 
 The public operations are:
 
@@ -89,6 +89,7 @@ The public operations are:
 - `lead(identity)` returns the first final member, or `None` for an empty desk.
 - `validate()` checks every desk and overlay, returning the first error in
   input order.
+- `with_tombstoned(ids)` borrows the agents that were removed for good.
 
 All fallible operations return the crate-wide `Result<T>` alias.
 
@@ -108,8 +109,25 @@ leaving all other desk ids case-sensitive.
 
 For a resolved desk, founding `Desk::members` are considered first, followed
 by matching `DeskMember` rows in input order. Duplicate agent ids are retained
-only at their first appearance. Retired agent ids are then removed by exact,
-case-sensitive comparison.
+only at their first appearance. Retired and tombstoned agent ids are then
+removed by exact, case-sensitive comparison.
+
+### Tombstoned agents
+
+A tombstoned agent is one the host removed for good while keeping its
+`RosterMember` registered so old messages stay attributable;
+[`mentions.md`](mentions.md) defines the three roster states. A desk answers for
+it the same way it answers for a retired agent, and `DeskSet` takes the
+tombstone list separately from the retired list so that `lead` and `members`
+refuse a deleted agent even when the host has not also retired it. `lead` is the
+one "who answers here" question that does not consult the roster, so it has to
+carry the exclusion itself rather than rely on a caller filtering afterwards.
+
+The exclusion applies before order validation, so an accepted `DeskOrder` is a
+permutation of the *remaining* members: tombstoning a member does not invalidate
+a stored order, and a host need not rewrite its orders to delete a participant.
+Nothing distinguishes the two exclusions in any result. A desk whose every
+member is unavailable returns an empty member list, exactly as it does today.
 
 Every `DeskMember::desk_id` and `DeskOrder::desk_id` must target an existing
 desk id exactly; display names are not accepted in overlay records. At most one
@@ -149,7 +167,9 @@ order `["cara", "dana"]` is rejected as containing an unknown member.
 - The algebra is pure, synchronous, deterministic, and free of host types.
 - `DeskSet` owns none of its inputs and never opens a database, file, or socket.
 - Named ids remain case-sensitive; exact names are aliases only for lookup.
-- Retirements never mutate the borrowed DTOs.
+- Retirements and tombstones never mutate the borrowed DTOs.
+- A tombstoned agent is never named by `members` or `lead`, and no result says
+  which of the two exclusions applied.
 - Serde and `thiserror` are the only direct third-party dependencies restored
   for P2.
 
@@ -157,6 +177,8 @@ order `["cara", "dana"]` is rejected as containing an unknown member.
 
 - Unit tests cover every merge step and every error variant, including wire
   representation tests for all DTOs.
+- A test covers a tombstoned agent leaving a desk it was both declared and
+  added to, without also being retired, and an order that stays valid across it.
 - Integration tests exercise the public namespaced API and crate-wide error
   surface.
 - Every changed source file has at least 90% line coverage.

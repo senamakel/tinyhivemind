@@ -1,4 +1,4 @@
-# 8. An aside carries information rather than support, and a redaction is a row rather than an absence
+# 10. An aside carries information rather than support, and a redaction is a row rather than an absence
 
 - **Status:** Proposed
 - **Date:** 2026-09-07

@@ -112,6 +112,17 @@ fn ignores_a_marker_inside_a_fenced_block_and_one_that_is_not_line_leading() {
 }
 
 #[test]
+fn ignores_a_marker_inside_a_multi_line_code_span() {
+    // A code span that opens on one line and closes on a later one quotes
+    // every line between them, so the directive inside it is documentation
+    // and only the one below the span pins anything.
+    let body = "run `\n!pin ^1\n` carefully\n!pin ^2";
+    let directives = read_directives(body, &agent("alice"), Sequence(9));
+    assert_eq!(directives.len(), 1);
+    assert_eq!(directives[0].target, Sequence(2));
+}
+
+#[test]
 fn requires_a_closing_fence_at_least_as_long_as_the_opener() {
     // The outer block opens with four backticks. A three-backtick line
     // inside it is Markdown content — an example fence being quoted — not a

@@ -181,7 +181,7 @@ person and the operator read every row in full, by design: the mechanism is a
 deliberation device, not a security boundary, and an exchange no human could
 audit is the covert channel the design exists to avoid. See
 [`docs/specs/private-asides.md`](../../../../docs/specs/private-asides.md) and
-[ADR 0008](../../../../docs/adr/0008-an-aside-carries-information-never-support.md).
+[ADR 0010](../../../../docs/adr/0010-an-aside-carries-information-never-support.md).
 
 Two neighbouring mechanisms are worth knowing about. **Threads** (`--thread`)
 give a pair a sub-conversation the desk can still read in full. **Referral**

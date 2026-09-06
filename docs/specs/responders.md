@@ -72,6 +72,83 @@ output produces the auto-selection rung with a `selected` disposition.
 - The orchestrator is required to be active only if its fallback rung is
   reached; otherwise `NoActiveResponder` is returned.
 
+## Refusals a model could repeat
+
+Two rules from the OpenBot survey
+([`../research/grok-bots/copilotkit-openbot.md`](../research/grok-bots/copilotkit-openbot.md)),
+and where the ladder stands against each.
+
+**Withhold rather than offer and then refuse.** The ladder already has this
+shape, and it has it by construction rather than by rule. Selection is never
+offered and then declined: a rung that cannot use a selector's answer does not
+build a `SelectionRequest` at all, disabled selection goes straight to the first
+candidate at the desk-default rung, a desk with fewer than two effective
+candidates never reaches the model, and candidate metadata is not even validated
+on a rung that constructs no request. The selector is asked exactly when its
+answer can be acted on, which is the same discipline as not offering a
+delegation tool to a run already at its hop cap
+([`mention-dispatch.md`](mention-dispatch.md)).
+
+The briefing now holds the same shape, and it was the last place that did not.
+`TeamBriefing::system_text` states no mention-dispatch rule at all, and
+`system_text_with_dispatch` states it only under a `MentionDispatchContext`
+whose `may_dispatch` holds — so a disabled policy, a spent hop budget, and a
+caller that supplies no context are each silent about the capability rather
+than offering it and having the next call refuse. See
+[`sessions.md`](sessions.md); the gap `mention-dispatch.md` records under
+"A run at the cap is not offered the action" is closed and its wording is
+stale.
+
+**A decline is a sentence before it is a type.** This one the ladder mostly
+sidesteps rather than satisfies. It does not decline: every rung ends in an
+agent id, and each way a rung could have failed — an ambiguous agent name, an
+absent selector, a failed one, output that is prose or names two candidates —
+is specified to fall back deterministically and record why in
+`SelectionDisposition`. The only outcome that is not an id is
+`NoActiveResponder`, which is a malformed-roster error rather than a message to
+anyone.
+
+The rendering mechanism is settled, and today every variant renders
+distinctly. `SelectionDisposition` and `ResponderRung` carry a `Display` impl,
+so the sentence a host shows a person comes from the library rather than from
+each host's own wording, and every disposition and rung arrives beside the
+responder id it explains, so none of them currently discloses the existence,
+activity or reachability of a participant the caller could not already read
+from the roster it supplied. See
+[ADR 0009](../adr/0009-a-refusal-renders-what-the-caller-already-holds.md).
+Whether any two of these specific variants must one day collapse onto a
+shared sentence — the way ADR 0009 collapses dispatch and approval refusals —
+is the open question the closing section of this spec leaves to enumeration
+work in core, not a contradiction of "settled": settled describes the
+mechanism and the current, per-variant wording, not a permanent ban on ever
+grouping two of them.
+
+It is bounded by [ADR 0008](../adr/0008-an-approval-decision-is-total.md),
+which rules that a denial's reason is for the operator's log, because refusals
+a caller can tell apart are refusals a caller can probe — OpenBot returns one
+sentence for "no such bot" and "not yours to see" precisely so an agent cannot
+enumerate a roster by reading which refusal came back. That pulled against
+"every decline is text an agent can repeat to a person", and
+[ADR 0009](../adr/0009-a-refusal-renders-what-the-caller-already-holds.md)
+resolves it: a refusal may render a sentence of its own only when what it
+discloses is something the caller already holds, and anything turning on the
+existence, activity, membership or reachability of a named other renders one
+shared sentence. Audience separation alone was insufficient — it constrains the
+channel, not the information, so a host obeying it could still write one
+distinct sentence per reason.
+
+They are reconcilable only by separating the two audiences, and by accepting
+that the sentence is the coarser of the two: a rendered decline may say *that*
+it declined and what the person can do next, while the reason that selects it
+stays in the log, and any two internal reasons a caller must not be able to
+distinguish must map to the *same* sentence. This spec does not settle which
+reasons those are. The selection path is milder than the gate — a disposition
+reports a fallback that already happened rather than withholding something —
+but "the model you asked for was not consulted" and "the model you asked for
+declined to name a candidate" are still distinguishable, and whether they may
+be is unresolved. Work on enumeration-resistant refusals in core is where it
+should be settled, not here.
+
 ## Acceptance criteria
 
 - Desk lead and auto wire forms are pinned.
@@ -84,4 +161,4 @@ output produces the auto-selection rung with a `selected` disposition.
 
 ## Open questions
 
-None for P6. Turn creation and hop bounds are deferred to P7.
+Nothing is open for P6. Turn creation and hop bounds are deferred to P7.

@@ -196,9 +196,9 @@ fn active_members<'a>(
 /// counts the same medium, so quorum, the floor and the directory stay
 /// single-valued — and it is what makes a private exchange owe the room a
 /// settlement. To make an aside count, a member spends a desk-visible turn
-/// saying so in the open. See [ADR 0008][adr].
+/// saying so in the open. See [ADR 0010][adr].
 ///
-/// [adr]: https://github.com/tinyhumansai/tinyhivemind/blob/main/docs/adr/0008-an-aside-carries-information-never-support.md
+/// [adr]: https://github.com/tinyhumansai/tinyhivemind/blob/main/docs/adr/0010-an-aside-carries-information-never-support.md
 fn live_traces<'a>(
     transcript: &'a [SessionMessage],
     state: &EpisodeState,

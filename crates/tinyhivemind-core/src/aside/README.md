@@ -39,4 +39,4 @@ neither is a decision this fold could make:
   desk-visible turn saying so in the open.
 
 See [`docs/specs/private-asides.md`](../../../../docs/specs/private-asides.md)
-and [ADR 0008](../../../../docs/adr/0008-an-aside-carries-information-never-support.md).
+and [ADR 0010](../../../../docs/adr/0010-an-aside-carries-information-never-support.md).

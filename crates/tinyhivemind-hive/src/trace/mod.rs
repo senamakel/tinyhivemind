@@ -13,6 +13,7 @@ mod types;
 pub use types::{TopicId, Trace, TraceKind};
 
 use tinyhivemind::{Sequence, SessionAuthor, SessionMessage};
+use tinyhivemind_core::masking::{code_ranges, is_masked};
 
 /// Maximum number of traces read from one message body.
 ///
@@ -36,9 +37,14 @@ pub const TRACE_CAP: usize = 16;
 /// trace: ordinary conversation is never coerced into a vote.
 ///
 /// Extraction recognises a marker only at the start of a line, ignoring
-/// leading whitespace, and only outside a fenced code block. Inline backticks
-/// need no masking, because a marker preceded by a backtick is by definition
-/// not line-leading.
+/// leading whitespace, and only outside code. Code is found by
+/// [`masking::code_ranges`], the one scanner every grammar in this workspace
+/// shares, so a span this crate reads as code is the same span the mention
+/// grammar reads as code. Inline spans are masked here too: one opened on an
+/// earlier line quotes whole lines below it, and a marker on such a line is
+/// line-leading yet still inside quoted code.
+///
+/// [`masking::code_ranges`]: tinyhivemind_core::masking::code_ranges
 ///
 /// The grammar of one marker line is:
 ///
@@ -80,9 +86,9 @@ pub fn resolve(
 /// The test is here, in the one place a transcript becomes a medium, rather
 /// than only inside the episode: a host that folds its own standings gets the
 /// same answer as `step` does, which is the property that keeps quorum
-/// single-valued. See [ADR 0008][adr].
+/// single-valued. See [ADR 0010][adr].
 ///
-/// [adr]: https://github.com/tinyhumansai/tinyhivemind/blob/main/docs/adr/0008-an-aside-carries-information-never-support.md
+/// [adr]: https://github.com/tinyhumansai/tinyhivemind/blob/main/docs/adr/0010-an-aside-carries-information-never-support.md
 #[must_use]
 pub fn read(messages: &[SessionMessage]) -> Vec<Trace> {
     read_each(messages.iter())
@@ -114,16 +120,13 @@ fn extract(body: &str, author: &SessionAuthor, sequence: Sequence) -> Vec<Trace>
     if !body.contains('!') {
         return Vec::new();
     }
-    let fenced = fenced_ranges(body);
+    let masked = code_ranges(body);
     let mut traces = Vec::new();
     let mut offset = 0;
     for line in body.split_inclusive('\n') {
         let start = offset;
         offset += line.len();
-        if fenced
-            .iter()
-            .any(|(from, to)| *from <= start && start < *to)
-        {
+        if is_masked(start, &masked) {
             continue;
         }
         let trimmed = line.trim_end_matches(['\n', '\r']);
@@ -227,35 +230,4 @@ fn parse_line(
         text: line.to_owned(),
         offset,
     })
-}
-
-fn fenced_ranges(body: &str) -> Vec<(usize, usize)> {
-    let mut ranges = Vec::new();
-    // CommonMark recognizes both a backtick and a tilde fence, and a fence
-    // only closes on a line that opens with the *same* character -- a
-    // `~~~` line does not close a ``` block, and vice versa.
-    let mut open: Option<(usize, char)> = None;
-    let mut offset = 0;
-    for line in body.split_inclusive('\n') {
-        let start = offset;
-        offset += line.len();
-        let trimmed = line.trim_start();
-        let fence = trimmed
-            .starts_with("```")
-            .then_some('`')
-            .or_else(|| trimmed.starts_with("~~~").then_some('~'));
-        let Some(fence) = fence else { continue };
-        match open {
-            None => open = Some((start, fence)),
-            Some((from, opener)) if opener == fence => {
-                ranges.push((from, offset));
-                open = None;
-            }
-            Some(_) => {}
-        }
-    }
-    if let Some((from, _)) = open {
-        ranges.push((from, body.len()));
-    }
-    ranges
 }
