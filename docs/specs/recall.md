@@ -142,12 +142,15 @@ confidently wrong results.
 ### Pinning — `tinyhivemind::pins`
 
 A marker is recognised at the start of a line, ignoring leading whitespace, and
-only outside a fenced code block — the hive trace grammar's rule, for the same
-reason, and through the same code: fences come from
-`tinyhivemind_core::masking::fenced_ranges`, the one scanner every authored
+only outside code — the hive trace grammar's rule, for the same reason, and
+through the same code: code comes from
+`tinyhivemind_core::masking::code_ranges`, the one scanner every authored
 grammar here shares ([`grammar-traces.md`](grammar-traces.md) §2). Inline
-backticks are not masked and need not be, because a backticked marker is not
-line-leading.
+backticks are masked too: a span opened on one line and closed on a later one
+quotes every whole line between them, so a marker with no backtick on its own
+line can still sit inside quoted code; a marker sharing a line with its
+backtick needs no masking to be rejected, because it never starts with `!` or
+`@` once the backtick is counted.
 
 ```text
 !pin [^N] [#label] [free text]
