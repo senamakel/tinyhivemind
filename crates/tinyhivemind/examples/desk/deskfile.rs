@@ -9,35 +9,35 @@ use std::{collections::BTreeSet, fmt};
 
 /// One agent seat in a desk file.
 #[derive(Clone, Debug)]
-pub struct AgentSpec {
+pub(crate) struct AgentSpec {
     /// Canonical mention id, lowercase and stable.
-    pub id: String,
+    pub(crate) id: String,
     /// Display label shown in the transcript.
-    pub label: String,
+    pub(crate) label: String,
     /// One-line role, handed to the responder ladder's selector.
-    pub role: String,
+    pub(crate) role: String,
     /// The private brief prepended to every turn this seat takes.
-    pub brief: String,
+    pub(crate) brief: String,
 }
 
 /// A parsed desk file.
 #[derive(Clone, Debug)]
-pub struct DeskSpec {
+pub(crate) struct DeskSpec {
     /// Canonical desk id.
-    pub id: String,
+    pub(crate) id: String,
     /// Display name.
-    pub name: String,
+    pub(crate) name: String,
     /// The person who opens the room and nudges it.
-    pub person_id: String,
+    pub(crate) person_id: String,
     /// The person's display label.
-    pub person_label: String,
+    pub(crate) person_label: String,
     /// The seats, in the order the file declares them.
-    pub agents: Vec<AgentSpec>,
+    pub(crate) agents: Vec<AgentSpec>,
 }
 
 /// Why a desk file could not be read.
 #[derive(Debug)]
-pub struct ParseError(String);
+pub(crate) struct ParseError(String);
 
 impl fmt::Display for ParseError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -49,7 +49,7 @@ impl std::error::Error for ParseError {}
 
 impl DeskSpec {
     /// Look up a seat by its canonical id.
-    pub fn agent(&self, id: &str) -> Option<&AgentSpec> {
+    pub(crate) fn agent(&self, id: &str) -> Option<&AgentSpec> {
         self.agents.iter().find(|agent| agent.id == id)
     }
 }
@@ -60,7 +60,7 @@ impl DeskSpec {
 ///
 /// Returns [`ParseError`] when a required header is missing, an agent block is
 /// malformed, or two seats share an id.
-pub fn parse(text: &str) -> Result<DeskSpec, ParseError> {
+pub(crate) fn parse(text: &str) -> Result<DeskSpec, ParseError> {
     let mut id = None;
     let mut name = None;
     let mut person_id = None;

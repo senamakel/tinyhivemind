@@ -13,7 +13,7 @@ use std::{
 };
 
 /// A CortexDB scope pair: a durable library and this run's session.
-pub struct Memory {
+pub(crate) struct Memory {
     base: String,
     key: String,
     library_scope: String,
@@ -23,7 +23,7 @@ pub struct Memory {
 
 impl Memory {
     /// Build a client. `base` is the service root, without a trailing slash.
-    pub fn new(
+    pub(crate) fn new(
         base: &str,
         key: &str,
         library_scope: &str,
@@ -43,7 +43,7 @@ impl Memory {
     ///
     /// A memory that cannot be reached is not a turn failure: the seat speaks
     /// without it and the caller sees the empty string.
-    pub fn recall(&self, query: &str) -> String {
+    pub(crate) fn recall(&self, query: &str) -> String {
         let mut blocks = Vec::new();
         for scope in [&self.library_scope, &self.session_scope] {
             let body = serde_json::json!({
@@ -70,7 +70,7 @@ impl Memory {
     }
 
     /// File one room message in this run's session scope.
-    pub fn capture(&self, seat: &str, sequence: u64, text: &str) {
+    pub(crate) fn capture(&self, seat: &str, sequence: u64, text: &str) {
         let body = serde_json::json!({
             "scope": self.session_scope,
             "modality": "message",

@@ -30,7 +30,7 @@ use std::{
 };
 use tinyhivemind::{
     BriefedTeammate, BrevityPolicy, Conversation, EnqueueOutcome, MentionDispatchOutcome,
-    MentionTurnFuture, MentionTurnQueue, SessionAuthor, SessionMessage, SessionQuery, Sequence,
+    MentionTurnFuture, MentionTurnQueue, SessionAuthor, SessionMessage, SessionQuery,
     TeamBriefing,
     desk::{Desk, DeskSet, ResponderMode},
     dispatch::{

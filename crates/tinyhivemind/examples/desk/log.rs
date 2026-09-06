@@ -16,7 +16,7 @@ use std::{
 use tinyhivemind::{LogMessage, SessionAuthor, SessionFuture, SessionLog, SessionPage, Sequence};
 
 /// An append-only transcript on disk, readable newest-first.
-pub struct JsonlLog {
+pub(crate) struct JsonlLog {
     path: PathBuf,
     rows: Mutex<Vec<LogMessage>>,
 }
@@ -27,7 +27,7 @@ impl JsonlLog {
     /// # Errors
     ///
     /// Returns any filesystem or decode failure.
-    pub fn open(path: &Path) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+    pub(crate) fn open(path: &Path) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let mut rows = Vec::new();
         if path.exists() {
             for line in BufReader::new(File::open(path)?).lines() {
@@ -49,7 +49,7 @@ impl JsonlLog {
     /// # Errors
     ///
     /// Returns any filesystem or encode failure.
-    pub fn append(
+    pub(crate) fn append(
         &self,
         chat_id: Option<String>,
         author: SessionAuthor,
@@ -71,7 +71,7 @@ impl JsonlLog {
     }
 
     /// How many rows the transcript holds.
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.rows.lock().expect("transcript lock").len()
     }
 }

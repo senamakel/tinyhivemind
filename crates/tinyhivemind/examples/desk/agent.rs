@@ -12,19 +12,19 @@ use std::{
 
 /// What one turn produced.
 #[derive(Clone, Debug, Default)]
-pub struct TurnOutput {
+pub(crate) struct TurnOutput {
     /// The text the seat wants posted to the room.
-    pub message: String,
+    pub(crate) message: String,
     /// Total tokens the provider reported across the turn's steps.
-    pub tokens: u64,
+    pub(crate) tokens: u64,
     /// Wall-clock cost of the process.
-    pub elapsed: Duration,
+    pub(crate) elapsed: Duration,
     /// Names of the tools the seat actually invoked, in order.
-    pub tools: Vec<String>,
+    pub(crate) tools: Vec<String>,
 }
 
 /// A configured agent CLI: one process per turn.
-pub struct AgentRunner {
+pub(crate) struct AgentRunner {
     program: String,
     args: Vec<String>,
     workspace: String,
@@ -34,7 +34,7 @@ pub struct AgentRunner {
 
 impl AgentRunner {
     /// Build a runner from a command line whose final argument is the prompt.
-    pub fn new(command: &str, workspace: &str, config: Option<String>, timeout: Duration) -> Self {
+    pub(crate) fn new(command: &str, workspace: &str, config: Option<String>, timeout: Duration) -> Self {
         let mut parts = command.split_whitespace().map(str::to_string);
         let program = parts.next().unwrap_or_else(|| "opencode".to_string());
         Self {
@@ -52,7 +52,7 @@ impl AgentRunner {
     ///
     /// Returns a spawn or wait failure. A model that answers nothing is not an
     /// error here; it is an empty message the caller decides what to do with.
-    pub fn run(&self, prompt: &str) -> Result<TurnOutput, Box<dyn std::error::Error + Send + Sync>> {
+    pub(crate) fn run(&self, prompt: &str) -> Result<TurnOutput, Box<dyn std::error::Error + Send + Sync>> {
         let started = Instant::now();
         let mut command = Command::new(&self.program);
         command
