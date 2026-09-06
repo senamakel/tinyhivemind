@@ -80,6 +80,15 @@ fn a_closing_fence_carries_nothing_after_its_run() {
 }
 
 #[test]
+fn a_closing_fence_carries_only_commonmark_whitespace_after_its_run() {
+    // `CommonMark` permits only spaces and tabs after a closing fence's run.
+    // A non-breaking space is Unicode whitespace but not one of those two
+    // bytes, so this line is content, not a close, and the block runs on.
+    let body = "```\n!pin ^1\n```\u{a0}\nstill hidden\n```\n";
+    assert_eq!(fenced_ranges(body), vec![(0, body.len())]);
+}
+
+#[test]
 fn a_tilde_fence_does_not_close_a_backtick_fence() {
     assert_eq!(fenced_ranges("```\n~~~\ncontent\n```\n"), vec![(0, 20)]);
     assert_eq!(fenced_ranges("~~~\n```\ncontent\n~~~\n"), vec![(0, 20)]);
