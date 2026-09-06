@@ -12,6 +12,27 @@ use tinyhivemind_core::dispatch::MentionDispatchPolicy;
 /// [`TeamBriefing`] rather than inside it, because a briefing describes a team
 /// and this describes a run — the same team is briefed again at the next hop
 /// with a different answer here.
+///
+/// # Example
+///
+/// ```
+/// use tinyhivemind::{MentionDispatchPolicy, TeamBriefing, briefing::MentionDispatchContext};
+///
+/// let briefing = TeamBriefing {
+///     viewer_id: "alice".into(),
+///     desk_id: "engineering".into(),
+///     desk_name: "Engineering".into(),
+///     teammates: Vec::new(),
+///     brevity: Default::default(),
+/// };
+/// let at_cap = MentionDispatchContext {
+///     policy: MentionDispatchPolicy { enabled: true, max_hops: 1 },
+///     hop: 1,
+/// };
+/// assert!(!at_cap.may_dispatch());
+/// // A run that cannot dispatch is not told that it can.
+/// assert_eq!(briefing.system_text_with_dispatch(at_cap), briefing.system_text());
+/// ```
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct MentionDispatchContext {
