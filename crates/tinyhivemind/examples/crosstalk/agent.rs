@@ -357,7 +357,13 @@ pub(crate) fn http_turn(
     if thinking == Thinking::Off {
         body["thinking"] = json!({"type": "disabled"});
     }
-    let body = body.to_string();
+    // Escaped for curl's config grammar, where a double-quoted value takes
+    // backslash escapes. The body carries JSON, so its quotes and any
+    // backslashes have to survive the trip.
+    let body = body
+        .to_string()
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
 
     let mut child = Command::new("curl")
         .args(["--config", "-"])
@@ -371,7 +377,7 @@ pub(crate) fn http_turn(
          request = \"POST\"\n\
          header = \"Authorization: Bearer {key}\"\n\
          header = \"Content-Type: application/json\"\n\
-         data-binary = "{}"\n\
+         data-binary = "{body}"\n\
          max-time = {timeout_secs}\n\
          silent\n\
          show-error\n\
