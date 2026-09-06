@@ -132,8 +132,9 @@ pub fn is_masked(offset: usize, ranges: &[(usize, usize)]) -> bool {
 /// ```
 #[must_use]
 pub fn fenced_ranges(body: &str) -> Vec<(usize, usize)> {
-    let mut ranges = backtick_or_tilde_fence_ranges(body);
-    ranges.extend(indented_block_ranges(body));
+    let fences = backtick_or_tilde_fence_ranges(body);
+    let mut ranges = indented_block_ranges(body, &fences);
+    ranges.extend(fences);
     ranges.sort_unstable();
     ranges
 }
@@ -200,30 +201,51 @@ fn backtick_or_tilde_fence_ranges(body: &str) -> Vec<(usize, usize)> {
 /// small, dependency-free heuristic over `CommonMark`'s two most common,
 /// unnested constructs rather than grow into a full parser for every corner
 /// of the specification.
-fn indented_block_ranges(body: &str) -> Vec<(usize, usize)> {
+fn indented_block_ranges(body: &str, fenced: &[(usize, usize)]) -> Vec<(usize, usize)> {
     let mut ranges = Vec::new();
     let mut open: Option<usize> = None;
     let mut open_end = 0;
     let mut line_start = 0;
-    // An indented code block cannot interrupt a paragraph: the *opening*
-    // line must follow a blank line, or be the first line of the body.
-    // `prev_blank` starts `true` so a block may open at the very start.
-    let mut prev_blank = true;
+    // An indented code block cannot interrupt a paragraph, so its *opening*
+    // line must be one no paragraph is open above: the first line of the
+    // body, a line after a blank one, or a line after one that closed the
+    // paragraph it ended. `paragraph` starts `false` so a block may open at
+    // the very start.
+    let mut paragraph = false;
     for line in body.split_inclusive('\n') {
         let content = line.trim_end_matches(['\n', '\r']);
-        if is_blank_line(content) {
-            prev_blank = true;
+        if is_masked(line_start, fenced) {
+            // A fenced block is not a paragraph and closes any paragraph
+            // above it, so the line after one may open an indented block --
+            // and its opening fence ends an indented block already open.
+            if let Some(start) = open.take() {
+                ranges.push((start, open_end));
+            }
+            paragraph = false;
             line_start += line.len();
             continue;
         }
-        let indent = indentation_width(content);
-        if indent >= 4 && (open.is_some() || prev_blank) {
+        if is_blank_line(content) {
+            paragraph = false;
+            line_start += line.len();
+            continue;
+        }
+        if indentation_width(content) >= 4 && (open.is_some() || !paragraph) {
             open.get_or_insert(line_start);
             open_end = line_start + line.len();
-        } else if let Some(start) = open.take() {
-            ranges.push((start, open_end));
+        } else {
+            if let Some(start) = open.take() {
+                ranges.push((start, open_end));
+            }
+            // A heading, a thematic break, and a setext heading's underline
+            // each end the block they close, leaving no paragraph for the
+            // next line to continue. Everything else -- including a line
+            // that only looks like one of them, such as `#tag`, or a `===`
+            // with nothing above it to underline -- is paragraph text.
+            paragraph = !(is_atx_heading(content)
+                || is_thematic_break(content)
+                || (paragraph && is_setext_underline(content)));
         }
-        prev_blank = false;
         line_start += line.len();
     }
     if let Some(start) = open {
