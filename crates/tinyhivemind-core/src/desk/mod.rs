@@ -254,13 +254,18 @@ impl<'a> DeskSet<'a> {
 
     fn validate_order(&self, order: &DeskOrder) -> Result<()> {
         let members = self.base_members(&order.desk_id);
+        let raw_members: Vec<&str> = self.raw_members(&order.desk_id).collect();
         let mut seen: Vec<&str> = Vec::new();
         for agent_id in &order.ordered {
-            // A now-unavailable agent may still be named by a stored order:
-            // the host is not required to rewrite the order the moment an
-            // agent retires or is tombstoned, so a stale entry is skipped
-            // rather than treated as an unknown or duplicate member.
-            if self.is_unavailable(agent_id) {
+            // A now-unavailable agent that *was* a member of this desk may
+            // still be named by a stored order: the host is not required to
+            // rewrite the order the moment an agent retires or is
+            // tombstoned, so a stale entry is skipped rather than treated as
+            // an unknown or duplicate member. An unavailable id that was
+            // never a member of this desk at all is a different, genuine
+            // error — global unavailability elsewhere must not launder a
+            // malformed order past validation.
+            if self.is_unavailable(agent_id) && raw_members.contains(&agent_id.as_str()) {
                 continue;
             }
             if seen.contains(&agent_id.as_str()) {
