@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 
-/// A CortexDB scope pair: a durable library and this run's session.
+/// A `CortexDB` scope pair: a durable library and this run's session.
 pub(crate) struct Memory {
     base: String,
     key: String,

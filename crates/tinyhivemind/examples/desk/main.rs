@@ -92,7 +92,7 @@ impl MentionTurnQueue for DeskQueue {
             drop(seen);
             self.pending
                 .lock()
-                .expect("queue lock")
+                .unwrap_or_else(PoisonError::into_inner)
                 .push_back(PendingTurn {
                     target_id: request.target_id,
                     trigger: request.content,
@@ -297,7 +297,7 @@ async fn main() -> Result<(), BoxError> {
     queue
         .pending
         .lock()
-        .expect("queue lock")
+        .unwrap_or_else(PoisonError::into_inner)
         .push_back(PendingTurn {
             target_id: decision.responder_id,
             trigger: brief.clone(),
@@ -396,12 +396,10 @@ async fn main() -> Result<(), BoxError> {
             ),
             _ => None,
         };
-        let (history, briefing_text, catching_up) = match plan {
-            Some(SharingPlan::Delta(delta)) => {
-                shared.insert(seat.id.clone(), delta.next_state);
-                (delta.messages, None, true)
-            }
-            _ => {
+        let (history, briefing_text, catching_up) = if let Some(SharingPlan::Delta(delta)) = plan {
+            shared.insert(seat.id.clone(), delta.next_state);
+            (delta.messages, None, true)
+        } else {
                 let session = initialize_session(&transcript, &query, briefing).await?;
                 shared.insert(
                     seat.id.clone(),
@@ -592,16 +590,13 @@ fn compose_prompt(
             SessionAuthor::Operator => "operator".to_string(),
             SessionAuthor::System { kind, .. } => format!("system/{kind}"),
         };
-        prompt.push_str(&format!(
-            "\n[{}] {who}: {}\n",
-            message.sequence.0, message.content
-        ));
+        use std::fmt::Write as _;
+        let _ = write!(prompt, "\n[{}] {who}: {}\n", message.sequence.0, message.content);
     }
     prompt.push_str("\n\n## This turn\n");
-    prompt.push_str(&format!(
-        "You were addressed by this message:\n\n{}\n\n",
-        job.trigger.trim()
-    ));
+    prompt.push_str("You were addressed by this message:\n\n");
+    prompt.push_str(job.trigger.trim());
+    prompt.push_str("\n\n");
     prompt.push_str(
         "Do the work first — use your tools, write and run code in this workspace, check \
          what you claim. Then post ONE message to the room.\n\n\

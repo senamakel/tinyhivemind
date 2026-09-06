@@ -99,7 +99,7 @@ impl SessionLog for JsonlLog {
             .take(limit)
             .cloned()
             .collect();
-        messages.sort_by(|left, right| right.sequence.cmp(&left.sequence));
+        messages.sort_by_key(|row| std::cmp::Reverse(row.sequence));
         let next_before = messages.last().map(|row| row.sequence);
         let page = SessionPage {
             messages,
