@@ -228,11 +228,7 @@ fn user_prompt(visible: &[SessionMessage], ask: &Ask<'_>) -> String {
     let transcript = if visible.is_empty() {
         "(nothing yet)".to_owned()
     } else {
-        visible
-            .iter()
-            .map(render)
-            .collect::<Vec<_>>()
-            .join("\n")
+        visible.iter().map(render).collect::<Vec<_>>().join("\n")
     };
     match ask {
         Ask::Desk => format!("What this desk can see:\n{transcript}\n\nYour turn."),

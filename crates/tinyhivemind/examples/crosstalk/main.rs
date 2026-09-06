@@ -743,17 +743,27 @@ async fn run(options: &Options) -> Result<Report, String> {
         for id in &ids {
             views.push((
                 format!("@{id}"),
-                render_view(&room.journal, floor.clone(), options.window, Viewer::Agent {
-                    id: (*id).to_owned(),
-                })
+                render_view(
+                    &room.journal,
+                    floor.clone(),
+                    options.window,
+                    Viewer::Agent {
+                        id: (*id).to_owned(),
+                    },
+                )
                 .await?,
             ));
         }
         views.push((
             "Ada (human)".to_owned(),
-            render_view(&room.journal, floor.clone(), options.window, Viewer::Person {
-                id: OPERATOR_ID.to_owned(),
-            })
+            render_view(
+                &room.journal,
+                floor.clone(),
+                options.window,
+                Viewer::Person {
+                    id: OPERATOR_ID.to_owned(),
+                },
+            )
             .await?,
         ));
     }
@@ -806,6 +816,21 @@ impl Report {
             );
         }
         println!();
+
+        if !self.views.is_empty() {
+            println!("What each reader was handed:");
+            for (who, lines) in &self.views {
+                println!("  {who}");
+                for line in lines {
+                    println!("      {line}");
+                }
+            }
+            println!();
+        }
+        if !self.refusals.is_empty() {
+            println!("aside refusals   {}", self.refusals.join(", "));
+            println!();
+        }
 
         if self.thread {
             println!("desk channel sees  {}", self.channel_view.join(", "));
@@ -875,6 +900,60 @@ impl Report {
             claim(
                 self.thread_view.len() > self.channel_view.len(),
                 "the thread carried the exchange the desk channel only summarises",
+            );
+        }
+
+        if self.asides {
+            let private: Vec<&Turn> = self
+                .turns
+                .iter()
+                .filter(|turn| !turn.audience.is_desk())
+                .collect();
+            claim(
+                !private.is_empty(),
+                &format!("{} row(s) were addressed privately", private.len()),
+            );
+
+            // The rows are the same rows for everybody, and a member reads
+            // what a non-member cannot.
+            let member_lines = private
+                .first()
+                .and_then(|turn| {
+                    let member = turn.audience.members().first()?;
+                    self.views
+                        .iter()
+                        .find(|(who, _)| who == &format!("@{member}"))
+                })
+                .map(|(_, lines)| lines.clone())
+                .unwrap_or_default();
+            let outsider = self.views.iter().find(|(who, lines)| {
+                who.starts_with('@') && lines.iter().any(|line| line.contains("· aside,"))
+            });
+            claim(
+                outsider.is_some(),
+                "a non-member was handed a stub instead of the content",
+            );
+            claim(
+                !member_lines.iter().any(|line| line.contains("· aside,")),
+                "the addressed member was handed the content in full",
+            );
+            let person = self
+                .views
+                .iter()
+                .find(|(who, _)| who.contains("human"))
+                .map(|(_, lines)| lines.clone())
+                .unwrap_or_default();
+            claim(
+                !person.is_empty() && !person.iter().any(|line| line.contains("· aside,")),
+                "a person read every row in full, so nothing here is unauditable",
+            );
+            claim(
+                outsider.is_some_and(|(_, lines)| {
+                    lines
+                        .iter()
+                        .any(|line| line.contains("settled at [") || line.contains("not settled"))
+                }),
+                "the stub says where the aside settled, or that it has not",
             );
         }
 
