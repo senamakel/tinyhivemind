@@ -135,19 +135,18 @@ option.
 
 ## Approval gates and propose-vs-execute
 
-Two explicit human gates, both hardcoded, not derived from any accumulated
-signal:
+Once a ship task is authorized, implementation itself proceeds without a
+human in the loop (`GROK_BOT_FIRSTMATE.md:41`, "Ship is the default once
+implementation is authorized") — the default *within* an authorized task is
+execute, not propose. Two explicit human gates bound that execution, both
+hardcoded, not derived from any accumulated signal:
 
-1. Ship implementation itself proceeds without a human in the loop once
-   authorized (`GROK_BOT_FIRSTMATE.md:41`, "Ship is the default once
-   implementation is authorized") — so the default *within* an authorized ship
-   task is execute, not propose.
-2. But **merge** is always propose-then-human: "Factory ships never merge
+1. **Merge** is always propose-then-human: "Factory ships never merge
    without the captain's explicit word" appears twice verbatim
    (`GROK_SHIP.md:13`, `GROK_BOT_FIRSTMATE.md:41`), and once negatively scoped
    in the triage carve-out ("that is not a factory ship and does not weaken
    this bar" — `GROK_BOT_FIRSTMATE.md:41`).
-3. `ask-user` findings from review are also a hard human gate before a PR can
+2. `ask-user` findings from review are also a hard human gate before a PR can
    even open (`skills/adversarial-review/SKILL.md:81`, `GROK_BOT_CREWMATE.md:15`).
 
 Scout tasks are propose-only by construction — "Never open a pull request"
