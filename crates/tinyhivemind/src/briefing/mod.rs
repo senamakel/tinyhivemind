@@ -6,8 +6,8 @@ mod test;
 mod types;
 
 pub use types::{
-    BrevityPolicy, BriefedTeammate, BriefingNote, SessionContext, SessionInitialization,
-    TeamBriefing,
+    BrevityPolicy, BriefedTeammate, BriefingNote, MentionDispatchContext, SessionContext,
+    SessionInitialization, TeamBriefing,
 };
 
 use crate::{
@@ -84,6 +84,18 @@ impl TeamBriefing {
     /// Render deterministic system context for this viewer and team.
     #[must_use]
     pub fn system_text(&self) -> String {
+        self.render(true)
+    }
+
+    /// Render system context for a run whose dispatch situation is known.
+    #[must_use]
+    pub fn system_text_with_dispatch(&self, dispatch: MentionDispatchContext) -> String {
+        let _ = dispatch;
+        self.render(true)
+    }
+
+    fn render(&self, offer_dispatch: bool) -> String {
+        let _ = offer_dispatch;
         let mut text = format!(
             "You are @{} in the {} desk (id: {}).\nTeammates:",
             self.viewer_id, self.desk_name, self.desk_id
