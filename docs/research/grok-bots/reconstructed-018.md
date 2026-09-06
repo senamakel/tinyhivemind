@@ -68,11 +68,10 @@ stored hex-encoded under the key `"metadata"` in the agent's SQLite `kv` table:
 `currentPlanUri`, `subagentInfo` (`parentAgentId`, `rootParentAgentId`,
 `toolCallId`, `typeName`), `blobEncryptionKey`.
 
-Alongside it, in the same directory: `profile.json` (`SandAgentProfile` —
-`name`, `description`, `title`, `avatarShape`, `avatarColor`;
-`source/host/agents/agent-profile.ts:6`), `settings.json`
-(`notifyOnAgentUpdates`, `hiddenFromSidebar`; `settings-file.ts:8`), and further
-KV keys on the DB (`unreadState`, `awaitingUserResponse`, `origin`, `purpose`,
+Alongside it: `profile.json` (`SandAgentProfile` — `name`, `description`,
+`title`, `avatarShape`, `avatarColor`; `host/agents/agent-profile.ts:6`),
+`settings.json` (`notifyOnAgentUpdates`, `hiddenFromSidebar`), and further KV
+keys on the DB (`unreadState`, `awaitingUserResponse`, `origin`, `purpose`,
 `conversationPartners`; `session/agent-db.ts:62`).
 
 **The roster is the filesystem.** `listAgents`
@@ -101,12 +100,11 @@ sharedRoomId?}` (`group-store.ts:1`) — the human implicit as sender.
 
 Per-agent capability configuration barely exists. The model is a **global**
 setting (`SandStoredSettings.agentDefaultModel`,
-`source/shared/node/settings/sand-settings-store.ts:21`), resolved at inference
+`source/shared/node/settings/sand-settings-store.ts:21`) resolved at inference
 time with experiment overrides layered on (`inference-service.ts:13`);
 `AgentMetadata.lastUsedModel` records what was used, it does not configure. MCP
-tool policy is likewise global. The only per-agent persona is
-`GroupMember.description`, consumed by `buildGroupMemberSystemPrompt`
-(`group-chat.ts:15`).
+tool policy is likewise global, and the only per-agent persona is
+`GroupMember.description` (`buildGroupMemberSystemPrompt`, `group-chat.ts:15`).
 
 ## The conversation unit, and how a transcript is addressed
 
@@ -286,10 +284,10 @@ own container. The discipline is real in the leaves, absent in the trunk.
 
 **One global setting, re-read per turn, with no signal from the agent or the
 message.** `SAND_INFERENCE_PROVIDERS = ["cursor", "claude-code", "codex",
-"openrouter"]` (`source/shared/inference-router.ts:1`); the choice is a single
+"openrouter"]` (`source/shared/inference-router.ts:1`); the choice is one
 optional field `inferenceProvider` on `SandStoredSettings`
-(`sand-settings-store.ts:29`), defaulting to `"cursor"` (line 158). The
-selection is a plain branch:
+(`sand-settings-store.ts:29`), defaulting to `"cursor"`. Selection is a plain
+branch:
 
 ```ts
 // source/host/extensions/inference/inference-service.ts:56
