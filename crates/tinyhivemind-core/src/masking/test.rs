@@ -8,8 +8,13 @@ fn a_fence_indented_four_spaces_does_not_open_a_block() {
     // A fourth space makes the line an indented code block instead, and an
     // indented block never opens a fence that could swallow the lines after
     // it.
-    assert_eq!(fenced_ranges("    ```\n@alice\n```\n"), Vec::new());
-    assert_eq!(fenced_ranges("   ```\n@alice\n```\n"), vec![(0, 19)]);
+    let indented = "   ```\n@alice\n```\n";
+    assert_eq!(fenced_ranges(indented), vec![(0, indented.len())]);
+
+    // With the opener disqualified the bare fence on the last line is an
+    // opener in its own right, and masks to the end of the body.
+    let over_indented = "    ```\n@alice\n```\n";
+    assert_eq!(fenced_ranges(over_indented), vec![(15, over_indented.len())]);
 }
 
 #[test]
@@ -43,7 +48,7 @@ fn a_closing_fence_carries_nothing_after_its_run() {
     // An info string marks an *opening* fence. A ```rust line inside an open
     // block is content, so the block runs on to the bare fence below it.
     let body = "```\nhidden\n```rust\nstill hidden\n```\n";
-    assert_eq!(fenced_ranges(body), vec![(0, 35)]);
+    assert_eq!(fenced_ranges(body), vec![(0, body.len())]);
 }
 
 #[test]
