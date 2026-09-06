@@ -661,3 +661,67 @@ fn snapshot_constructor_does_not_require_people_or_host_role_types() {
         .expect("constructs without host types");
     assert_eq!(briefing.teammates[0].id, "bob");
 }
+
+#[test]
+fn system_text_withholds_dispatch_when_no_run_context_is_supplied() {
+    let briefing = TeamBriefing {
+        viewer_id: "alice".into(),
+        desk_id: "engineering".into(),
+        desk_name: "Engineering".into(),
+        teammates: Vec::new(),
+        brevity: BrevityPolicy::DEFAULT,
+    };
+    assert!(
+        !briefing.system_text().contains("bounded child turn"),
+        "a briefing with no policy and no hop cannot know dispatch is available"
+    );
+}
+
+#[test]
+fn an_at_cap_run_is_not_told_it_may_dispatch() {
+    let briefing = TeamBriefing {
+        viewer_id: "alice".into(),
+        desk_id: "engineering".into(),
+        desk_name: "Engineering".into(),
+        teammates: Vec::new(),
+        brevity: BrevityPolicy::DEFAULT,
+    };
+    let at_cap = MentionDispatchContext {
+        policy: MentionDispatchPolicy {
+            enabled: true,
+            max_hops: 2,
+        },
+        hop: 2,
+    };
+    assert!(!at_cap.may_dispatch());
+    assert!(
+        !briefing
+            .system_text_with_dispatch(at_cap)
+            .contains("bounded child turn"),
+        "a run at the hop cap constructs no child turn, so the offer is inert"
+    );
+}
+
+#[test]
+fn a_run_under_a_disabled_policy_is_not_told_it_may_dispatch() {
+    let briefing = TeamBriefing {
+        viewer_id: "alice".into(),
+        desk_id: "engineering".into(),
+        desk_name: "Engineering".into(),
+        teammates: Vec::new(),
+        brevity: BrevityPolicy::DEFAULT,
+    };
+    let disabled = MentionDispatchContext {
+        policy: MentionDispatchPolicy {
+            enabled: false,
+            max_hops: 4,
+        },
+        hop: 0,
+    };
+    assert!(!disabled.may_dispatch());
+    assert!(
+        !briefing
+            .system_text_with_dispatch(disabled)
+            .contains("bounded child turn")
+    );
+}
