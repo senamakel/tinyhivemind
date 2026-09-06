@@ -878,6 +878,18 @@ impl SimAgent {
         &self.favourite
     }
 
+    /// This participant's own untouched evaluation of one option.
+    ///
+    /// Distinct from [`Self::score`], which averages in everything absorbed
+    /// since. What a member hands a peer has to be the independent signal, or
+    /// pooling double-counts.
+    pub(crate) fn own_reading(&self, topic: &TopicId) -> i32 {
+        self.evals
+            .iter()
+            .find(|(held, _)| held == topic)
+            .map_or(i32::MIN, |(_, own)| *own)
+    }
+
     /// This participant's score for one option: its own reading, averaged
     /// with every outside reading it has taken.
     pub(crate) fn score(&self, topic: &TopicId) -> i32 {
@@ -965,7 +977,13 @@ impl SimAgent {
         };
         let topic = parse_topic(request.readable()?)?;
         self.handled.push(request.sequence);
-        let reading = self.score(&topic);
+        // The member's *own* reading, not `score()`. `score` averages in every
+        // reading this member has already absorbed, so answering with it would
+        // echo an already-pooled value back into the room: a later asker would
+        // count one peer's signal several times over, and the arm would stop
+        // modelling the experiment it documents — one private evaluation
+        // averaged with one independent peer's.
+        let reading = self.own_reading(&topic);
         Some(format!(
             "{ASIDE_MARKER} @{from} #{topic} My own {ASIDE_READS} {reading}."
         ))
