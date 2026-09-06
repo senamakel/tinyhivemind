@@ -162,8 +162,15 @@ sentence differing by stage tells the caller how far its name got.
   trying to steer selection by prompt injection. It is not a roster oracle, and
   the same signal is already available from which agent answered, so the
   separation costs nothing that is not already spent.
-- `ApprovalDecision` and `DenyReason` are specified but not implemented
-  ([`docs/specs/approval.md`](../specs/approval.md)). When they land, they take
-  this rule: `UnknownActor` and `UnresolvableApprover` turn on a named other and
-  are withheld; `Disabled`, `MalformedRequest` and `UnclassifiedAction` are the
-  caller's own request. `Ask` names one person and is not a refusal.
+- `DenyReason` is specified but not implemented
+  ([`docs/specs/approval.md`](../specs/approval.md)), and takes this rule when
+  it lands rather than settling the question again. Reading the enumeration
+  there against the rule: `Disabled`, `MalformedRequest`,
+  `UnclassifiedAction`, `PolicyDenied`, `RememberedRefusal` and `NoRule` are
+  about the caller's own request or the policy it was gated under, and
+  `UnknownActor` is the caller's own identity — a prober cannot vary it, which
+  is why `NoDispatchReason::SourceInactive` renders distinctly too.
+  `UnresolvableApprover` and `NoApprover` turn on whether a named person or
+  desk approver resolves, so they are withheld. That reading is recorded here
+  as the expected application and is not binding on the implementation, which
+  owes its own per-variant table and tests.
