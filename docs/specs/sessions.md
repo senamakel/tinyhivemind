@@ -70,12 +70,34 @@ unset; hosts may construct richer validated records directly.
 
 `TeamBriefing::system_text` deterministically identifies the viewer and desk,
 lists teammate `@id` handles with optional metadata, and states that peer
-messages remain attributed and are not the viewer's replies. It also states
-that a direct agent mention may start at most one bounded child turn only when
-host policy enables mention dispatch. Everyone, desk, and person mentions are
-context only and never fan out. `initialize_session` returns the briefing and
-projected history as separate values; the briefing is never stored, sequenced,
-or counted against the history window.
+messages remain attributed and are not the viewer's replies. Everyone, desk,
+and person mentions are context only and never fan out.
+`initialize_session` returns the briefing and projected history as separate
+values; the briefing is never stored, sequenced, or counted against the history
+window.
+
+### What the briefing may offer
+
+The mention-dispatch rule — that a direct agent mention may start at most one
+bounded child turn — is stated only to a run that could actually use it. A
+briefing carries a team, not a run: it has no hop and no policy, so
+`system_text` cannot know, and withholds. `system_text_with_dispatch` takes a
+`MentionDispatchContext`, which is the `MentionDispatchPolicy` and the hop the
+host already passes to `mention_dispatch`, and states the rule when and only
+when `MentionDispatchContext::may_dispatch` holds — `policy.enabled` and
+`hop < policy.max_hops`, the same two guards `mention_dispatch` tests before it
+reads a mention. A disabled policy, a zero hop budget, a hop at or past
+`max_hops`, and a caller that supplies no context all render identical text:
+the one without the offer. Nothing else in the briefing changes, and the
+offered sentence is unchanged from the one that was previously unconditional.
+
+Absent information therefore fails closed. This is the withhold rule of
+[`responders.md`](responders.md) applied to the one surface a model reads:
+offering a capability whose next call would refuse it teaches the model the
+capability exists and spends a turn discovering that it does not. The context
+is plain data passed at render time rather than a field on `TeamBriefing`, so
+the briefing's wire form is unchanged and a host that never supplies one keeps
+compiling — it just stops advertising dispatch.
 
 ### Why there is no transcript-repair fold
 
@@ -135,6 +157,8 @@ host's log never touched.
   the scan is dropped rather than flattened.
 - Page validation prevents non-advancing walks and duplicate output.
 - Briefing order is deterministic and follows effective desk or roster order.
+- The briefing never offers a capability the run cannot use. Mention dispatch
+  is stated only under a supplied context that reports `may_dispatch`.
 
 ## Acceptance criteria
 
@@ -144,6 +168,9 @@ host's log never touched.
   blank-content skipping, current-message exclusion, and attribution.
 - Tests cover briefing filtering, order, deterministic text, General behavior,
   initialization separation, and projection error propagation.
+- Tests cover the withheld and offered dispatch renderings: no context, a
+  disabled policy, a zero budget, a hop at and past `max_hops`, and a run
+  inside its budget, whose text is pinned in full.
 - Public payload serde forms, rustdoc examples, workspace contracts, purity,
   rustdoc, and doctests pass.
 
