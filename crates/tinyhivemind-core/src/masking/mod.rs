@@ -48,9 +48,9 @@
 //! The indented-block rule measures from the message's left margin, not from
 //! inside a list or blockquote container the way a full `CommonMark` parser
 //! would, so a body that nests one inside a list can, in principle, be masked
-//! differently than a renderer would show it — see [`indented_block_ranges`]
-//! for why that trade is made rather than growing this into a block-level
-//! parser.
+//! differently than a renderer would show it — see the private
+//! `indented_block_ranges` helper's doc comment in this module's source for
+//! why that trade is made rather than growing this into a block-level parser.
 //!
 //! [spec]: https://spec.commonmark.org/current/#fenced-code-blocks
 //! [indented-spec]: https://spec.commonmark.org/current/#indented-code-blocks
