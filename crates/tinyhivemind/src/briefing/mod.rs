@@ -78,6 +78,10 @@ impl TeamBriefing {
             desk_name: conversation.desk_name.clone(),
             teammates,
             brevity: BrevityPolicy::DEFAULT,
+            // Snapshots say who is here, never what a host permits. A caller
+            // that enables asides sets this afterwards, and the conservative
+            // default is what a caller that does not gets.
+            asides: AsidePolicy::DEFAULT,
         })
     }
 
