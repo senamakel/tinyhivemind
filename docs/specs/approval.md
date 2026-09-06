@@ -296,7 +296,13 @@ pub enum ApprovalDecision {
 `Ask` carries the exact scope a grant minted from answering it may claim, so
 the host cannot widen a question into a broader standing authority. `Allow`
 carries `AllowBasis::Policy` or `AllowBasis::Grant { key }` so a host's audit
-row records *why* rather than only *that*.
+row records *why* rather than only *that*. When more than one live grant
+covers a request, `key` is the narrowest-scoped covering grant's key
+(`Call` before `Action` before `Resource`), and ties within one scope break on
+the lowest `(granted_at_epoch, granted_at_sequence)` — the earliest consent
+that still covers the request — so the reported basis is a function of the
+grant *set*, not of `grants`' order, matching the order-independence invariant
+below.
 
 `DenyReason` is enumerated and closed: `Disabled`, `MalformedRequest`,
 `UnknownActor`, `UnclassifiedAction`, `PolicyDenied`, `RememberedRefusal`,
