@@ -74,9 +74,13 @@ supplied entry can only name which extracted trace to keep, by
 or text — is discarded in favour of what the body says, and a repeated offset
 is rejected rather than selecting the same trace twice.
 
-Authored spans and UTF-8 byte offsets are preserved. **Fenced** code blocks are
-masked; inline backticks are not, and need no masking, because a marker
-preceded by a backtick is by definition not line leading. The grammar is
+Authored spans and UTF-8 byte offsets are preserved. Fenced and indented code
+blocks are masked, and so are inline code spans: a span opened on one line and
+closed on a later one quotes every whole line between them, so a marker with
+no backtick ahead of it on its own line can still sit inside quoted code — a
+marker sharing a line with its backtick needs no masking to be rejected,
+because that line does not start with the marker's own leading character. The
+grammar is
 line-leading markers of the eight kinds above, qualified by `#topic`, `>target`
 and `^cite`. Qualifiers are read wherever they appear after the kind rather
 than in a fixed order, and `^cite` may repeat, so a trace carries a list of
