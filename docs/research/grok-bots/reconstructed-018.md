@@ -345,71 +345,124 @@ original Statsig-experiment machinery (`sand-model-experiment.ts`,
 
 ## Approvals, permissions, tools, sandboxing
 
-The permission model is the most interesting non-obvious mechanism in the
-repository, and most of it is pure.
+There are **two unrelated approval models**, and it is worth being clear that
+several nearby files that sound like gates are not. The
+`prompt-acceptance-ledger` / `ack-obligations` / `send-acceptance` cluster is
+message-delivery idempotency and crash-recovery machinery, and
+`host/extensions/action-audit/` is a telemetry sink that records
+`mcpToolCall`/`shellCommand`/`browserNavigation` events and never blocks
+anything (`action-audit-service.ts:9`).
 
-A standing setting takes three values — `"never"`, `"ask"`, `"always"` — and a
-per-request resolution takes four: `SandLocalToolResolution =
-"allow-once" | "deny" | "always" | "never"`
-(`local-tool-permission-controller.ts:20`). The **scope key** is
+**Model A — local tool permission.** A globally persisted three-valued setting
+(`SAND_LOCAL_TOOL_PERMISSIONS = ["always","ask","never"]`,
+`source/shared/local-tool-permission.ts:1`) plus an ephemeral per-scope approval
+cache. Per-request resolutions are four-valued: `"allow-once" | "deny" |
+"always" | "never"` (`local-tool-permission-controller.ts:20`); answering
+`always`/`never` writes back to the global setting, `allow-once`/`deny` touches
+only the in-memory cache. The **scope key** is
 `askKey(scope, request) = ${agentId}\0${toolCallId}\0${action}\0${target}`
-(line 34), so an approval is scoped to one tool call on one agent for one
-action against one target, and `completeScope` (line 48) retires every approval
-for that tool call unless it was marked `outlivesScope`. An approval may instead
-be pinned to a resource path (`resourcePath`), which is how a grant survives
-across tool calls that touch the same file or terminal folder.
+(line 34), so an approval is scoped to one tool call on one agent for one action
+against one target; `completeScope` (line 48) retires every approval for that
+tool call unless it was marked `outlivesScope`. An approval may instead be
+pinned to a `resourcePath`, which is how a grant survives across tool calls
+touching the same file or terminal folder.
 
-Whether a stored approval covers a new request is a **pure predicate** —
+Whether a stored approval covers a new request *is* a pure predicate —
 `localToolApprovalCovers` (`source/shared/local-tool-permission-machinery.ts:83`),
 four lines: same action and target, or the same normalised resource path. The
 same predicate is reused by the out-of-process local-exec daemon
-(`host/local-exec/local-exec-daemon.ts:59`), which is the right shape: one
-decision function, two callers, no duplicated policy.
+(`host/local-exec/local-exec-daemon.ts:59`) — one decision function, two
+processes, no duplicated policy. `authorize` itself (line 47) is not pure: it
+consults the setting, the approval cache, remembered refusals, and an epoch.
 
-Around it sits a *direction epoch* per agent. A refusal is remembered against
-the epoch in which it happened (`refusalFor`, line 64); when the user gives new
-direction the epoch advances and old refusals stop applying. Widening the
-standing permission to `"always"` records `alwaysGrantedAtEpoch` per agent so
-that a tool call minted *before* the grant does not silently benefit from it
-(`predatesStandingGrant`, line 65; `noteStandingPermission`, line 67). Memory
-is explicitly bounded — 64 settled ids, 512 refused actions per agent, 256
-forgotten agents, a 10,000-char target cap (lines 13-17). Resolution from the UI
-goes through `resolveLocalToolPermissionAsk`
+That epoch is the mechanism worth stealing. A refusal is remembered against the
+*direction epoch* in which it happened (`refusalFor`, line 64); when the user
+gives new direction the epoch advances and stale refusals stop applying.
+Widening the standing permission to `"always"` records `alwaysGrantedAtEpoch`
+per agent so a tool call minted *before* the grant does not silently benefit
+from it (`predatesStandingGrant`, line 65; `noteStandingPermission`, line 67).
+Memory is explicitly bounded — 64 settled ids, 512 refused actions per agent,
+256 forgotten agents, a 10,000-character target cap (lines 13-17). Resolution
+from the UI goes through `resolveLocalToolPermissionAsk`
 (`local-tool-permission-resolution.ts:9`), which validates the resolution
 string, refuses a mismatched agent, and settles a stale card rather than
 throwing.
 
-A second, separate gate is the *spend guard*, and despite the name it measures
-attention, not money. `evaluateAutomationSpendGuard`
+**Model B — auto-review.** `SandAutoReviewController`
+(`source/host/runner/sand-auto-review.ts:108`) is a per-agent queue of pending
+approvals, each with an `expiresAtMs`, a `userMessageEpoch` and a
+`hostGeneration` fence. `requestApproval` returns a promise settled by
+`resolveApproval` (line 138), by expiry, by cancellation, or by supersession —
+`beginUserMessageEpoch()` expires every pending approval when the user
+redirects. Modes are resolved per surface (`hostShell`, `boxShell`, `mcp`,
+`computer`, `cloudAgent`, `subagentLaunch`) to `off`/`shadow`/`enforce`
+(`sand-auto-review.ts:12`), and *whether* to ask at all is decided by a
+classifier (`sand-backend-smart-mode-classifier-exec.ts`). So this is a
+per-action, per-turn, model-gated approval rather than a stored permission set —
+and it is the gate MCP calls pass through in `enforce` mode.
+
+**A third gate is attention, not permission.** `evaluateAutomationSpendGuard`
 (`transcript/sand-automation-spend-guard.ts:32`) is a **pure function** from
 `{nowMs, lastViewedAtMs, unreadCount, firesSinceViewedCount, nudgedAtMs,
 snoozedUntilMs, optedOut}` to one of seven verdicts (`opted-out`, `user-active`,
 `snoozed`, `pause`, `awaiting-ack`, `nudge`, `below-thresholds`) against fixed
 thresholds: idle for 3 days, 15 unread, 20 automation fires since last viewed, a
 3-day pause delay, a 30-day snooze (lines 2-6). The impure half
-(`automation-spend-guard-runtime.ts:82`) reads the unread state, posts a widget
-card, and disables automations. This is a response-threshold rule with the
-decision already lifted out of the IO.
+(`automation-spend-guard-runtime.ts:82`) reads the unread state, posts a card,
+and disables automations. Despite the name it measures runs-while-unread, not
+money — a response-threshold rule with the decision already lifted out of IO.
 
-Tool execution is MCP-shaped. `createSandMcpStateExecutor`
-(`host/ports/mcp-state-executor.ts:7`) groups `SandMcpTool
-{providerIdentifier, name, toolName, description?, inputSchema?}` by
-`providerIdentifier` into `McpStateServer` protobufs — the routing table is
-`providerIdentifier`. Claude Code gets a real local HTTP MCP bridge
-(`node-agent-coordinator/routed-mcp-bridge.ts:39`); Codex and OpenRouter get a
-direct tool-calling loop instead (`provider-session.ts:153`, `230`), proxying
-back to the same dispatch. Two mechanisms, one tool inventory.
+### Tools and MCP
 
-The isolation boundary is the "box" — normally a remote sandbox VM, optionally a
-local Docker container
-(`electron-main/box/local-docker-host-connector.ts`), bound to `127.0.0.1`
-only, mounting content-addressed host/daemon bundles and the user's
-`~/.codex`/`~/.claude` read-only, health-checked before the coordinator
-connects. Host-side there is `assertPathOutsideProtectedRoots`
-(`host/box/protected-path-guard.ts`), which checks a candidate path against
-protected roots both as resolved and as `realpath`, so a symlink cannot escape.
-Agent state is further isolated in worker processes
-(`host/agent-isolation/`), each agent owning its own `conversation-blobs.db`.
+Tools are **not** registered one-per-server into the model's tool list. Two
+meta-tools are minted per turn: a discovery tool `GetMcpTools`
+(`packages/agent/tools/mcp/get-mcp-tools.ts`) and one generic dispatcher
+`call_mcp_tool` (`createCallMcpTool`, `packages/agent/tools/mcp/mcp.ts:438`)
+taking `{server, tool, arguments}`. The routing table is
+`session.serverDescriptors`, keyed by `serverIdentifier` (line 461), with
+`McpServerDoesNotExistError` / `McpExecToolNotFoundError` on a miss. The same
+grouping appears host-side in `createSandMcpStateExecutor`
+(`host/ports/mcp-state-executor.ts:7`), which buckets
+`SandMcpTool{providerIdentifier, name, toolName, description?, inputSchema?}`
+by `providerIdentifier` into `McpStateServer` protobufs.
+
+Execution never happens in-process: it goes through `mcpExecutorResource`
+(`packages/agent-exec/mcp.ts:149`), a serialised RPC resource that can point at
+the host or at the box daemon, so `call_mcp_tool` dispatches transparently to a
+host-local or box-resident server (`host/extensions/mcp/box-mcp-exec.ts`).
+For the added router, Claude Code gets a real local HTTP MCP bridge
+(`node-agent-coordinator/routed-mcp-bridge.ts:39`) while Codex and OpenRouter
+get a direct tool-calling loop (`provider-session.ts:153`, `230`) proxying back
+to the same dispatch — two mechanisms over one inventory.
+
+### Sandboxing
+
+A "box" is a separate execution environment running a small Connect daemon
+(`source/box-exec-daemon/server.ts:9`) exposing `ExecService`/`ControlService`:
+shell spawn, background shell, read/write, ping, `UpdateEnvironmentVariables`,
+`LoadMcpServers`. The isolation boundary is process/container plus an
+authenticated network hop (`BoxEndpoint{host, port, authToken, headers}`,
+`host/box/loopback-sand-box.ts:20`), not a permission check. Three connectors
+implement the same `SandRemoteHostConnector` interface
+(`electron-main/box/box-host-connector.ts:38`) and are interchangeable to the
+host: loopback (the host runs inside the same container, port 1337),
+brokered/remote (`GrokBotService.ensureSandBox` returns a gateway URL and token,
+with backoff on `SAND_BOX_BLOCKED`), and local Docker
+(`local-docker-host-connector.ts`) — `docker run` of a pinned public image as
+container `grok-bot-local-vm`, gateway on `127.0.0.1:1340`, a locally generated
+bearer token persisted to `local-docker-vm.json`, credential mounts read-only,
+health-checked before the coordinator connects.
+
+A *second*, unrelated sandbox covers commands the host runs on the user's own
+machine: `spawnInSandbox` (`packages/shell-exec/sandbox/sandbox.ts:10`) wraps
+the spawn in a macOS Seatbelt profile (`sandbox/macos/seatbelt.ts`) with
+filesystem allow/deny lists and a network deny list from
+`sandbox/hardcoded-policy.ts`, unless the policy is `"insecure_none"`.
+Host-side path checks go through `assertPathOutsideProtectedRoots`
+(`host/box/protected-path-guard.ts`), which tests a candidate both as resolved
+and as `realpath`, so a symlink cannot escape. Agent state is isolated further
+in worker processes (`host/agent-isolation/`), each agent owning its own
+`conversation-blobs.db`.
 
 ## Usage and cost tracking
 
