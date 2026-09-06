@@ -172,7 +172,8 @@ fn session_records_pin_their_wire_shape() {
             "chat_id": "engineering",
             "parent": 4,
             "author": {"type":"operator"},
-            "content": "hello"
+            "content": "hello",
+            "audience": {"kind": "desk"}
         }),
     );
     assert_wire_round_trip(
@@ -186,7 +187,8 @@ fn session_records_pin_their_wire_shape() {
                 "chat_id": "engineering",
                 "parent": 4,
                 "author": {"type":"operator"},
-                "content": "hello"
+                "content": "hello",
+                "audience": {"kind": "desk"}
             }],
             "next_before": 9
         }),
@@ -202,7 +204,36 @@ fn session_records_pin_their_wire_shape() {
         serde_json::json!({
             "sequence": 9,
             "author": {"type":"operator"},
-            "content": "hello"
+            "content": "hello",
+            "audience": {"kind": "desk"},
+            "elided": null
+        }),
+    );
+    // An elided row keeps its sequence, its author and its audience, and
+    // carries the range and settlement pointer instead of content.
+    assert_wire_round_trip(
+        &SessionMessage {
+            sequence: Sequence(7),
+            author: SessionAuthor::Agent {
+                id: "planner".into(),
+                label: "Planner".into(),
+            },
+            content: String::new(),
+            audience: Audience::Aside {
+                members: vec!["auditor".into()],
+            },
+            elided: Some(crate::Elision {
+                through: Sequence(10),
+                messages: 4,
+                settled_at: Some(Sequence(11)),
+            }),
+        },
+        serde_json::json!({
+            "sequence": 7,
+            "author": {"type": "agent", "id": "planner", "label": "Planner"},
+            "content": "",
+            "audience": {"kind": "aside", "members": ["auditor"]},
+            "elided": {"through": 10, "messages": 4, "settled_at": 11}
         }),
     );
     assert_wire_round_trip(
@@ -223,7 +254,8 @@ fn session_records_pin_their_wire_shape() {
                 "thread_root": null
             },
             "before": 10,
-            "window": 30
+            "window": 30,
+            "viewer": {"kind": "operator"}
         }),
     );
     assert_eq!(Sequence(7).to_string(), "7");
