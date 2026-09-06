@@ -390,7 +390,7 @@ async fn main() -> Result<(), BoxError> {
                         current_conversation: &conversation,
                         state,
                         before: sequence,
-                        viewer: viewer.clone(),
+                        viewer: &viewer,
                     },
                 )
                 .await?,
