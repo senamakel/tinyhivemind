@@ -34,11 +34,16 @@
 //!   long, and carries nothing but whitespace after the run;
 //! - an unclosed fence masks to the end of the body, so a body cannot end
 //!   mid-block with its tail read as grammar;
-//! - a line indented four or more spaces opens an [indented code
-//!   block][indented-spec] instead, which is why a fence at that indentation
-//!   never opens a fenced one — but its content is still `CommonMark` code, so
-//!   [`fenced_ranges`] masks it too, and a directive quoted inside one cannot
-//!   reach a line-leading grammar.
+//! - a line indented four or more columns — a tab expands to the next
+//!   multiple of four — opens an [indented code block][indented-spec] instead,
+//!   which is why a fence at that indentation never opens a fenced one — but
+//!   its content is still `CommonMark` code, so [`fenced_ranges`] masks it
+//!   too, and a directive quoted inside one cannot reach a line-leading
+//!   grammar;
+//! - an indented block cannot interrupt a paragraph: the indented *opener*
+//!   must be the first line of the body or follow a blank line, so a wrapped,
+//!   indented continuation line right after live text stays live rather than
+//!   being read as a new block.
 //!
 //! [spec]: https://spec.commonmark.org/current/#fenced-code-blocks
 //! [indented-spec]: https://spec.commonmark.org/current/#indented-code-blocks
