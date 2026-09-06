@@ -126,10 +126,10 @@ nothing; the scanner steps past it and continues.
 `code_ranges` and `fenced_ranges` both live in
 `tinyhivemind_core::masking`, the one scanner every authored grammar in this
 workspace shares — this grammar, the trace grammar of `tinyhivemind-hive`, and
-the pin directives of `tinyhivemind`. The fence rules above are the same rules
-for all three; what differs is that only this grammar also masks inline spans,
-because only this grammar has markers that can sit mid-line.
-`grammar-traces.md` §2 states it from the other side.
+the pin directives of `tinyhivemind`. All three read `code_ranges`: a
+multi-line inline span quotes whole lines it did not open, so even a
+line-leading marker needs inline spans masked, not only a mention that can sit
+mid-line. `grammar-traces.md` §2 states it from the trace side.
 
 ## 3. The alias table
 
