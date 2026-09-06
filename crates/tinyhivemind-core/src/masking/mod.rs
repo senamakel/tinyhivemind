@@ -179,7 +179,9 @@ fn backtick_or_tilde_fence_ranges(body: &str) -> Vec<(usize, usize)> {
                         Some((start, open_marker, open_run))
                             if marker == open_marker
                                 && run >= open_run
-                                && trimmed[run..].trim().is_empty() =>
+                                && is_blank_line(
+                                    trimmed[run..].trim_end_matches(['\n', '\r']),
+                                ) =>
                         {
                             ranges.push((start, line_start + line.len()));
                             open = None;
