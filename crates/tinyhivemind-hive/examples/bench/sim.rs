@@ -45,7 +45,7 @@
 use std::fmt::Write as _;
 
 use tinyhivemind_hive::{
-    HiveTurn, Phase, QuorumPolicy, Sequence, SessionMessage, Visibility,
+    HiveTurn, Phase, QuorumPolicy, Sequence, SessionAuthor, SessionMessage, Visibility,
     quorum::{TopicStanding, standings},
     trace::{TopicId, Trace, TraceKind, resolve},
 };
@@ -1574,4 +1574,26 @@ impl crate::run::Participant for SimAgent {
     fn cost_unit(&self) -> u32 {
         self.cost_unit
     }
+}
+
+/// The topic one check names, if it names one.
+fn parse_topic(body: &str) -> Option<TopicId> {
+    let word = body.split_whitespace().find(|word| word.starts_with('#'))?;
+    TopicId::new(word.trim_start_matches('#')).ok()
+}
+
+/// The topic and reading one answered check carries, if it is an answer.
+///
+/// A question carries no number and parses to `None`, which is exactly how the
+/// two halves of an exchange are told apart.
+fn parse_reading(body: &str) -> Option<(TopicId, i32)> {
+    let topic = parse_topic(body)?;
+    let mut words = body.split_whitespace();
+    while let Some(word) = words.next() {
+        if word == ASIDE_READS {
+            let reading = words.next()?.trim_end_matches('.').parse().ok()?;
+            return Some((topic, reading));
+        }
+    }
+    None
 }
