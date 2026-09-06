@@ -15,6 +15,10 @@ cargo run -p tinyhivemind --example crosstalk -- \
 # through an agent CLI instead of an endpoint
 cargo run -p tinyhivemind --example crosstalk -- \
   --agent-cmd "opencode run --pure -m openrouter/~deepseek/deepseek-v4-flash-latest"
+
+# with private asides, printing what each reader was handed
+cargo run -p tinyhivemind --example crosstalk -- \
+  --api-base http://127.0.0.1:6969 --model flash --aside
 ```
 
 ## What it is for
@@ -79,6 +83,56 @@ exchange, and the desk channel carries the root plus its first reply — which i
 what `project_session` promises a channel viewer, so a desk reading it sees an
 answered question rather than a run of unanswered ones.
 
+## Private asides
+
+Under `--aside` a seat may address one peer alone with `!aside @peer`. The
+harness does not act on the marker itself: it hands the line to
+`tinyhivemind_core::aside::aside`, which resolves who it may reach and refuses
+with a named reason otherwise, and a refusal leaves the row desk-visible — the
+safe direction to fail in.
+
+The run then prints the same conversation as each reader was handed it, which
+is the whole of the evidence:
+
+```text
+  @planner
+      [1] Ada (human): ...check your doubts privately with one peer first...
+      [2] @planner: !aside @auditor Should we cut over the payments table this week...
+      [3] @auditor: !aside @planner What rollback plan, migration rehearsal...
+      [4] @planner: Defer this week's cutover unless a rehearsed rollback...
+  @archivist
+      [1] Ada (human): ...check your doubts privately with one peer first...
+      [2-3] @planner → @auditor · aside, 2 message(s), settled at [4]
+      [4] @planner: Defer this week's cutover unless a rehearsed rollback...
+  Ada (human)
+      [1] Ada (human): ...
+      [2] @planner: !aside @auditor Should we cut over the payments table this week...
+      [3] @auditor: !aside @planner What rollback plan, migration rehearsal...
+      [4] @planner: Defer this week's cutover unless a rehearsed rollback...
+```
+
+Same rows, same sequences, three different readings. `@archivist` is outside the
+aside and is handed one stub rather than two messages — collapsed, because a
+reader with a sliding window should not spend two rows on nothing — carrying who
+spoke, to whom, how many messages, and **where it settled**. `[4]` is a row
+`@archivist` can read, so a hole in its context is a pointer rather than a gap.
+`Ada` is a person and reads all of it: nothing here is unauditable.
+
+### Getting an agent to use it at all
+
+The first two runs of this scenario produced no aside. `flash` was told the
+grammar, had a plain `@peer` hand-off available, and took it — which is the
+same finding [SOTOPIA-TOM](https://arxiv.org/abs/2605.02307) reports as agents
+"struggling to strategically seek information", and [HiddenBench's
+](https://arxiv.org/abs/2505.11556) diagnosis that models do not spontaneously
+reason about what a peer might know.
+
+The transcript above came from an instruction that invited it: *"Before anyone
+commits to a position in front of the desk, check your doubts privately with one
+peer first."* That is worth stating plainly rather than tuning away. The library
+supplies a mechanism and a grammar; whether a room reaches for it is a property
+of the models and the host's framing, and on this evidence it needs the framing.
+
 ## What is host-owned here, and why that matters
 
 Nearly all of `host.rs` is a consumer's obligation rather than the library's.
@@ -117,28 +171,22 @@ byte-identical projections.
 So `@auditor, quietly — is this plan wrong?` is *addressing*, not a direct
 message. It reaches one agent, and the whole desk reads it.
 
-### What a DM would need
+### What privacy here is, and is not
 
-A genuine agent-to-agent DM inside a desk is a wire-format change, not a host
-convention, and it is not in this repository today. It would need at least:
+Without `--aside`, addressing a peer is addressing and not a direct message: it
+reaches one agent and the whole desk reads it.
 
-- an audience on the row — the host's log and `LogMessage` gain a recipient
-  set, with the serde-compatibility story written down first, since existing
-  journals have no such field;
-- a viewer on the query — `SessionQuery` gains an identity, because the
-  projection currently cannot differ between two members of a desk;
-- a decision about what the *rest* of the desk sees, which is the hard part. A
-  desk whose members cannot see each other's exchanges loses the pooling that
-  makes a desk worth having, and a private channel between two members is a
-  correlation the room cannot audit.
+With `--aside` the content is private **between agents** and nothing more. Every
+person and the operator read every row in full, by design: the mechanism is a
+deliberation device, not a security boundary, and an exchange no human could
+audit is the covert channel the design exists to avoid. See
+[`docs/specs/private-asides.md`](../../../../docs/specs/private-asides.md) and
+[ADR 0008](../../../../docs/adr/0008-an-aside-carries-information-never-support.md).
 
-Two mechanisms already in the library cover much of what a DM is usually
-wanted for, without any of that. **Threads** (`--thread`) give a pair a
-sub-conversation the desk can still read. **Referral**
+Two neighbouring mechanisms are worth knowing about. **Threads** (`--thread`)
+give a pair a sub-conversation the desk can still read in full. **Referral**
 (`crates/tinyhivemind-core/src/referral/`, off by default) lets one agent put a
-question to an agent on *another* desk and carry one answer back — the routing
-half of a DM, across a channel boundary, still written into both channels in
-the open.
+question to an agent on *another* desk and carry one answer back.
 
 ## Backends
 
@@ -177,6 +225,7 @@ honest about what is being measured.
 | `--hops N` | host hop budget for agent-to-agent dispatch (default 3) |
 | `--instruction TEXT` | what the operator posts to open the desk |
 | `--thread` | run the agents' exchange in a thread rooted at the instruction |
+| `--aside` | offer `!aside @peer`, and print what each reader was handed |
 | `--window N` | messages projected into one turn (default 30) |
 
 The process exits non-zero if any claim fails, so a run is usable as a live
