@@ -6,6 +6,9 @@
 //! Nothing here decides *who* speaks.
 
 use std::{
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
     time::{Duration, Instant},
 };
@@ -21,6 +24,8 @@ pub(crate) struct TurnOutput {
     pub(crate) elapsed: Duration,
     /// Names of the tools the seat actually invoked, in order.
     pub(crate) tools: Vec<String>,
+    /// Whether the process was killed at its deadline rather than finishing.
+    pub(crate) timed_out: bool,
 }
 
 /// A configured agent CLI: one process per turn.
@@ -30,11 +35,18 @@ pub(crate) struct AgentRunner {
     workspace: String,
     config: Option<String>,
     timeout: Duration,
+    raw_dir: Option<PathBuf>,
 }
 
 impl AgentRunner {
     /// Build a runner from a command line whose final argument is the prompt.
-    pub(crate) fn new(command: &str, workspace: &str, config: Option<String>, timeout: Duration) -> Self {
+    pub(crate) fn new(
+        command: &str,
+        workspace: &str,
+        config: Option<String>,
+        timeout: Duration,
+        raw_dir: Option<PathBuf>,
+    ) -> Self {
         let mut parts = command.split_whitespace().map(str::to_string);
         let program = parts.next().unwrap_or_else(|| "opencode".to_string());
         Self {
@@ -43,6 +55,7 @@ impl AgentRunner {
             workspace: workspace.to_string(),
             config,
             timeout,
+            raw_dir,
         }
     }
 
@@ -52,7 +65,12 @@ impl AgentRunner {
     ///
     /// Returns a spawn or wait failure. A model that answers nothing is not an
     /// error here; it is an empty message the caller decides what to do with.
-    pub(crate) fn run(&self, prompt: &str) -> Result<TurnOutput, Box<dyn std::error::Error + Send + Sync>> {
+    pub(crate) fn run(
+        &self,
+        prompt: &str,
+        label: &str,
+        timeout: Duration,
+    ) -> Result<TurnOutput, Box<dyn std::error::Error + Send + Sync>> {
         let started = Instant::now();
         let mut command = Command::new(&self.program);
         command
@@ -66,17 +84,40 @@ impl AgentRunner {
             command.env("OPENCODE_CONFIG_CONTENT", config);
         }
         let child = command.spawn()?;
-        let output = wait_with_timeout(child, self.timeout)?;
-        let mut turn = parse_events(&String::from_utf8_lossy(&output));
+        let (output, timed_out) = wait_with_timeout(child, timeout)?;
+        let raw = String::from_utf8_lossy(&output);
+        // Keep the whole event stream. A turn that produced nothing postable is
+        // exactly the turn whose transcript someone will want to read.
+        if let Some(dir) = &self.raw_dir {
+            let _ = fs::create_dir_all(dir);
+            if let Ok(mut file) = fs::File::create(dir.join(format!("{label}.jsonl"))) {
+                let _ = file.write_all(raw.as_bytes());
+            }
+            if let Ok(mut file) = fs::File::create(dir.join(format!("{label}.prompt.txt"))) {
+                let _ = file.write_all(prompt.as_bytes());
+            }
+        }
+        let mut turn = parse_events(&raw);
         turn.elapsed = started.elapsed();
+        turn.timed_out = timed_out;
         Ok(turn)
+    }
+
+    /// The runner's configured per-turn deadline.
+    pub(crate) const fn timeout(&self) -> Duration {
+        self.timeout
+    }
+
+    /// Where raw turn streams are kept, if anywhere.
+    pub(crate) fn raw_dir(&self) -> Option<&Path> {
+        self.raw_dir.as_deref()
     }
 }
 
 fn wait_with_timeout(
     mut child: std::process::Child,
     timeout: Duration,
-) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(Vec<u8>, bool), Box<dyn std::error::Error + Send + Sync>> {
     let stdout = child.stdout.take().ok_or("child has no stdout")?;
     let reader = std::thread::spawn(move || {
         use std::io::Read;
@@ -86,17 +127,19 @@ fn wait_with_timeout(
         buffer
     });
     let deadline = Instant::now() + timeout;
+    let mut timed_out = false;
     loop {
         match child.try_wait()? {
             Some(_) => break,
             None if Instant::now() >= deadline => {
+                timed_out = true;
                 let _ = child.kill();
                 break;
             }
             None => std::thread::sleep(Duration::from_millis(200)),
         }
     }
-    Ok(reader.join().unwrap_or_default())
+    Ok((reader.join().unwrap_or_default(), timed_out))
 }
 
 /// Fold one `--format json` event stream into a turn.
