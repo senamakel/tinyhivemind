@@ -27,6 +27,7 @@ dependency direction is enforced by construction.
 | P13 | Digests and supersession | planned |
 | P15 | Cross-desk referral: one child turn that may run on another channel, the answer that comes back, and the federated benchmark that scored it | **done**, every knob **off by default** |
 | P14 | Recall: one selection ranking, roster and desk pickers, bounded transcript search with optional regular expressions, pinning as a fold, and a stated per-message budget | **done** |
+| P16 | Approval: a pure gate for a side-effecting action — `approve` as a total fold, standing grants, and epoch-scoped consent, with the waiting behind one `ApprovalGate` port | planned, **not implemented** |
 
 P15 is also out of order, and for a related reason: it is not a wire-format
 change either, and it answers a pressure none of P11 through P13 address. Every
@@ -45,6 +46,13 @@ and no new stored state. Search makes the transcript queryable rather than
 something a turn must hold, pinning keeps a small working set arriving whether
 or not anybody asked, and `BrevityPolicy` states the budget every message is
 spending out of. See [`docs/specs/recall.md`](docs/specs/recall.md).
+
+P16 is the next number free, and it sits after the phases that have landed
+rather than inside the P11 through P13 block for the same reason P14 and P15
+did: it is not a wire-format change, it does not wait on `SessionMessage.parent`
+or on read state, and it answers a pressure none of them address. It also needs
+nothing from the hive crate. See [`docs/specs/approval.md`](docs/specs/approval.md)
+and [ADR 0008](docs/adr/0008-an-approval-decision-is-total.md).
 
 The next work is the paired OpenCompany adapter integration, followed by a
 gated live-provider verification in which two agents exchange an attributed
@@ -153,6 +161,42 @@ fact-holder spoke before the commit in every room that had one and fourteen of
 twenty-three were still wrong, no turn was ever awarded on `BidReason::Knows`,
 and `!defer` was used on none of 266 turns.
 See [`docs/experiments/2026-09-05-expert-delegation.md`](docs/experiments/2026-09-05-expert-delegation.md).
+
+## What P16 adds, and what it deliberately does not
+
+P16 answers the largest well-evidenced gap in
+[the Grok Bot survey](docs/research/grok-bots/README.md): this library can say
+who is here, who a mention addresses, who takes the next turn and how a room
+reaches a decision, and it cannot say whether the thing that decision leads to
+is allowed to happen. Six of the twelve surveyed projects gate side-effecting
+actions, and in every one of them the decision is already a pure function
+separated from the IO that enacts it — the core/port line this workspace draws,
+arrived at independently five times.
+
+It adds an `approval` module to `crates/tinyhivemind-core`: `approve` as a
+**total** fold returning `Allow`, `Deny { reason }` or `Ask { who }`; a scope
+key over `(actor, call, verb, target)` with call, action and resource-pinned
+grant scopes; standing grants as a pure liveness and coverage predicate over
+records the caller supplies, with `now` passed in rather than read; and
+epoch-scoped consent, under which a grant issued later cannot cover a request
+minted earlier. `Ask` names exactly one person, resolved through the existing
+roster and desk algebra, and never an agent.
+
+It adds **one port**, `ApprovalGate`, in `crates/tinyhivemind`, sibling to
+`MentionTurnQueue` and `ReferralQueue`. Approval *decides*; every wait for a
+person is IO and belongs there or in the host. That is the ADR: the contested
+choice was not that the fold decides rather than enacts, but that it is total —
+a gate that can fail is a gate that can be bypassed by failing, so `approve`
+returns no `Result` and adds no `Error` variant. See
+[ADR 0008](docs/adr/0008-an-approval-decision-is-total.md).
+
+It does **not** execute anything, define a tool surface, embed a policy
+language, store an audit trail, handle a credential, or sandbox a command. The
+resource predicate is lexical path containment, not a kernel boundary, and the
+spec says so where a reader would otherwise assume otherwise. It does not relax
+one message, one turn: no decision variant carries a turn, an `Ask` is not a
+mention and never becomes a `MentionTurnRequest`, and approval expresses no
+edge to the dispatch or referral folds in either direction.
 
 ## The two defects P4 and P5 fix
 
