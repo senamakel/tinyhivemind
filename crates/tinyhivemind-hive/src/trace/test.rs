@@ -203,6 +203,17 @@ fn an_unclosed_fence_masks_to_the_end_of_the_body() {
 }
 
 #[test]
+fn a_marker_inside_a_multi_line_code_span_is_masked() {
+    // An inline span may open on one line and close on a later one, so a
+    // marker at the start of a line between them is quoted code even though
+    // no backtick precedes it on its own line.
+    let body = "run `\n!propose #hidden\n` carefully\n!propose #real";
+    let traces = resolve(body, None, &agent("a"), Sequence(1));
+    assert_eq!(traces.len(), 1);
+    assert_eq!(traces[0].topic, Some(TopicId("real".into())));
+}
+
+#[test]
 fn a_backticked_marker_is_not_line_leading_and_needs_no_masking() {
     assert!(resolve("`!propose #a`", None, &agent("a"), Sequence(1)).is_empty());
 }
