@@ -54,7 +54,9 @@
 //! [`code_ranges`] adds `CommonMark`'s [code spans][span-spec] to that:
 //!
 //! - a span opens on a run of backticks and closes on the next run of
-//!   *exactly* the same length, so `` ``a`b`` `` is one span rather than two;
+//!   *exactly* the same length, so a two-backtick opener pairs only with a
+//!   later two-backtick run, letting a single backtick appear as content
+//!   inside it;
 //! - a backslash escapes the backtick after it, so `` \` `` opens nothing —
 //!   but a backslash inside an open span is content, and does not stop the
 //!   span closing on the backtick it precedes;
