@@ -258,6 +258,42 @@ fn first_line(reply: &str) -> String {
         .to_owned()
 }
 
+/// Strip the decoration an interactive CLI prints around its answer.
+///
+/// An agent CLI writes for a terminal, not for a pipe: `opencode run` colours
+/// its output and prefixes it with a `> build \u{b7} model` banner. Taking the
+/// first line of that verbatim would make the banner the agent's turn, and
+/// the desk would then route on whatever `@` happened to sit in a model name.
+/// So: drop ANSI escapes, drop the banner lines, and keep what is left.
+fn strip_cli_decoration(output: &str) -> String {
+    let mut clean = String::with_capacity(output.len());
+    let mut chars = output.chars().peekable();
+    while let Some(character) = chars.next() {
+        if character != '\u{1b}' {
+            clean.push(character);
+            continue;
+        }
+        // A CSI sequence runs until a byte in @-~; anything else is a short
+        // two-character escape whose second character is consumed here.
+        if chars.peek() == Some(&'[') {
+            chars.next();
+            for next in chars.by_ref() {
+                if ('@'..='~').contains(&next) {
+                    break;
+                }
+            }
+        } else {
+            chars.next();
+        }
+    }
+    clean
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with("> "))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// Post one chat completion and return the assistant's content.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn http_turn(
@@ -350,9 +386,9 @@ fn command_turn(argv: &[String], prompt: &str) -> Result<String, String> {
     if !output.status.success() {
         return Err(format!("{program} exited with {}", output.status));
     }
-    let reply = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    let reply = strip_cli_decoration(&String::from_utf8_lossy(&output.stdout));
     if reply.is_empty() {
-        return Err(format!("{program} printed nothing"));
+        return Err(format!("{program} printed nothing usable"));
     }
     Ok(reply)
 }
