@@ -50,6 +50,17 @@ otherwise be an error is a `DenyReason`, and every one of them denies:
 decisions rather than malformed input, and are listed here for the same
 reason: none of the nine is a `Result::Err` anywhere in this gate.
 
+The over-TTL grant from the Context section above is the one malformed input
+that is *not* itself a `DenyReason`: `grant_live` excludes it from coverage
+the same way it excludes an expired or revoked grant, and the request then
+falls through to whatever the rest of policy would decide on its own —
+`Allow` through a matching rule or another valid grant, or a `Deny`/`Ask`
+reached the same way it would be reached with no grant at all. This is still
+total in the sense this ADR cares about: the malformed grant never becomes a
+`Result::Err`, and it never becomes a silent `Allow` on its own say-so either
+— it is simply not evidence. See "ignores the grant rather than clamping it"
+in [`docs/specs/approval.md`](../specs/approval.md#standing-grants-and-epochs).
+
 The failure modes do not disappear; they change category. They stop being
 something a caller may propagate and become something a caller must read out of
 a decision it is already matching on. The repository's rule that every error
