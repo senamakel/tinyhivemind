@@ -30,7 +30,7 @@ mod test;
 
 mod types;
 
-pub mod budget;
+mod budget;
 
 pub use budget::{BudgetPolicy, BudgetRequest, BudgetShare, BudgetVerdict, allocate_chars};
 pub use types::{AgentThreshold, Bid, BidContext, BidReason};
