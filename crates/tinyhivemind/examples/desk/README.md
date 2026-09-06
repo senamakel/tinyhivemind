@@ -71,7 +71,21 @@ information.
 a run pins one model — for instance a ladder rung that only ever serves
 `deepseek-v4-pro`.
 
-## Two host obligations found by running it
+## Private asides
+
+A seat may address one peer alone by making `!aside @peer` the first line of
+its post. The harness never acts on that marker: it hands the line to
+`tinyhivemind_core::aside::aside`, which resolves who it may reach and refuses
+with a named reason otherwise, and a refusal leaves the row desk-visible —
+the safe direction to fail in. The policy here is a pair, six rows, and a
+settlement owed before another may be opened, because a desk solving one
+problem wants two seats to sort out a disagreement without spending the room's
+attention on it, and wants that to end in something the room can read.
+
+The budget is folded out of the journal rather than stored, so this host keeps
+no state the transcript does not already carry.
+
+## Four host obligations found by running it
 
 Both are the same shape as the ones `../../../tinyhivemind-hive/examples/bench/LIVE.md`
 records: things the library cannot impose and a host has to.
@@ -83,3 +97,16 @@ records: things the library cannot impose and a host has to.
    four, and only the first one runs — so the chain continues to whoever
    happened to be named first rather than to whoever is needed. The prompt says
    so in as many words: put the seat you need first.
+3. **A turn that is killed has said nothing.** A seat can spend a whole budget
+   inside tool calls and never speak: one run cost 90k tokens across 27 tool
+   calls and posted nothing at all. The library cannot know a process was
+   killed, so the host owes the room a message — `chat.rs` asks for one
+   through a plain completion where there is no tool to call. Asking the CLI
+   nicely does not work: told in as many words not to run anything, it ran
+   eight more commands and hit the deadline again.
+4. **`max_tokens` is spent on reasoning first.** That wrap-up came back empty
+   with `finish_reason: length` at a 1200-token cap, and again at 8000 — the
+   whole budget went to reasoning tokens and `content` was the empty string,
+   on both DeepSeek tiers. Uncapped, the same call answers in 350 tokens. A
+   silent seat looked like a model refusing to speak and was a cap set too
+   low.
