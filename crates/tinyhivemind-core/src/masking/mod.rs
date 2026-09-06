@@ -22,7 +22,7 @@
 //!
 //! # Fence rules
 //!
-//! The fence rules follow CommonMark closely enough that an author who
+//! The fence rules follow the CommonMark[^spec] rules closely enough that an author who
 //! formats a message for a Markdown renderer gets the masking they see:
 //!
 //! - an opening fence is indented at most three spaces, and is a run of at
@@ -33,6 +33,8 @@
 //!   long, and carries nothing but whitespace after the run;
 //! - an unclosed fence masks to the end of the body, so a body cannot end
 //!   mid-block with its tail read as grammar.
+//!
+//! [^spec]: <https://spec.commonmark.org/current/#fenced-code-blocks>
 
 #[cfg(test)]
 mod test;
