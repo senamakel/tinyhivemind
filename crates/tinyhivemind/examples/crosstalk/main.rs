@@ -550,6 +550,19 @@ async fn run(options: &Options) -> Result<Report, String> {
         &options.instruction,
     );
 
+    // The model-backed rung of the ladder, on the same endpoint as the seats.
+    // A CLI backend gets no selector: `opencode run` answering "which id?"
+    // costs a whole process, and the deterministic fallback is the honest
+    // behaviour for a host that has no cheap router.
+    let selector = LadderSelector {
+        backend: options.backend.clone(),
+    };
+    let selector_ref: Option<&(dyn Selector + '_)> =
+        if matches!(options.backend, Backend::Http { .. }) {
+            Some(&selector)
+        } else {
+            None
+        };
     let decision = route_opening(options, selector_ref, &roster, &desks).await?;
 
     // Where the agents talk. Under `--thread` that is a sub-conversation of
