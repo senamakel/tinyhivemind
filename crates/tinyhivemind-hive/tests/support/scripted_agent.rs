@@ -57,7 +57,7 @@ impl HiveAgent for ScriptedAgent {
         &self.id
     }
 
-    fn speak(&mut self, turn: &HiveTurn, visible: &[&SessionMessage]) -> Result<String, String> {
+    fn speak(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Result<String, String> {
         self.calls
             .push(visible.iter().map(|message| message.sequence.0).collect());
         if let Some(line) = self.lines.pop_front() {
@@ -73,7 +73,7 @@ impl HiveAgent for ScriptedAgent {
 /// What an out-of-script participant says once the room has moved to
 /// [`Phase::Commit`]: the carried topic, recomputed from what this turn can
 /// see, rather than a `!question` that would never record a decision.
-fn commit_line(visible: &[&SessionMessage], policy: QuorumPolicy) -> String {
+fn commit_line(visible: &[SessionMessage], policy: QuorumPolicy) -> String {
     let messages: Vec<SessionMessage> = visible.iter().map(|message| (*message).clone()).collect();
     let traces = read(&messages);
     let at = messages

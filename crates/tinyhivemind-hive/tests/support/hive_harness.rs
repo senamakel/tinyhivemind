@@ -23,7 +23,7 @@ pub(crate) trait HiveAgent {
     fn id(&self) -> &str;
 
     /// Produce the body of one turn, given exactly what this turn may see.
-    fn speak(&mut self, turn: &HiveTurn, visible: &[&SessionMessage]) -> Result<String, String>;
+    fn speak(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Result<String, String>;
 }
 
 /// Why an episode stopped.

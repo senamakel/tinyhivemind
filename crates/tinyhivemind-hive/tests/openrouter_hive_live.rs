@@ -59,7 +59,7 @@ impl HiveAgent for OpenRouterAgent {
         &self.id
     }
 
-    fn speak(&mut self, turn: &HiveTurn, visible: &[&SessionMessage]) -> Result<String, String> {
+    fn speak(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Result<String, String> {
         // The model sees exactly what the library authorized it to see. Under a
         // blind turn that is deliberately less than the whole room.
         let transcript = visible
