@@ -89,6 +89,16 @@ answer can be acted on, which is the same discipline as not offering a
 delegation tool to a run already at its hop cap
 ([`mention-dispatch.md`](mention-dispatch.md)).
 
+The briefing now holds the same shape, and it was the last place that did not.
+`TeamBriefing::system_text` states no mention-dispatch rule at all, and
+`system_text_with_dispatch` states it only under a `MentionDispatchContext`
+whose `may_dispatch` holds — so a disabled policy, a spent hop budget, and a
+caller that supplies no context are each silent about the capability rather
+than offering it and having the next call refuse. See
+[`sessions.md`](sessions.md); the gap `mention-dispatch.md` records under
+"A run at the cap is not offered the action" is closed and its wording is
+stale.
+
 **A decline is a sentence before it is a type.** This one the ladder mostly
 sidesteps rather than satisfies. It does not decline: every rung ends in an
 agent id, and each way a rung could have failed — an ambiguous agent name, an
