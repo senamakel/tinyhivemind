@@ -458,3 +458,102 @@ mod expressions {
         assert!(matches!(error, Error::InvalidPattern { .. }));
     }
 }
+
+// ---------------------------------------------------------------------------
+// Private asides
+// ---------------------------------------------------------------------------
+
+fn aside_message(sequence: u64, id: &str, members: &[&str], content: &str) -> LogMessage {
+    LogMessage {
+        author: agent(id),
+        audience: Audience::Aside {
+            members: members.iter().map(|member| (*member).to_owned()).collect(),
+        },
+        ..message(sequence, Some("engineering"), None, content)
+    }
+}
+
+fn seeker(id: &str) -> Viewer {
+    Viewer::Agent { id: id.into() }
+}
+
+fn hits_for(rows: Vec<LogMessage>, viewer: Viewer, pattern: &str) -> Vec<MessageHit> {
+    let log = FakeLog::new(vec![page(rows.into_iter().rev().collect())]);
+    let query = SearchQuery::new(pattern, viewer);
+    tokio::runtime::Builder::new_current_thread()
+        .build()
+        .expect("a current-thread runtime")
+        .block_on(search_messages(&log, &query))
+        .expect("searches")
+}
+
+#[test]
+fn a_whole_log_search_never_quotes_an_aside_the_seeker_is_outside() {
+    // `scope: None` reads every desk in the log and returns verbatim excerpts,
+    // which makes this the widest reach any read path has.
+    let rows = vec![
+        message(1, Some("engineering"), None, "nothing to see"),
+        aside_message(2, "planner", &["auditor"], "the credentials rotate on Friday"),
+    ];
+    let hits = hits_for(rows, seeker("archivist"), "credentials");
+    assert!(hits.is_empty());
+}
+
+#[test]
+fn a_member_finds_its_own_aside_by_search() {
+    // This is what lets a member recover a private exchange after the window
+    // has moved past it. Without it, saying something privately loses it.
+    let rows = vec![aside_message(
+        2,
+        "planner",
+        &["auditor"],
+        "the credentials rotate on Friday",
+    )];
+    for id in ["planner", "auditor"] {
+        let hits = hits_for(rows.clone(), seeker(id), "credentials");
+        assert_eq!(hits.len(), 1, "{id} is in this aside");
+        assert!(hits[0].excerpt.contains("credentials"));
+    }
+}
+
+#[test]
+fn a_person_searching_reads_every_aside() {
+    let rows = vec![aside_message(
+        2,
+        "planner",
+        &["auditor"],
+        "the credentials rotate on Friday",
+    )];
+    for viewer in [Viewer::Operator, Viewer::Person { id: "ada".into() }] {
+        assert_eq!(hits_for(rows.clone(), viewer, "credentials").len(), 1);
+    }
+}
+
+#[test]
+fn an_unreadable_hit_does_not_consume_a_ranked_slot() {
+    // Filtering after the sort would let an invisible high scorer occupy one
+    // of `limit` places and then vanish, returning fewer hits than exist.
+    let mut rows = vec![aside_message(
+        99,
+        "planner",
+        &["auditor"],
+        "ship ship ship ship",
+    )];
+    for sequence in 1..=9 {
+        rows.push(message(sequence, Some("engineering"), None, "ship it"));
+    }
+    rows.sort_by_key(|row| row.sequence);
+
+    let log = FakeLog::new(vec![page(rows.into_iter().rev().collect())]);
+    let query = SearchQuery {
+        limit: 10,
+        ..SearchQuery::new("ship", seeker("archivist"))
+    };
+    let hits = tokio::runtime::Builder::new_current_thread()
+        .build()
+        .expect("a current-thread runtime")
+        .block_on(search_messages(&log, &query))
+        .expect("searches");
+    assert_eq!(hits.len(), 9);
+    assert!(hits.iter().all(|hit| hit.sequence != Sequence(99)));
+}
