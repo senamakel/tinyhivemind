@@ -274,6 +274,15 @@ an agent, because an agent approving another agent's side effect is not a gate,
 it is a second agent. This is the one place where the shape suggested for this
 work is narrowed rather than followed.
 
+The two approver-resolution `DenyReason`s are distinct failures, not
+synonyms: `UnresolvableApprover` is `DeskSet::resolve_id` itself failing
+(`UnknownDesk` or `AmbiguousDesk`) — the desk named by `PerDesk` cannot be
+found at all. `NoApprover` is desk resolution succeeding but the id it names —
+`PerDesk`'s resolved `default` or override, or a bare `ApproverRule::Person`'s
+`id` — not naming an active person in `roster.person`. A `Person` rule can
+therefore still deny with `NoApprover`; it is never `UnresolvableApprover`,
+because there is no desk lookup to fail.
+
 ### The decision
 
 ```rust
