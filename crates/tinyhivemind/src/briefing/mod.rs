@@ -11,7 +11,7 @@ pub use types::{
 };
 
 use crate::{
-    Conversation, Result, SessionLog, SessionQuery,
+    Conversation, Result, SessionLog, SessionMessage, SessionQuery,
     pins::{PIN_LIMIT, read_pinboard},
     project_session, read_thread_index,
     threads::THREAD_INDEX_LIMIT,
