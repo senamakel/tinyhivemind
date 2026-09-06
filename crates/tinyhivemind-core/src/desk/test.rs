@@ -452,3 +452,35 @@ fn a_tombstoned_agent_leaves_every_desk_answer_without_being_retired_too() {
     let ordered = set(&declared, &[], &additions, &orders, &[]).with_tombstoned(&tombstoned);
     assert_eq!(ordered.validate(), Ok(()));
 }
+
+#[test]
+fn a_stored_order_survives_tombstoning_a_member_it_still_names() {
+    // The host is not required to rewrite a stored order the moment a member
+    // is tombstoned; the stale entry is ignored rather than rejected, so the
+    // desk's other members remain reachable.
+    let declared = [desk("eng", "Engineering", &["alice", "bob"])];
+    let tombstoned = [String::from("bob")];
+    let orders = [DeskOrder {
+        desk_id: "eng".into(),
+        ordered: vec!["alice".into(), "bob".into()],
+    }];
+    let desks = set(&declared, &[], &[], &orders, &[]).with_tombstoned(&tombstoned);
+
+    assert_eq!(desks.validate(), Ok(()));
+    assert_eq!(desks.members("eng").unwrap(), vec!["alice"]);
+    assert_eq!(desks.lead("eng").unwrap(), Some("alice"));
+}
+
+#[test]
+fn a_stored_order_survives_retiring_a_member_it_still_names() {
+    let declared = [desk("eng", "Engineering", &["alice", "bob"])];
+    let retired = [String::from("bob")];
+    let orders = [DeskOrder {
+        desk_id: "eng".into(),
+        ordered: vec!["bob".into(), "alice".into()],
+    }];
+    let desks = set(&declared, &[], &[], &orders, &retired);
+
+    assert_eq!(desks.validate(), Ok(()));
+    assert_eq!(desks.members("eng").unwrap(), vec!["alice"]);
+}
