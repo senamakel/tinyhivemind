@@ -403,6 +403,7 @@ pub(crate) fn run_episode_with(
 /// # Errors
 ///
 /// Returns the library's own error text if a snapshot or policy is malformed.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn run_episode_checking(
     room: &Room,
     policy: &EpisodePolicy,

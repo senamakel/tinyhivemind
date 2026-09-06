@@ -892,6 +892,37 @@ impl SimAgent {
         i32::try_from(total / divisor).unwrap_or(*own)
     }
 
+    /// Spend this turn on a pairwise check, if this member wants one.
+    ///
+    /// Three parts, in order: fold in whatever readings this member can now
+    /// read, answer anybody who asked, and otherwise ask. Each of them reads
+    /// the transcript the library authorized this turn to see, so under a
+    /// private exchange a member outside it parses a stub and takes nothing,
+    /// and under a public one every member parses the same line and takes the
+    /// same reading. That difference is the whole of what the aside arms
+    /// measure, and the projection rather than anything here produces it.
+    fn check(&mut self, visible: &[SessionMessage], view: &View) -> Option<String> {
+        if self.aside_cap == 0 {
+            return None;
+        }
+        // A reading is not a position: it changes what this member believes,
+        // and it still has to spend a turn saying so before the room counts
+        // anything.
+        self.absorb(visible);
+
+        // Answering costs this turn, which is what makes one exchange cost
+        // two turns rather than one.
+        if let Some(line) = self.answer_check(visible) {
+            return Some(line);
+        }
+
+        // Two options this member cannot separate. A member that already
+        // knows its own mind spends the turn saying so instead.
+        let line = self.open_check(visible, view)?;
+        self.asides_spent = self.asides_spent.saturating_add(1);
+        Some(line)
+    }
+
     /// Take in every second reading this member can read and has not yet.
     ///
     /// Marked by sequence rather than by content, so a line is folded once
@@ -921,22 +952,22 @@ impl SimAgent {
 
     /// Answer a check addressed to this member, with its own reading.
     fn answer_check(&mut self, visible: &[SessionMessage]) -> Option<String> {
-        let asked = visible.iter().rev().find(|message| {
+        let request = visible.iter().rev().find(|message| {
             message.readable().is_some_and(|body| {
                 body.starts_with(ASIDE_MARKER)
                     && body.contains(&format!("@{}", self.id))
                     && parse_reading(body).is_none()
             }) && !self.handled.contains(&message.sequence)
         })?;
-        let asker = match &asked.author {
+        let from = match &request.author {
             SessionAuthor::Agent { id, .. } => id.clone(),
             _ => return None,
         };
-        let topic = parse_topic(asked.readable()?)?;
-        self.handled.push(asked.sequence);
+        let topic = parse_topic(request.readable()?)?;
+        self.handled.push(request.sequence);
         let reading = self.score(&topic);
         Some(format!(
-            "{ASIDE_MARKER} @{asker} #{topic} My own {ASIDE_READS} {reading}."
+            "{ASIDE_MARKER} @{from} #{topic} My own {ASIDE_READS} {reading}."
         ))
     }
 
@@ -1007,27 +1038,8 @@ impl SimAgent {
         // and takes the same reading. That difference is the whole of what the
         // aside arms measure, and it is produced by the projection rather than
         // by anything here.
-        if self.aside_cap > 0 {
-            // Fold in every reading addressed to anybody that this member can
-            // actually read. A reading is not a position: it changes what this
-            // member believes and it still has to spend a turn saying so
-            // before the room counts anything.
-            self.absorb(visible);
-
-            // Somebody asked. Answering costs this turn, which is what makes
-            // the exchange cost two turns rather than one.
-            if let Some(line) = self.answer_check(visible) {
-                return line;
-            }
-
-            // Two options this member cannot separate, and a peer it has not
-            // asked. This is the only condition under which the move fires:
-            // a member that already knows its own mind spends its turn saying
-            // so instead.
-            if let Some(line) = self.open_check(visible, &view) {
-                self.asides_spent = self.asides_spent.saturating_add(1);
-                return line;
-            }
+        if let Some(line) = self.check(visible, &view) {
+            return line;
         }
 
         // The evidence-first opening: while nobody can read anybody, say what
