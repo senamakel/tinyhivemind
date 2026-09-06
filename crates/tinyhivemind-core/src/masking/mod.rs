@@ -258,7 +258,7 @@ fn blank_line_ranges(body: &str) -> Vec<(usize, usize)> {
 
 fn inline_ranges(body: &str, fenced: &[(usize, usize)]) -> Vec<(usize, usize)> {
     let bytes = body.as_bytes();
-    let blank_lines = blank_line_ranges(body);
+    let breaks = paragraph_breaks(body);
     let mut ranges = Vec::new();
     let mut offset = 0;
     while offset < bytes.len() {
@@ -269,6 +269,13 @@ fn inline_ranges(body: &str, fenced: &[(usize, usize)]) -> Vec<(usize, usize)> {
             offset = *end;
             continue;
         }
+        if bytes[offset] == b'\\' {
+            // A backslash escapes the character after it, so `\`` is a literal
+            // backtick rather than the opener of a span. Skipping the whole
+            // escaped character keeps every offset on a character boundary.
+            offset += 1 + body[offset + 1..].chars().next().map_or(0, char::len_utf8);
+            continue;
+        }
         if bytes[offset] != b'`' {
             offset += 1;
             continue;
@@ -277,14 +284,24 @@ fn inline_ranges(body: &str, fenced: &[(usize, usize)]) -> Vec<(usize, usize)> {
             .iter()
             .take_while(|byte| **byte == b'`')
             .count();
+        // A code span is inline content of one block, so the search for a
+        // closing run stops where the opener's paragraph does. Pairing past
+        // that boundary would mask the live text of every block in between.
+        // Backslash escapes are deliberately not honoured inside the span:
+        // `` `a\` `` closes on the escaped backtick, as `CommonMark` says.
+        let limit = breaks
+            .iter()
+            .copied()
+            .find(|boundary| *boundary > offset)
+            .unwrap_or(bytes.len());
         let mut candidate = offset + run;
         let mut closing = None;
-        while candidate < bytes.len() {
-            // A fenced block or a blank line ends the paragraph this opener
-            // lives in, so the search for a closing run must not cross
-            // either: pairing across one would mask live text on the far
-            // side as if it were still inside this opener's inline span.
-            if is_masked(candidate, fenced) || is_masked(candidate, &blank_lines) {
+        while candidate < limit {
+            // A fenced block ends the paragraph this opener lives in, so the
+            // search for a closing run must not cross it: pairing across a
+            // fenced block would mask live text after the block as if it
+            // were still inside this opener's inline span.
+            if is_masked(candidate, fenced) {
                 break;
             }
             if bytes[candidate] != b'`' {
@@ -309,4 +326,95 @@ fn inline_ranges(body: &str, fenced: &[(usize, usize)]) -> Vec<(usize, usize)> {
         }
     }
     ranges
+}
+
+/// The byte offsets at which a block boundary closes an open paragraph: the
+/// start and the end of every blank line, ATX heading, thematic break, and
+/// setext heading underline in `body`.
+///
+/// Each of those is a one-line block, so both its edges are boundaries — an
+/// opener above one cannot pair below it, and an opener inside a heading
+/// cannot pair on the line after it.
+///
+/// A `=` or `-` underline is only a setext heading under an open paragraph;
+/// elsewhere it is ordinary text. Treating it as a boundary regardless is
+/// safe here because a boundary only ever *stops* a search that began above
+/// it, and an opener above such a line is by construction inside the
+/// paragraph the line underlines.
+fn paragraph_breaks(body: &str) -> Vec<usize> {
+    let mut breaks = Vec::new();
+    let mut line_start = 0;
+    for line in body.split_inclusive('\n') {
+        let content = line.trim_end_matches(['\n', '\r']);
+        if content.trim().is_empty()
+            || is_atx_heading(content)
+            || is_thematic_break(content)
+            || is_setext_underline(content)
+        {
+            breaks.push(line_start);
+            breaks.push(line_start + line.len());
+        }
+        line_start += line.len();
+    }
+    breaks
+}
+
+/// A line's content past at most three columns of indentation, or `None` when
+/// it is indented far enough to be a code block instead. A tab always reaches
+/// the fourth column from any of the first four, so only spaces can survive
+/// this trim.
+fn under_four_columns(content: &str) -> Option<&str> {
+    (indentation_width(content) <= 4 - 1).then(|| content.trim_start_matches(' '))
+}
+
+/// Whether `content` is an ATX heading: one to six `#` characters followed by
+/// a space, a tab, or the end of the line.
+fn is_atx_heading(content: &str) -> bool {
+    let Some(rest) = under_four_columns(content) else {
+        return false;
+    };
+    let hashes = rest.bytes().take_while(|byte| *byte == b'#').count();
+    (1..=6).contains(&hashes) && matches!(rest.as_bytes().get(hashes), None | Some(b' ' | b'\t'))
+}
+
+/// Whether `content` is a thematic break: three or more of `-`, `_`, or `*`,
+/// all the same character, with nothing but spaces and tabs between them.
+fn is_thematic_break(content: &str) -> bool {
+    let Some(rest) = under_four_columns(content) else {
+        return false;
+    };
+    let Some(marker) = rest
+        .bytes()
+        .next()
+        .filter(|byte| matches!(byte, b'-' | b'_' | b'*'))
+    else {
+        return false;
+    };
+    let mut markers = 0;
+    for byte in rest.bytes() {
+        if byte == marker {
+            markers += 1;
+        } else if !matches!(byte, b' ' | b'\t') {
+            return false;
+        }
+    }
+    markers >= 3
+}
+
+/// Whether `content` could underline a setext heading: a run of `=` or a run
+/// of `-`, then only spaces and tabs. It is one *only* under an open
+/// paragraph, which every caller here checks for itself.
+fn is_setext_underline(content: &str) -> bool {
+    let Some(rest) = under_four_columns(content) else {
+        return false;
+    };
+    let Some(marker) = rest
+        .bytes()
+        .next()
+        .filter(|byte| matches!(byte, b'=' | b'-'))
+    else {
+        return false;
+    };
+    let run = rest.bytes().take_while(|byte| *byte == marker).count();
+    rest[run..].trim().is_empty()
 }
