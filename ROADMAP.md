@@ -27,7 +27,7 @@ dependency direction is enforced by construction.
 | P13 | Digests and supersession | planned |
 | P15 | Cross-desk referral: one child turn that may run on another channel, the answer that comes back, and the federated benchmark that scored it | **done**, every knob **off by default** |
 | P14 | Recall: one selection ranking, roster and desk pickers, bounded transcript search with optional regular expressions, pinning as a fold, and a stated per-message budget | **done** |
-| P16 | Private asides: an audience on a stored row, a viewer on a query, the collapsed redaction stub and its settlement pointer, and the rule that an aside carries information rather than support | in progress, **off by default** |
+| P16 | Private asides: an audience on a stored row, a viewer on a query, the collapsed redaction stub and its settlement pointer, and the rule that an aside carries information rather than support | **done**, **off by default** — the benchmark arm says asides do not improve a decision, see below |
 
 P15 is also out of order, and for a related reason: it is not a wire-format
 change either, and it answers a pressure none of P11 through P13 address. Every
@@ -52,6 +52,15 @@ generalises that one crude knob from per-turn and time-based to per-message and
 addressee-based. See [`docs/specs/private-asides.md`](docs/specs/private-asides.md),
 [ADR 0008](docs/adr/0008-an-aside-carries-information-never-support.md) and
 [the reading](docs/research/context-in-agent-teams.md).
+
+The arm that measures it **lost**, and the loss is published:
+[`docs/experiments/2026-09-07-do-asides-help.md`](docs/experiments/2026-09-07-do-asides-help.md)
+records −2.5 points at the tuned turn budget, nothing once the budget stops
+binding, and −15.3 on a hidden profile, where averaging with a peer inside one
+correlated desk imports the shared bias instead of cancelling noise. The
+matched public control settles the narrower question: privacy is worth nothing
+to a decision either way. P16 therefore rests on auditability and bounded
+independence, and claims nothing about answer quality.
 
 P14 is out of order on purpose. It is not a wire-format change and does not
 wait on P11 through P13: it answers the same pressure they do — a bounded
