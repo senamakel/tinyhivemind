@@ -1,4 +1,53 @@
 //! Max-min fair allocation of a character budget across context sources.
+//!
+//! The market next door decides *who speaks*. This decides *how much of what a
+//! turn already holds fits in front of them*: a pinboard, a thread index, a
+//! digest and a set of host notes all want room in one bounded prompt, and the
+//! budget they share is smaller than the sum of what they would each spend.
+//!
+//! The rule is **max-min fairness**, the standard allocation: every source is
+//! offered an equal share; a source wanting less than its share takes what it
+//! needs and releases the rest; the surplus is redistributed until it is
+//! exhausted. Equivalently — and this is how [`allocate_chars`] computes it —
+//! there is one level `L` such that each source is granted `min(wanted, L)`
+//! and `L` is the largest level that fits the budget. Small sources are never
+//! squeezed by a large one, and a large one cannot take more than an equal
+//! share of what the small ones leave.
+//!
+//! Fairness alone still produces rubbish, which is the second rule. A source
+//! cut to fifty characters is not context, it is a fragment that spends budget
+//! and teaches the reader nothing. A source whose share falls below
+//! [`BudgetPolicy::min_useful_chars`] is therefore **dropped and marked**
+//! ([`BudgetVerdict::Dropped`], carrying every character it omitted) rather
+//! than carried in a state nobody can read. The floor applies only to a claim
+//! the budget had to *cut*: a source small enough to arrive whole is whole,
+//! however short it is.
+//!
+//! # Determinism
+//!
+//! Every share is a function of the *set* of requests, the budget and the
+//! floor — never of the position a request happened to occupy. Reordering the
+//! requests permutes the result identically and changes no number, which the
+//! tests assert over rotations, a reversal and a deterministic sweep.
+//!
+//! Two places would have broken that, and both are settled by refusing a
+//! positional tie-break:
+//!
+//! - **The remainder.** `total_chars` rarely divides evenly, so a few
+//!   characters are usually left over. They stay unspent. Handing them to
+//!   somebody would mean choosing whom, and the only thing distinguishing
+//!   equal claimants is where they sat in the slice.
+//! - **Who yields.** When the budget cannot usefully serve everyone, sources
+//!   are dropped one at a time, greediest first, and the level recomputed after
+//!   each — so a room of `n` equal claims loses claims one by one instead of
+//!   losing all context at the moment `n` grows too large. Equal claims tie on
+//!   `wanted`, and the tie breaks on `source_id` rather than on position. Two
+//!   requests identical in *both* are genuinely interchangeable; which of them
+//!   is dropped then follows request order, and that is the one place this fold
+//!   is not order-independent.
+//!
+//! All arithmetic is integer and saturating, so a source asking for
+//! `usize::MAX` is cut like any other rather than wrapping the sum.
 
 #[cfg(test)]
 mod test;
@@ -8,6 +57,47 @@ mod types;
 pub use types::{BudgetPolicy, BudgetRequest, BudgetShare, BudgetVerdict};
 
 /// Allocate a character budget across competing context sources.
+///
+/// Returns one [`BudgetShare`] per request, in request order, each carrying
+/// what its source may spend, what was withheld, and whether it survived. The
+/// caller does the cutting and the marking; this fold only decides the
+/// numbers, and it never reads or edits the text behind a request.
+///
+/// See the [module documentation][self] for the algorithm and for exactly
+/// where the result is and is not order-independent.
+///
+/// # Example
+///
+/// ```
+/// use tinyhivemind_hive::attention::{
+///     BudgetPolicy, BudgetRequest, BudgetShare, BudgetVerdict, allocate_chars,
+/// };
+///
+/// // A tight budget, four sources, and one of them enormous.
+/// let policy = BudgetPolicy { total_chars: 700, min_useful_chars: 200 };
+/// let requests = [
+///     BudgetRequest::new("pins", 50),
+///     BudgetRequest::new("digest", 4_000),
+///     BudgetRequest::new("threads", 600),
+///     BudgetRequest::new("notes", 300),
+/// ];
+///
+/// let shares = allocate_chars(&requests, &policy);
+///
+/// // The pinboard wanted little and got all of it; its surplus went to the
+/// // others rather than being wasted on an equal quarter share.
+/// assert_eq!((shares[0].granted, shares[0].verdict), (50, BudgetVerdict::Whole));
+///
+/// // The greediest claim is the one that yields, and it says how much it took
+/// // with it so the caller can tell the reader.
+/// assert_eq!(shares[1].verdict, BudgetVerdict::Dropped);
+/// assert_eq!(shares[1].omitted, 4_000);
+///
+/// // What is left divides evenly, and nothing survives as an unreadable stub.
+/// assert_eq!(shares[2].granted, 325);
+/// assert_eq!(shares[3].granted, 300);
+/// assert!(shares.iter().map(|share| share.granted).sum::<usize>() <= policy.total_chars);
+/// ```
 #[must_use]
 pub fn allocate_chars(requests: &[BudgetRequest], policy: &BudgetPolicy) -> Vec<BudgetShare> {
     let mut carried: Vec<bool> = vec![true; requests.len()];
