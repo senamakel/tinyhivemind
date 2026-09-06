@@ -95,6 +95,13 @@ pub fn is_masked(offset: usize, ranges: &[(usize, usize)]) -> bool {
 /// ```
 #[must_use]
 pub fn fenced_ranges(body: &str) -> Vec<(usize, usize)> {
+    let mut ranges = backtick_or_tilde_fence_ranges(body);
+    ranges.extend(indented_block_ranges(body));
+    ranges.sort_unstable();
+    ranges
+}
+
+fn backtick_or_tilde_fence_ranges(body: &str) -> Vec<(usize, usize)> {
     let mut ranges = Vec::new();
     let mut open: Option<(usize, u8, usize)> = None;
     let mut line_start = 0;
@@ -132,6 +139,43 @@ pub fn fenced_ranges(body: &str) -> Vec<(usize, usize)> {
     }
     if let Some((start, _, _)) = open {
         ranges.push((start, body.len()));
+    }
+    ranges
+}
+
+/// A maximal run of lines each indented at least four spaces: `CommonMark`'s
+/// other code block, distinct from a backtick or tilde fence.
+///
+/// A blank line does not end the run — only a later non-blank, under-indented
+/// line or the end of the body does — because `CommonMark` lets an indented
+/// block continue across blank lines. This is a conservative approximation
+/// (it does not track list or blockquote context the way a full parser
+/// would), but it never under-masks a plainly indented example: a fenced pair
+/// quoted at four or more spaces of indentation is `CommonMark` code either
+/// way, so treating its content as masked is never a false positive against
+/// what a Markdown renderer would show.
+fn indented_block_ranges(body: &str) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::new();
+    let mut open: Option<usize> = None;
+    let mut open_end = 0;
+    let mut line_start = 0;
+    for line in body.split_inclusive('\n') {
+        let content = line.trim_end_matches(['\n', '\r']);
+        if content.trim().is_empty() {
+            line_start += line.len();
+            continue;
+        }
+        let indent = content.len() - content.trim_start_matches(' ').len();
+        if indent >= 4 {
+            open.get_or_insert(line_start);
+            open_end = line_start + line.len();
+        } else if let Some(start) = open.take() {
+            ranges.push((start, open_end));
+        }
+        line_start += line.len();
+    }
+    if let Some(start) = open {
+        ranges.push((start, open_end));
     }
     ranges
 }
