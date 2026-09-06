@@ -8,7 +8,7 @@
 use std::{
     fs,
     io::Write,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::{Command, Stdio},
     time::{Duration, Instant},
 };
@@ -106,11 +106,6 @@ impl AgentRunner {
     /// The runner's configured per-turn deadline.
     pub(crate) const fn timeout(&self) -> Duration {
         self.timeout
-    }
-
-    /// Where raw turn streams are kept, if anywhere.
-    pub(crate) fn raw_dir(&self) -> Option<&Path> {
-        self.raw_dir.as_deref()
     }
 }
 
