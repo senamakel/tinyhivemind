@@ -1239,3 +1239,91 @@ fn project_as_leaves_an_already_elided_row_alone() {
     assert_eq!(project_as(&narrowed, &agent("archivist")), narrowed);
     assert_eq!(narrowed[1].elided.as_ref().expect("a stub").messages, 3);
 }
+
+#[test]
+fn two_closed_threads_between_the_same_pair_stay_two_stubs() {
+    // Both roots are asides between the same participants, and each owns a
+    // reply. Collapsing on participants alone would report one stub spanning
+    // both, with a combined range and count for exchanges that never were one
+    // exchange.
+    let rows = vec![
+        aside_row(1, "planner", &["auditor"], "first thread, root"),
+        LogMessage {
+            parent: Some(Sequence(1)),
+            ..aside_row(2, "auditor", &["planner"], "first thread, reply")
+        },
+        aside_row(3, "planner", &["auditor"], "second thread, root"),
+        LogMessage {
+            parent: Some(Sequence(3)),
+            ..aside_row(4, "auditor", &["planner"], "second thread, reply")
+        },
+    ];
+    let projected = as_viewer(rows, agent("archivist"));
+    assert_eq!(projected.len(), 2);
+    assert_eq!(projected[0].sequence, Sequence(1));
+    assert_eq!(projected[0].elided.as_ref().expect("a stub").through, Sequence(2));
+    assert_eq!(projected[1].sequence, Sequence(3));
+    assert_eq!(projected[1].elided.as_ref().expect("a stub").through, Sequence(4));
+}
+
+#[test]
+fn a_run_of_channel_asides_is_still_one_stub() {
+    // The other half of the same rule: rows nothing replies to are ordinary
+    // channel messages, so a run of them between one pair is one exchange.
+    let rows = vec![
+        aside_row(1, "planner", &["auditor"], "one"),
+        aside_row(2, "auditor", &["planner"], "two"),
+        aside_row(3, "planner", &["auditor"], "three"),
+    ];
+    let projected = as_viewer(rows, agent("archivist"));
+    assert_eq!(projected.len(), 1);
+    assert_eq!(projected[0].elided.as_ref().expect("a stub").messages, 3);
+}
+
+#[test]
+fn a_settlement_narrowing_dropped_still_settles_the_stub() {
+    // Channel narrowing keeps a root and its *first* reply. Here the first
+    // reply is the aside and the settlement is the second, so the settlement
+    // is not in the projection at all — it has to be found in the scanned
+    // slice or the stub reports `settled_at: None` for an aside the room did
+    // settle.
+    let rows = vec![
+        said(1, "planner", "How should we cut over?"),
+        LogMessage {
+            parent: Some(Sequence(1)),
+            ..aside_row(2, "auditor", &["planner"], "privately, I am unsure")
+        },
+        LogMessage {
+            parent: Some(Sequence(1)),
+            ..said(3, "auditor", "The rollback path is the risk.")
+        },
+    ];
+    let projected = as_viewer(rows, agent("archivist"));
+    let stub = projected
+        .iter()
+        .find(|message| message.elided.is_some())
+        .expect("a stub");
+    assert_eq!(
+        stub.elided.as_ref().expect("a stub").settled_at,
+        Some(Sequence(3)),
+    );
+    // And the settlement itself is genuinely absent from this projection,
+    // which is what makes the assertion above non-trivial.
+    assert!(!projected.iter().any(|message| message.sequence == Sequence(3)));
+}
+
+#[test]
+fn a_settlement_before_the_aside_does_not_settle_it() {
+    // `settled_at` points at what a participant said *afterwards*. A row
+    // earlier in the transcript is not an outcome of an exchange that had not
+    // happened yet.
+    let rows = vec![
+        said(1, "planner", "An opinion, stated before anything private."),
+        aside_row(2, "planner", &["auditor"], "and now privately"),
+    ];
+    let projected = as_viewer(rows, agent("archivist"));
+    assert_eq!(
+        projected[1].elided.as_ref().expect("a stub").settled_at,
+        None,
+    );
+}
