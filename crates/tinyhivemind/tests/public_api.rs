@@ -232,9 +232,14 @@ fn root_exports_the_pin_fold_and_its_briefing_note() {
             sequence: Sequence(2),
             chat_id: None,
             parent: None,
-            author: SessionAuthor::Operator,
+            author: SessionAuthor::Agent {
+                id: "ada".into(),
+                label: "Ada".into(),
+            },
             content: "!pin ^1 #limits keep this".into(),
-            audience: Audience::Desk,
+            audience: Audience::Aside {
+                members: vec!["linus".into()],
+            },
         },
     ];
     let board = fold_pins(&rows, &Viewer::Operator, PIN_LIMIT);
@@ -248,6 +253,19 @@ fn root_exports_the_pin_fold_and_its_briefing_note() {
         read_directives("!unpin ^1", &SessionAuthor::Operator, Sequence(3))[0].action,
         PinAction::Unpin
     );
+
+    // The `!pin` marker is inside an aside addressed to `linus`, not to the
+    // desk: an outsider's board never sees a directive it could not read, and
+    // an addressed member's does — proving the `Viewer` argument is not
+    // ignored.
+    let outsider_board = fold_pins(&rows, &Viewer::Agent { id: "grace".into() }, PIN_LIMIT);
+    assert!(
+        outsider_board.is_empty(),
+        "an outsider's aside directive never touches the pin board"
+    );
+    let member_board = fold_pins(&rows, &Viewer::Agent { id: "linus".into() }, PIN_LIMIT);
+    assert_eq!(member_board[0].sequence, Sequence(1));
+    assert_eq!(member_board[0].label.as_deref(), Some("limits"));
 }
 
 #[test]
