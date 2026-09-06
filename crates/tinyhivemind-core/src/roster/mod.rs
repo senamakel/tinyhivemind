@@ -82,6 +82,21 @@ impl<'a> Roster<'a> {
         self.active_members().find(|member| member.id == id)
     }
 
+    /// Find any registered agent by its exact id, active or not.
+    ///
+    /// This is the **attribution** lookup, and it is the only one that sees an
+    /// agent the roster no longer runs. A message committed by an agent that
+    /// has since been retired still has to render with its author's name, so
+    /// the record survives the agent's removal from every active answer.
+    ///
+    /// It is deliberately not a routing input. Ask [`Self::active_member`]
+    /// whether an agent may run; that question has one answer for an unknown id
+    /// and for a registered-but-unavailable one, and this one does not.
+    #[must_use]
+    pub fn registered_member(&self, id: &str) -> Option<&'a RosterMember> {
+        self.members.iter().find(|member| member.id == id)
+    }
+
     /// Find a person by its exact id.
     #[must_use]
     pub fn person(&self, id: &str) -> Option<&'a Person> {
