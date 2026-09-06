@@ -125,12 +125,17 @@ renderer gets the masking they can see:
   four-backtick block does not close it;
 - an unclosed fence masks to the end of the body, so a body cannot end
   mid-block with its tail read as grammar;
-- a line indented four or more spaces opens `CommonMark`'s other code block —
-  the indented one — instead of a fence, and `fenced_ranges` masks that too:
-  the run continues across a blank line and ends at the first non-blank,
-  under-indented line or the end of the body. A quoted example that itself
-  contains a bare `` ``` `` fence, written at four spaces so it renders as
-  code rather than as a live block, stays masked in full for this reason.
+- a line indented four or more columns — a tab expands to the next multiple of
+  four — opens `CommonMark`'s other code block — the indented one — instead of
+  a fence, and `fenced_ranges` masks that too: the run continues across a
+  blank line and ends at the first non-blank, under-indented line or the end
+  of the body. A quoted example that itself contains a bare `` ``` `` fence,
+  written at four columns so it renders as code rather than as a live block,
+  stays masked in full for this reason;
+- an indented block cannot interrupt a paragraph, so the indented opener must
+  be the body's first line or follow a blank one — a wrapped, indented
+  continuation line right after live text is lazy continuation of that
+  paragraph, not a new block, and stays live.
 
 A line is masked when its **start offset** falls inside a range, which also
 means the fence lines themselves are inside the range.
@@ -139,8 +144,11 @@ means the fence lines themselves are inside the range.
 - `a_marker_inside_a_tilde_fenced_block_is_masked`
 - `a_fence_only_closes_on_the_same_character_that_opened_it`
 - `an_unclosed_fence_masks_to_the_end_of_the_body`
-- `an_indented_code_block_masks_all_its_lines` and
-  `an_indented_code_block_continues_across_a_blank_line`
+- `an_indented_code_block_masks_all_its_lines`,
+  `an_indented_code_block_continues_across_a_blank_line`,
+  `a_tab_indented_code_block_masks_all_its_lines`,
+  `an_indented_line_does_not_open_a_block_mid_paragraph`, and
+  `an_indented_line_opens_a_block_after_a_blank_line`
 - the fence rules themselves are pinned in
   `crates/tinyhivemind-core/src/masking/test.rs`, one test per rule.
 
