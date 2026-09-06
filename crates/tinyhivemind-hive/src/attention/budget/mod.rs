@@ -10,6 +10,14 @@ pub use types::{BudgetPolicy, BudgetRequest, BudgetShare, BudgetVerdict};
 /// Allocate a character budget across competing context sources.
 #[must_use]
 pub fn allocate_chars(requests: &[BudgetRequest], policy: &BudgetPolicy) -> Vec<BudgetShare> {
-    let _ = (requests, policy);
-    Vec::new()
+    let _ = policy;
+    requests
+        .iter()
+        .map(|request| BudgetShare {
+            source_id: request.source_id.clone(),
+            granted: request.wanted,
+            omitted: 0,
+            verdict: BudgetVerdict::Whole,
+        })
+        .collect()
 }
