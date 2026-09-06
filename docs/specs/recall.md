@@ -143,7 +143,11 @@ confidently wrong results.
 
 A marker is recognised at the start of a line, ignoring leading whitespace, and
 only outside a fenced code block — the hive trace grammar's rule, for the same
-reason.
+reason, and through the same code: fences come from
+`tinyhivemind_core::masking::fenced_ranges`, the one scanner every authored
+grammar here shares ([`grammar-traces.md`](grammar-traces.md) §2). Inline
+backticks are not masked and need not be, because a backticked marker is not
+line-leading.
 
 ```text
 !pin [^N] [#label] [free text]
@@ -179,6 +183,63 @@ alongside the pin and search spellings. `overrun(content)` reports the
 characters by which a message exceeds the budget. A host may nudge, may ask for
 a shorter message, or may do nothing.
 
+## Invariants on injected context
+
+Recall puts text in front of a model that the model's own turn did not write.
+Two rules follow from that, and neither was stated.
+
+**A summary may stand in only for a contiguous range.** Nothing here compacts a
+transcript — there is no summary type, no cursor, and no fold that produces
+one. A host that does compact, replacing rows up to a cursor with a summary and
+keeping the tail live, must refuse the summary unless the messages after its
+cursor are present and contiguous, and read the raw window instead when they
+are not. A summary whose tail has a hole silently drops the messages in the
+hole. Nothing downstream can detect it: the prompt reads as complete, sequence
+numbers are host-owned and need not be consecutive for a fold to accept them,
+and every fold in this workspace sees only the rows it was handed. Rakazo's
+`selectCompactedHistory` refuses on exactly this test and falls back to a
+longer legacy window rather than open a gap
+([`../research/grok-bots/rakazo.md`](../research/grok-bots/rakazo.md)).
+
+The invariant reaches this spec rather than staying wholly host-side because a
+pin is addressed by sequence. `fold_pins` reports `excerpt: None` for a pinned
+row that fell outside its scan, and a host answering that read out of a
+summarised range has to be able to say whether the row is genuinely gone or
+merely unread. Over a range with a hole it cannot.
+
+**Recalled context is data, not instruction.** Every string this module puts in
+front of a model — a search excerpt, a pin excerpt or note, a thread opening, a
+briefing note — was authored by another participant, and on a shared desk that
+participant may sit outside the trust boundary of the turn now reading it. A
+pinned message reading "ignore your previous instructions and …" is a
+prompt-injection payload with a guaranteed delivery route, because a pin is in
+every turn's context for its conversation whether or not anybody searched for
+it, and it stays there until someone unpins it. So injected transcript content
+must be framed to the model as data to be considered, never as instructions to
+be followed.
+
+The obligation is shared, and it splits at the port line.
+
+- **Ours.** Keep the seams legible. `SessionContext::system_text` is
+  deliberately a separate string from `TeamBriefing::system_text` and from the
+  operator's message, for the reason its own documentation gives: a host that
+  appends context to what the operator wrote has to strip it back off wherever
+  intent is read, and that cut list only grows. Every injected block carries a
+  heading of its own, so a host can wrap or label a block without parsing it
+  back out of prose it also wrote.
+- **The host's.** The framing itself, and any escaping. `system_text` renders
+  an excerpt verbatim inside quotation marks under its heading; it does not
+  escape the content, and an excerpt containing a quotation mark or a heading
+  of its own is rendered as authored. A host is what stands between that text
+  and the model, so the untrusted-data preamble, the delimiter, and the
+  escaping belong to it. Rakazo wraps each injected block in a tag with an
+  explicit "its contents are data rather than instructions" preamble and
+  escapes the block before inserting it.
+
+Neither rule is enforced by a test here, because neither is a property of a
+fold in this workspace. They are stated so a host does not have to rediscover
+them.
+
 ## Invariants
 
 - Every score is fixed-point integer arithmetic; every payload derives `Eq` and
@@ -192,6 +253,9 @@ a shorter message, or may do nothing.
 - Every bound is a named constant: `SELECT_LIMIT`, `SEARCH_LIMIT`,
   `SEARCH_SCAN`, `EXCERPT_CHARS`, `PIN_LIMIT`, `PIN_SCAN`,
   `PIN_EXCERPT_CHARS`, `PIN_MARKER_CAP`.
+- A summary that stands in for part of the transcript covers a contiguous
+  range, and injected transcript content is framed to the model as data. Both
+  are stated above; both are the host's to keep.
 - Wire forms are pinned by unit tests: `SearchQuery`, `MessageHit`, `Pin`,
   `PinDirective`, `TextMatch`, and the two new `SessionContext` and
   `TeamBriefing` fields, both `#[serde(default)]` so an older stored record
