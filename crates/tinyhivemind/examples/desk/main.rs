@@ -30,10 +30,9 @@ use std::{
     time::Duration,
 };
 use tinyhivemind::{
-    BriefedTeammate, BrevityPolicy, Conversation, EnqueueOutcome, MentionDispatchOutcome,
+    BrevityPolicy, BriefedTeammate, Conversation, EnqueueOutcome, MentionDispatchOutcome,
+    MentionTurnFuture, MentionTurnQueue, SessionAuthor, SessionMessage, SessionQuery, TeamBriefing,
     aside::{AsideDecision, AsideInput, AsidePolicy, Audience, Viewer, aside},
-    MentionTurnFuture, MentionTurnQueue, SessionAuthor, SessionMessage, SessionQuery,
-    TeamBriefing,
     desk::{Desk, DeskSet, ResponderMode},
     dispatch::{
         DispatchConversation, DispatchKey, MentionDispatchInput, MentionDispatchPolicy,
@@ -41,9 +40,9 @@ use tinyhivemind::{
     },
     initialize_session,
     mention::{Mention, MentionAuthor, MentionTarget, resolve},
-    sharing::{SharingPlan, SharingQuery, SharingState, initialized_state, prepare_delta},
     responder::{ResponderRequest, SelectionPolicy, choose_responder},
     roster::{Person, Roster, RosterMember},
+    sharing::{SharingPlan, SharingQuery, SharingState, initialized_state, prepare_delta},
 };
 
 /// The aside policy this desk runs under.
@@ -138,7 +137,7 @@ impl Options {
             max_turns: 40,
             max_hops: 6,
             window: 40,
-            timeout: Duration::from_secs(480),
+            timeout: Duration::from_secs(2400),
             cortex_base: std::env::var("CORTEX_BASE").ok(),
             cortex_key: std::env::var("CORTEX_API_KEY").ok(),
             library_scope: "org:math/problem:euler1006/kind:library".into(),
@@ -443,7 +442,11 @@ async fn main() -> Result<(), BoxError> {
             // the library has no way to know a process was killed.
             println!(
                 "   !! {} after {:?} — asking for a wrap-up",
-                if output.timed_out { "timed out" } else { "silent" },
+                if output.timed_out {
+                    "timed out"
+                } else {
+                    "silent"
+                },
                 output.elapsed
             );
             let wrap = format!(
@@ -589,7 +592,10 @@ fn compose_prompt(
             SessionAuthor::Operator => "operator".to_string(),
             SessionAuthor::System { kind, .. } => format!("system/{kind}"),
         };
-        prompt.push_str(&format!("\n[{}] {who}: {}\n", message.sequence.0, message.content));
+        prompt.push_str(&format!(
+            "\n[{}] {who}: {}\n",
+            message.sequence.0, message.content
+        ));
     }
     prompt.push_str("\n\n## This turn\n");
     prompt.push_str(&format!(
@@ -612,10 +618,13 @@ fn compose_prompt(
          - So: end with the one seat you actually need, and put it first among \
            your mentions.\n\
          - Never claim a number you did not compute. Say what you ran.\n\
-         - One turn is one step, and the step is small. Use at most about eight \
-           tool calls, then post. A turn that establishes one thing and says so \
-           beats a turn that establishes four and is cut off before it speaks — \
-           a turn that never posts is a turn the room never happened.\n\
+         - Work as long as the problem needs; run as many tools as it takes. But \
+           you must finish by posting: a turn that never posts is a turn the \
+           room never happened, and the work in it reaches nobody.\n\
+         - To ask one peer something without spending the room's attention on \
+           it, make `!aside @peer` the first line of your post. `!surface` then \
+           what the room needs to know ends it. An aside counts for nothing \
+           until you surface it.\n\
          - Wrap the message you want posted in <<<POST and POST>>>. Anything \
            outside those markers is not posted.\n",
     );
@@ -685,7 +694,11 @@ fn spent_in_aside(rows: &[tinyhivemind::LogMessage]) -> usize {
 /// preceding row already carries this participant set is a continuation.
 /// Walking the journal, an aside opens when its participant set matches and
 /// closes the first time one of those participants speaks on the desk.
-fn unsettled_aside(rows: &[tinyhivemind::LogMessage], author_id: &str, mentions: &[Mention]) -> bool {
+fn unsettled_aside(
+    rows: &[tinyhivemind::LogMessage],
+    author_id: &str,
+    mentions: &[Mention],
+) -> bool {
     let mut participants = addressed(mentions, author_id);
     if participants.is_empty() {
         return false;

@@ -50,7 +50,10 @@ impl Chat {
             return String::new();
         };
         let Ok(value) = serde_json::from_str::<serde_json::Value>(&response) else {
-            eprintln!("   [chat] undecodable response: {}", &response[..response.len().min(300)]);
+            eprintln!(
+                "   [chat] undecodable response: {}",
+                &response[..response.len().min(300)]
+            );
             return String::new();
         };
         let text = value

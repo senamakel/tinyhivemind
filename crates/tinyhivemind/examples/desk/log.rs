@@ -14,7 +14,7 @@ use std::{
     sync::Mutex,
 };
 use tinyhivemind::{
-    LogMessage, SessionAuthor, SessionFuture, SessionLog, SessionPage, Sequence, aside::Audience,
+    LogMessage, Sequence, SessionAuthor, SessionFuture, SessionLog, SessionPage, aside::Audience,
 };
 
 /// An append-only transcript on disk, readable newest-first.
@@ -68,7 +68,10 @@ impl JsonlLog {
             content: content.to_string(),
             audience,
         };
-        let mut file = OpenOptions::new().create(true).append(true).open(&self.path)?;
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)?;
         writeln!(file, "{}", serde_json::to_string(&row)?)?;
         rows.push(row);
         Ok(sequence)

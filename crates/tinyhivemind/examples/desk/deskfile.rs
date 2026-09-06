@@ -73,7 +73,10 @@ pub(crate) fn parse(text: &str) -> Result<DeskSpec, ParseError> {
         if line.trim_start().starts_with('#') {
             continue;
         }
-        if let Some(rest) = line.strip_prefix("[agent ").and_then(|r| r.strip_suffix(']')) {
+        if let Some(rest) = line
+            .strip_prefix("[agent ")
+            .and_then(|r| r.strip_suffix(']'))
+        {
             if let Some(agent) = current.take() {
                 agents.push(agent);
             }

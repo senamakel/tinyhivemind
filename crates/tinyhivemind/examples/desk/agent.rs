@@ -168,7 +168,10 @@ fn parse_events(stdout: &str) -> TurnOutput {
         }
         match event.get("type").and_then(serde_json::Value::as_str) {
             Some("text") => {
-                if let Some(part) = event.pointer("/part/text").and_then(serde_json::Value::as_str) {
+                if let Some(part) = event
+                    .pointer("/part/text")
+                    .and_then(serde_json::Value::as_str)
+                {
                     if !text.is_empty() {
                         text.push('\n');
                     }
