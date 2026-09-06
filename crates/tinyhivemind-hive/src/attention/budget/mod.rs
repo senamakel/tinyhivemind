@@ -63,8 +63,9 @@ pub use types::{BudgetPolicy, BudgetRequest, BudgetShare, BudgetVerdict};
 /// caller does the cutting and the marking; this fold only decides the
 /// numbers, and it never reads or edits the text behind a request.
 ///
-/// See the [module documentation][self] for the algorithm and for exactly
-/// where the result is and is not order-independent.
+/// The algorithm, and exactly where the result is and is not
+/// order-independent, are specified in `docs/specs/hive-mind.md` under "The
+/// context budget".
 ///
 /// # Example
 ///
