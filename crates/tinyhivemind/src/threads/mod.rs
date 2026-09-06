@@ -9,8 +9,9 @@ pub use types::ThreadLine;
 
 use crate::{
     Conversation, Error, LogMessage, PAGE_SIZE, Result, Sequence, SessionLog,
-    session::{in_desk, validate_page},
+    session::{admits, in_desk, validate_page},
 };
+use tinyhivemind_core::aside::Viewer;
 use std::collections::BTreeMap;
 
 /// Default number of threads described to a viewer.
@@ -39,6 +40,7 @@ pub const THREAD_INDEX_SCAN: usize = 256;
 pub async fn read_thread_index(
     log: &(dyn SessionLog + '_),
     conversation: &Conversation,
+    viewer: &Viewer,
     limit: usize,
 ) -> Result<Vec<ThreadLine>> {
     if limit == 0 || conversation.thread_root.is_some() {
@@ -46,7 +48,7 @@ pub async fn read_thread_index(
     }
 
     let rows = read_desk_rows(log, conversation, THREAD_INDEX_SCAN, None).await?;
-    Ok(fold_thread_index(&rows, limit))
+    Ok(fold_thread_index(&rows, viewer, limit))
 }
 
 /// Read one desk's rows, newest-first walk, returned chronologically.
@@ -104,11 +106,26 @@ pub(crate) async fn read_desk_rows(
 /// A root with no readable opening is not indexed, and neither are its replies:
 /// the row exists to say what a thread is about, and a blank one says nothing.
 /// A reply whose root is not in the slice is ignored for the same reason.
+///
+/// A row `viewer` is not admitted to is treated as though it were blank, in
+/// both positions. A root it cannot read yields no line, because
+/// [`ThreadLine::opening`] is verbatim content. A *reply* it cannot read is
+/// not counted either, which is less obvious and matters just as much: a reply
+/// count and a `latest` sequence are a description of a message, and one that
+/// moved a thread up this index would tell a viewer both that something was
+/// said and roughly when.
+///
+/// The closed thread itself is not hidden by that. Its root still appears in
+/// the desk projection as an attributed stub, which is where a reader is
+/// entitled to learn the exchange happened.
 #[must_use]
-pub fn fold_thread_index(rows: &[LogMessage], limit: usize) -> Vec<ThreadLine> {
+pub fn fold_thread_index(rows: &[LogMessage], viewer: &Viewer, limit: usize) -> Vec<ThreadLine> {
     let mut threads: BTreeMap<Sequence, ThreadLine> = BTreeMap::new();
 
     for row in rows {
+        if !admits(row, viewer) {
+            continue;
+        }
         let content = row.content.trim();
         match row.parent {
             None => {
