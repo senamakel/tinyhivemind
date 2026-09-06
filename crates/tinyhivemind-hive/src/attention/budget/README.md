@@ -80,7 +80,7 @@ wrapping the running sum.
   owns truncating and marking the actual text; this module only decides how
   many characters each source may spend.
 - **The algorithm and its order-independence boundary are specified** in
-  [`../../../../docs/specs/hive-mind.md`](../../../../docs/specs/hive-mind.md)
+  [`../../../../../docs/specs/hive-mind.md`](../../../../../docs/specs/hive-mind.md)
   under "The context budget" — read that spec before changing the tie-break
   rules above, since the fixed points there are pinned by tests over
   permutations of the request slice.
