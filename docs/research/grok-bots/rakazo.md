@@ -219,7 +219,7 @@ One durable ordering, one soft signal:
    thread topic and swallows every failure (`events.ts:1155-1161`); the call
    sites log and continue, commented "The event is durable; subscribers recover
    it from their persisted cursor" (`events.ts:436-439`,
-   `thread-target.ts:751-754`).
+   `thread-target.ts:766-769`).
 3. Clients follow `followThreadEvents(prisma, threadId, cursor, realtime)`
    (`events.ts:1176-1209`) — a generator that drains `eventsAfter` in batches
    and then waits on a latch, so LISTEN/NOTIFY only shortens the poll interval.
@@ -233,7 +233,7 @@ One durable ordering, one soft signal:
 Conflict rules: there are none to resolve, because clients never write ordering.
 The server assigns `seq`; duplicates are collapsed on `(threadId, clientNonce)`;
 concurrent sends retry under `withSerializableRetry` and, on a losing race,
-`replayExistingSend` returns the winner's row (`thread-target.ts:741-747`).
+`replayExistingSend` returns the winner's row (`thread-target.ts:137,758-763`).
 Client-side merging is pure and seq-based: `mergeMessagePages` keeps only
 retained messages strictly older than the newest page's first seq and dedupes by
 id (`packages/core/src/message-pages.ts:38-68`), treating `progress:` and
