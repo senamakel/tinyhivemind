@@ -255,3 +255,132 @@ fn a_line_that_only_looks_like_a_heading_or_a_break_leaves_the_paragraph_open() 
     assert_eq!(fenced_ranges("**\n    @alice\n"), Vec::new());
     assert_eq!(fenced_ranges("- item\n    @alice\n"), Vec::new());
 }
+
+#[test]
+fn a_range_edge_never_falls_inside_a_character_or_a_line_leading_marker() {
+    // Two invariants every consumer leans on. A range edge must land on a
+    // character boundary, or a host slicing the body panics; and the start
+    // of a line must be masked exactly when the first non-whitespace byte of
+    // that line is, because the line-leading grammars test the line start
+    // while the mention grammar tests the marker's own offset.
+    let bodies = [
+        "日本語 `@alice` @bob",
+        "héllo `@alice` ok",
+        "```\n日本語 @alice\n```\n@bob",
+        "    日本語 @alice\n",
+        "é`@alice`",
+        "# heading\n    !pin ^1\n",
+        "```\nx\n```\n    !pin ^1\n",
+        "run `\n!pin ^1\n` ok\n!pin ^2",
+        "\t!pin ^1\n",
+        "prose\n\n   \t!pin ^1\n",
+    ];
+    for body in bodies {
+        let masked = code_ranges(body);
+        for (start, end) in &masked {
+            assert!(body.is_char_boundary(*start), "{body:?} start {start}");
+            assert!(body.is_char_boundary(*end), "{body:?} end {end}");
+        }
+        let mut line_start = 0;
+        for line in body.split_inclusive('\n') {
+            let indent = line.len() - line.trim_start_matches([' ', '\t']).len();
+            assert_eq!(
+                is_masked(line_start, &masked),
+                is_masked(line_start + indent, &masked),
+                "{body:?} line at {line_start}"
+            );
+            line_start += line.len();
+        }
+    }
+}
+
+#[test]
+fn a_tab_reaches_the_fourth_column_from_any_of_the_first_four() {
+    // One tab opens an indented block on its own, and so does any run of
+    // one to three spaces followed by a tab, because the tab advances to the
+    // next multiple of four. Three spaces without one does not.
+    for body in ["\t@alice\n", " \t@alice\n", "  \t@alice\n", "   \t@alice\n"] {
+        assert_eq!(fenced_ranges(body), vec![(0, body.len())], "{body:?}");
+    }
+    assert_eq!(fenced_ranges("   @alice\n"), Vec::new());
+}
+
+#[test]
+fn a_crlf_body_is_masked_the_same_as_a_lf_one() {
+    // A carriage return is part of the line ending, not content, so it
+    // neither disqualifies a closing fence nor hides a blank line.
+    let fenced = "```rust\r\n@alice\r\n```\r\n";
+    assert_eq!(super::fenced_ranges(fenced), vec![(0, fenced.len())]);
+
+    let indented = "prose\r\n\r\n    !pin ^1\r\n";
+    let block = "prose\r\n\r\n".len();
+    assert_eq!(fenced_ranges(indented), vec![(block, indented.len())]);
+
+    assert_eq!(code_ranges("`@alice`\r\n"), vec![(0, 8)]);
+}
+
+#[test]
+fn an_empty_body_and_a_bare_opening_fence() {
+    assert_eq!(code_ranges(""), Vec::new());
+    assert_eq!(fenced_ranges(""), Vec::new());
+    // An opener with nothing after it still masks itself, so a body that
+    // ends mid-block never leaves its tail readable as grammar.
+    assert_eq!(fenced_ranges("```"), vec![(0, 3)]);
+    assert_eq!(fenced_ranges("```\n"), vec![(0, 4)]);
+    assert_eq!(fenced_ranges("~~~"), vec![(0, 3)]);
+}
+
+#[test]
+fn a_mask_ends_where_the_line_after_the_closing_fence_begins() {
+    // The half-open edge, checked from both sides: the last byte of the
+    // block is masked and the first byte after it is not.
+    let body = "```\nhidden @alice\n```\n@bob";
+    let after = "```\nhidden @alice\n```\n".len();
+    assert_eq!(fenced_ranges(body), vec![(0, after)]);
+    assert!(is_masked(after - 1, &fenced_ranges(body)));
+    assert!(!is_masked(after, &fenced_ranges(body)));
+}
+
+#[test]
+fn two_adjacent_fenced_blocks_leave_the_line_between_them_live() {
+    let body = "```\na\n```\n@alice\n```\nb\n```\n";
+    let first = "```\na\n```\n".len();
+    let second = "```\na\n```\n@alice\n".len();
+    assert_eq!(fenced_ranges(body), vec![(0, first), (second, body.len())]);
+    assert!(!is_masked(first, &fenced_ranges(body)));
+}
+
+#[test]
+fn an_indented_line_inside_a_fenced_block_does_not_extend_past_it() {
+    // The indented scan and the fence scan agree about where the block
+    // ends: an indented line inside a fence is already masked by the fence,
+    // and must not start a run that swallows live text below the close.
+    let body = "```\n    @alice\n```\nlive @alice\n";
+    let close = "```\n    @alice\n```\n".len();
+    assert_eq!(fenced_ranges(body), vec![(0, close)]);
+    assert!(!is_masked(close, &fenced_ranges(body)));
+}
+
+#[test]
+fn a_short_tilde_run_does_not_close_a_longer_tilde_opener() {
+    let body = "~~~~\n!pin ^1\n~~~\nstill inside\n~~~~\n";
+    assert_eq!(fenced_ranges(body), vec![(0, body.len())]);
+}
+
+#[test]
+fn an_indented_block_ends_at_the_last_indented_line_not_at_a_trailing_blank() {
+    let body = "    code\n\nlive @alice\n";
+    assert_eq!(fenced_ranges(body), vec![(0, "    code\n".len())]);
+}
+
+#[test]
+fn an_indented_line_under_a_list_item_is_masked_though_a_renderer_would_not() {
+    // A deliberate, documented divergence: `CommonMark` measures an indented
+    // block's four columns inside its container, so this line is a list
+    // item's paragraph rather than code. This scanner measures from the left
+    // margin and masks it, which costs a directive written that way. Pinned
+    // here so the trade is visible rather than assumed.
+    let body = "- item\n\n    !pin ^1\n";
+    let indented = "- item\n\n".len();
+    assert_eq!(fenced_ranges(body), vec![(indented, body.len())]);
+}
