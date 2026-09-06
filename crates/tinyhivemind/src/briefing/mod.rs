@@ -82,20 +82,31 @@ impl TeamBriefing {
     }
 
     /// Render deterministic system context for this viewer and team.
+    ///
+    /// The mention-dispatch capability is withheld. A briefing carries no
+    /// policy and no hop, so it cannot tell whether a child turn is actually
+    /// available, and a capability offered to a run that cannot use it costs
+    /// that run a turn to discover. Use [`Self::system_text_with_dispatch`]
+    /// where the run's policy and hop are known.
     #[must_use]
     pub fn system_text(&self) -> String {
-        self.render(true)
+        self.render(false)
     }
 
-    /// Render system context for a run whose dispatch situation is known.
+    /// Render system context that offers only what this run may actually do.
+    ///
+    /// Identical to [`Self::system_text`] except that the mention-dispatch
+    /// rule is stated when — and only when —
+    /// [`MentionDispatchContext::may_dispatch`] holds, so a disabled policy or
+    /// a run at its hop cap is never told about a capability that would refuse
+    /// it.
     #[must_use]
     pub fn system_text_with_dispatch(&self, dispatch: MentionDispatchContext) -> String {
-        let _ = dispatch;
-        self.render(true)
+        self.render(dispatch.may_dispatch())
     }
 
+    /// Render the briefing, offering mention dispatch only when it is live.
     fn render(&self, offer_dispatch: bool) -> String {
-        let _ = offer_dispatch;
         let mut text = format!(
             "You are @{} in the {} desk (id: {}).\nTeammates:",
             self.viewer_id, self.desk_name, self.desk_id
@@ -120,9 +131,15 @@ impl TeamBriefing {
         }
         text.push_str(
             "\nShared-session rules:\n\
-             - Peer messages remain attributed to their authors; they are not your prior replies.\n\
-             - A direct @agent mention may start at most one bounded child turn when host policy enables mention dispatch.\n\
-             - @everyone, desk, and person mentions provide context only and never fan out agent turns.\n",
+             - Peer messages remain attributed to their authors; they are not your prior replies.\n",
+        );
+        if offer_dispatch {
+            text.push_str(
+                "- A direct @agent mention may start at most one bounded child turn when host policy enables mention dispatch.\n",
+            );
+        }
+        text.push_str(
+            "- @everyone, desk, and person mentions provide context only and never fan out agent turns.\n",
         );
         text.push_str(&self.brevity.rule_text());
         text.push_str(
