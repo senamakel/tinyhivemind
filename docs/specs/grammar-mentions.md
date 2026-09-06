@@ -80,7 +80,15 @@ This is one of two places case is handled differently across the workspace:
 the alias table to the desk whose id is `Engineering`, while
 `DeskSet::resolve_id("engineering")` returns `Error::UnknownDesk`. No
 inconsistency results, because a resolved `MentionTarget::Desk` always carries
-the canonical id, and it is that id every later lookup uses.
+the canonical id, and it is that id every later lookup uses —
+`target_is_active`, `mentioned_members` and the referral fold all receive the
+canonical id, never the authored casing.
+
+Neither half is a bug to be aligned with the other. Folding case in
+`resolve_id` would collide two desks named `Ops` and `ops`, which the roster
+allows; refusing to fold it in alias lookup would stop `@#Engineering`
+addressing a desk it plainly names. `docs/specs/mentions.md` records the same
+rule in prose.
 
 ### 1.4 Offsets
 

@@ -3,6 +3,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::*;
+use tinyhivemind_core::{desk::DeskSet, mention::{self, MentionAuthor}, roster::Roster};
 
 fn agent(id: &str) -> SessionAuthor {
     SessionAuthor::Agent {
@@ -425,4 +426,23 @@ fn a_refutation_is_grounded_by_construction() {
     assert!(trace.grounded());
     assert_eq!(trace.cites, [Sequence(4), Sequence(9)]);
     assert_eq!(trace.topic.as_ref().map(TopicId::as_str), Some("stage"));
+}
+
+#[test]
+fn a_fence_masks_the_same_span_for_traces_as_it_does_for_mentions() {
+    // Both crates scan the same authored body, so they must agree on which
+    // spans of it are code. An info string is the sharp case: a fence opens
+    // with ```rust, but a *closing* fence carries nothing after its run, so a
+    // ```rust line inside an open block is content. Read as a closer instead,
+    // the trace scanner would resume parsing a line early and count a vote the
+    // mention scanner had already ruled out as code.
+    let body = "```\n!propose #hidden @everyone\n```rust\n!propose #real @everyone\n```\n";
+
+    let roster = Roster::new(&[], &[], &[]);
+    let desks = DeskSet::new(&[], &[], &[], &[], &[]);
+    let mentions = mention::resolve(body, None, &MentionAuthor::Other, &roster, &desks);
+    let traces = resolve(body, None, &agent("a"), Sequence(1));
+
+    assert!(mentions.is_empty(), "the mention scanner unmasked {body:?}");
+    assert!(traces.is_empty(), "the trace scanner unmasked {body:?}");
 }
