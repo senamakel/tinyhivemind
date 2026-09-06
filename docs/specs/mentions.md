@@ -93,6 +93,14 @@ refusal came back
 draws the same line for the approval gate and settles where a reason may still
 live: a structured reason is for the operator's log, and must not be rendered
 to the acting agent.
+[`../adr/0009-a-refusal-renders-what-the-caller-already-holds.md`](../adr/0009-a-refusal-renders-what-the-caller-already-holds.md)
+then settles which reasons may nonetheless carry a sentence of their own. A
+refusal renders distinctly only when what it discloses is something the caller
+already holds — the policy or hop it supplied, its own identity, or a desk
+snapshot identical for every viewer. Every reason turning on the existence,
+activity, membership or reachability of a named other renders the one shared
+sentence `NO_AVAILABLE_TARGET`, which is what makes the four refusals above
+indistinguishable in words as well as in outcome.
 
 `MentionTarget` is a tagged union of `Agent { id }`, `Person { id }`,
 `Desk { id }`, and `Everyone`. A `Mention` stores the exact authored `text`, its

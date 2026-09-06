@@ -155,4 +155,4 @@ should be settled, not here.
 
 ## Open questions
 
-Nothing else is open for P6. Turn creation and hop bounds are deferred to P7.
+Nothing is open for P6. Turn creation and hop bounds are deferred to P7.
