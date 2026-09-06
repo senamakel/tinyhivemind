@@ -23,8 +23,8 @@ mod memory;
 
 use std::{
     collections::{HashMap, VecDeque},
-    fmt::Write as _,
     error::Error as StdError,
+    fmt::Write as _,
     fs,
     path::PathBuf,
     sync::{Arc, Mutex, PoisonError},
