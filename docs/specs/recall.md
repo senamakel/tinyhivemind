@@ -149,8 +149,8 @@ grammar here shares ([`grammar-traces.md`](grammar-traces.md) §2). Inline
 backticks are masked too: a span opened on one line and closed on a later one
 quotes every whole line between them, so a marker with no backtick on its own
 line can still sit inside quoted code; a marker sharing a line with its
-backtick needs no masking to be rejected, because it never starts with `!` or
-`@` once the backtick is counted.
+backtick needs no masking to be rejected, because a line starting with a
+backtick never starts with the `!` a marker requires.
 
 ```text
 !pin [^N] [#label] [free text]
