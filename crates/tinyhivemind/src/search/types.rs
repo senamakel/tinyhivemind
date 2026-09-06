@@ -2,6 +2,7 @@
 
 use crate::{Conversation, Sequence, SessionAuthor, ThreadLine};
 use serde::{Deserialize, Serialize};
+use tinyhivemind_core::aside::Viewer;
 use tinyhivemind_core::select::MatchKind;
 
 /// What a search matches rows against.

@@ -31,9 +31,10 @@ pub use types::{MessageHit, SearchPattern, SearchQuery, ThreadHit};
 
 use crate::{
     Conversation, Error, LogMessage, PAGE_SIZE, Result, SessionAuthor, SessionLog,
-    session::{in_desk, matches_conversation, validate_page},
+    session::{admits, in_desk, matches_conversation, validate_page},
     threads::{THREAD_INDEX_SCAN, fold_thread_index, read_desk_rows},
 };
+use tinyhivemind_core::aside::Viewer;
 use tinyhivemind_core::select::{Pattern, TextMatch, score_pattern};
 
 /// Default number of hits one search returns.
