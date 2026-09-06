@@ -84,10 +84,17 @@ Each was resolved in favour of the parser.
    snippet and its inline grammar list omit `Refute` and `Defer`, which were
    added by `refutation-and-grounds.md` and `expert-delegation.md`. The
    reference lists all eight.
-4. **`hive-mind.md` says trace parsing masks "inline and fenced code spans".**
-   The trace parser masks fenced blocks only; inline backticks need no masking
-   because a backticked marker cannot be line leading. The reference says
-   fenced-only.
+4. **`hive-mind.md` said trace parsing masks "inline and fenced code spans";
+   an earlier draft of this reference corrected it to fenced-only, and that
+   correction was itself later reversed.** The reasoning that inline masking
+   buys a line-leading grammar nothing holds only when a marker's backtick is
+   on its own line; an inline span opened on one line and closed on a later
+   one quotes every whole line between them, so a marker on an interior line
+   has no backtick of its own yet still sits inside quoted code. The trace and
+   pin grammars now read `code_ranges`, the same level the mention grammar
+   reads, closing that hole — see `grammar-traces.md`'s "the asymmetry that
+   turned out not to be one". `hive-mind.md`'s original wording was
+   substantively right; the reference now agrees with it.
 5. **`hive-mind.md` says trace `resolve` "mirrors `mention::resolve` exactly".**
    It does not: a supplied trace can only *select* an extracted trace by
    `(offset, kind)`, while a supplied mention is authoritative about existence
