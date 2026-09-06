@@ -4,7 +4,9 @@
 
 use super::*;
 
-use crate::{attention::BidReason, directory::DirectoryPolicy, trace::TopicId};
+use crate::{
+    attention::BidReason, directory::DirectoryPolicy, quorum::QuorumPolicy, trace::TopicId,
+};
 use tinyhivemind::aside::Audience;
 use tinyhivemind::{
     Conversation, Sequence,
