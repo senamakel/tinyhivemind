@@ -19,7 +19,17 @@ use tinyhivemind_hive::{
 
 use crate::metrics::spearman_milli;
 use crate::sim::{Room, SimAgent};
-use tinyhivemind_hive::aside::Audience;
+use tinyhivemind_hive::aside::{
+    AsideDecision, AsideInput, AsidePolicy, Audience, aside,
+};
+use tinyhivemind_hive::dispatch::DispatchConversation;
+use tinyhivemind_hive::mention::{MentionAuthor, resolve as resolve_mentions};
+
+/// The marker a participant writes to ask one peer for its reading.
+///
+/// Shared with [`crate::sim`], which writes it, so the harness has one
+/// spelling of the move rather than two that can drift apart.
+pub(crate) const ASIDE_MARKER: &str = "!aside";
 
 /// Anything that can fill one authorized turn.
 ///
