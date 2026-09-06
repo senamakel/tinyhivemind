@@ -195,7 +195,9 @@ fn initialization_pins_its_wire_shape() {
         "history": [{
             "sequence": 4,
             "author": {"type":"operator"},
-            "content": "hello"
+            "content": "hello",
+            "audience": {"kind": "desk"},
+            "elided": null
         }]
     });
     assert_eq!(
