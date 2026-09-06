@@ -735,6 +735,9 @@ pub(crate) struct SimAgent {
     aside_cap: u32,
     /// Checks this member has already opened.
     asides_spent: u32,
+    /// Whether a check goes to the member the transcript shows has grounded
+    /// the topic, rather than to whoever spoke first.
+    aside_informed: bool,
     /// Sequences of exchanges this member has already answered or folded in,
     /// so neither is done twice.
     handled: Vec<Sequence>,
@@ -789,6 +792,7 @@ impl SimAgent {
             imports: Vec::new(),
             aside_cap: 0,
             asides_spent: 0,
+            aside_informed: false,
             handled: Vec::new(),
             favourite,
             rng: Rng::seeded(mix(seed, 0x000A_11CE ^ index as u64)),
@@ -841,8 +845,9 @@ impl SimAgent {
     /// `Room::generate_with` leaves every member at `0`, so an arm that opens
     /// no check is bit-identical to one built before the move existed — the
     /// same discipline `set_defer_cap` follows.
-    pub(crate) fn set_aside_cap(&mut self, cap: u32) {
+    pub(crate) fn set_aside_cap(&mut self, cap: u32, informed: bool) {
         self.aside_cap = cap;
+        self.aside_informed = informed;
         self.asides_spent = 0;
         self.handled.clear();
     }
@@ -937,7 +942,7 @@ impl SimAgent {
 
     /// Ask one peer what they read, when this member cannot separate its own
     /// two best options.
-    fn open_check(&mut self, visible: &[SessionMessage]) -> Option<String> {
+    fn open_check(&mut self, visible: &[SessionMessage], view: &View) -> Option<String> {
         if self.asides_spent >= self.aside_cap {
             return None;
         }
@@ -955,14 +960,27 @@ impl SimAgent {
         }
         let topic = (*best).clone();
 
-        // The first peer that has spoken here and has not already been asked
-        // about this option. Deterministic, and drawn from the transcript
-        // rather than from the roster, so a member asks somebody the room has
-        // actually heard from.
-        let peer = visible.iter().find_map(|message| match &message.author {
-            SessionAuthor::Agent { id, .. } if *id != self.id => Some(id.clone()),
-            _ => None,
-        })?;
+        // Whoever the room has already heard ground this option, and
+        // otherwise the first peer that has spoken. Asking the member the
+        // transcript shows knows something about the question is the informed
+        // version of the move, and it is what closes the obvious objection to
+        // a negative result — that the check went to the wrong peer.
+        //
+        // Deterministic either way, and drawn from the transcript rather than
+        // the roster, so a member asks somebody the room has actually heard
+        // from rather than a name it was handed.
+        let peer = if self.aside_informed {
+            view.grounded_by(&topic, &self.id)
+        } else {
+            None
+        };
+        let peer = match peer {
+            Some(peer) => peer,
+            None => visible.iter().find_map(|message| match &message.author {
+                SessionAuthor::Agent { id, .. } if *id != self.id => Some(id.clone()),
+                _ => None,
+            })?,
+        };
         Some(format!(
             "{ASIDE_MARKER} @{peer} #{topic} What do you make of this one?"
         ))
@@ -1006,7 +1024,7 @@ impl SimAgent {
             // asked. This is the only condition under which the move fires:
             // a member that already knows its own mind spends its turn saying
             // so instead.
-            if let Some(line) = self.open_check(visible) {
+            if let Some(line) = self.open_check(visible, &view) {
                 self.asides_spent = self.asides_spent.saturating_add(1);
                 return line;
             }
@@ -1258,6 +1276,23 @@ impl View {
             standings,
             threshold: usize::try_from(quorum.threshold).unwrap_or(2),
         }
+    }
+
+    /// Who this transcript shows has said something grounded about a topic.
+    ///
+    /// The room's own record of who knows what, read off the traces rather
+    /// than from anything a participant is not entitled to see: a member that
+    /// deposited `!evidence` on a topic, or was cited for it, is the member to
+    /// ask about it. This is the same signal the folded directory is built
+    /// from, taken directly because a participant here needs one name rather
+    /// than a ranking.
+    fn grounded_by(&self, topic: &TopicId, excluding: &str) -> Option<String> {
+        self.traces
+            .iter()
+            .filter(|trace| trace.topic.as_ref() == Some(topic))
+            .filter(|trace| matches!(trace.kind, TraceKind::Evidence))
+            .map(|trace| trace.author.clone())
+            .find(|author| author != excluding)
     }
 
     /// The sequence that first proposed a topic, if it is on the floor.
