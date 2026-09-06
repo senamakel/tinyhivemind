@@ -141,13 +141,14 @@ effect needing a trust boundary).
 
 ### What is actually gated
 
-The **only** hard-gated, human-in-the-loop mutating surface is
-`team_action_execute` in `internal/teammcp/actions.go`, guarded by
+The primary hard-gated, human-in-the-loop mutating surface for *external*
+actions is `team_action_execute` in `internal/teammcp/actions.go`, guarded by
 `requireTeamActionApproval` (`internal/teammcp/actions.go:83-267`). It gates
 **any external action** whose `action_id` is not read-only per
 `action.ActionIsReadOnly` (verb-based classification,
 `internal/action/resolver.go:159-236`) — this covers Gmail sends, Slack
-posts, CRM writes, calendar mutations, etc. Additionally:
+posts, CRM writes, calendar mutations, etc. A second, structurally distinct
+surface is also hard-gated:
 
 - `requireHumanCreateApproval` (`internal/teammcp/create_approval.go:44-58`)
   gates creating a new bot or channel (`member_approval.go`,
