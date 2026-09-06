@@ -16,7 +16,7 @@ use tinyhivemind_core::dispatch::MentionDispatchPolicy;
 /// # Example
 ///
 /// ```
-/// use tinyhivemind::{MentionDispatchPolicy, TeamBriefing, briefing::MentionDispatchContext};
+/// use tinyhivemind::{TeamBriefing, briefing::MentionDispatchContext, dispatch::MentionDispatchPolicy};
 ///
 /// let briefing = TeamBriefing {
 ///     viewer_id: "alice".into(),
