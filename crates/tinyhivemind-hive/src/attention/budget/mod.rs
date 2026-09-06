@@ -38,7 +38,11 @@ pub fn allocate_chars(requests: &[BudgetRequest], policy: &BudgetPolicy) -> Vec<
         .iter()
         .zip(&carried)
         .map(|(request, carried)| {
-            let granted = if *carried { request.wanted.min(level) } else { 0 };
+            let granted = if *carried {
+                request.wanted.min(level)
+            } else {
+                0
+            };
             BudgetShare {
                 source_id: request.source_id.clone(),
                 granted,
