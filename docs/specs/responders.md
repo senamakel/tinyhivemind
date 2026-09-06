@@ -108,20 +108,28 @@ is specified to fall back deterministically and record why in
 `NoActiveResponder`, which is a malformed-roster error rather than a message to
 anyone.
 
-What is missing is the rendering. `SelectionDisposition` and `ResponderRung`
-are typed values with no `Display` and no vocabulary of sentences: a host that
-wants to tell a person why the desk lead answered instead of the model's pick
-writes that sentence itself, from the disposition. That is a gap, not a
-decision, and it is the same gap `NoDispatchReason` has.
+The rendering is settled. `SelectionDisposition` and `ResponderRung` carry a
+`Display` impl, so the sentence a host shows a person comes from the library
+rather than from each host's own wording. Both types render every variant
+distinctly, because the ladder withholds nothing: every disposition and rung
+arrives beside the responder id it explains, so none of them discloses the
+existence, activity or reachability of a participant the caller could not
+already read from the roster it supplied. See
+[ADR 0009](../adr/0009-a-refusal-renders-what-the-caller-already-holds.md).
 
-It is also bounded by [ADR 0008](../adr/0008-an-approval-decision-is-total.md),
-and the two do not simply agree. ADR 0008 rules that a denial's reason is for
-the operator's log, because refusals a caller can tell apart are refusals a
-caller can probe — OpenBot returns one sentence for "no such bot" and "not
-yours to see" precisely so an agent cannot enumerate a roster by reading which
-refusal came back. "Every decline is text an agent can repeat to a person" and
-"a decline must not distinguish what it distinguishes internally" pull in
-opposite directions, and the tension is real rather than a wording problem.
+It is bounded by [ADR 0008](../adr/0008-an-approval-decision-is-total.md),
+which rules that a denial's reason is for the operator's log, because refusals
+a caller can tell apart are refusals a caller can probe — OpenBot returns one
+sentence for "no such bot" and "not yours to see" precisely so an agent cannot
+enumerate a roster by reading which refusal came back. That pulled against
+"every decline is text an agent can repeat to a person", and
+[ADR 0009](../adr/0009-a-refusal-renders-what-the-caller-already-holds.md)
+resolves it: a refusal may render a sentence of its own only when what it
+discloses is something the caller already holds, and anything turning on the
+existence, activity, membership or reachability of a named other renders one
+shared sentence. Audience separation alone was insufficient — it constrains the
+channel, not the information, so a host obeying it could still write one
+distinct sentence per reason.
 
 They are reconcilable only by separating the two audiences, and by accepting
 that the sentence is the coarser of the two: a rendered decline may say *that*
@@ -146,10 +154,5 @@ should be settled, not here.
 - Core remains accepted by the purity assertion.
 
 ## Open questions
-
-- Which dispositions, if any, may be rendered to the acting agent as distinct
-  sentences, and which must collapse into one. See the section above and
-  ADR 0008; this is the same question `mention-dispatch.md` leaves open for its
-  refusal reasons, and it should be answered once for both.
 
 Nothing else is open for P6. Turn creation and hop bounds are deferred to P7.
