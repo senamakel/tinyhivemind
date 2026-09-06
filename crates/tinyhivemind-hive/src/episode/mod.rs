@@ -21,7 +21,10 @@ use crate::{
     quorum::{ConsensusState, consensus, standings},
     trace::{TraceKind, read_borrowed},
 };
-use tinyhivemind::{SessionAuthor, SessionMessage, desk::DeskSet, roster::Roster};
+use tinyhivemind::{
+    Elision, SessionAuthor, SessionMessage, aside::Viewer, desk::DeskSet, roster::Roster,
+    session::collapse_elisions,
+};
 
 /// How much a speaker's threshold rises after taking the floor.
 const SPEAK_COST: i64 = 500;
