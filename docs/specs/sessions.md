@@ -103,8 +103,8 @@ compiling — it just stops advertising dispatch.
 
 A stored transcript is not automatically a valid prompt. CopilotKit's OpenBot
 learned this in production: an interrupted turn left a message referencing a
-tool call whose result never landed, the pairing the provider requires dangled,
-and because the log is append-only *every later turn in that thread* failed —
+tool call whose result never landed, leaving the pairing the provider requires
+dangling, and because the log is append-only *every later turn in that thread* failed —
 permanent damage grown out of a transient fault. Its answer,
 `sanitizeSeededHistory`, is a read-side repair fold: drop the dangling halves,
 never rewrite an id, return an unchanged message identically. See
