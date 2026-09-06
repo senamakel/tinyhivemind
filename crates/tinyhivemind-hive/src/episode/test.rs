@@ -11,6 +11,7 @@ use tinyhivemind::{
     roster::{Roster, RosterMember},
 };
 use tinyhivemind::aside::Audience;
+use tinyhivemind::aside::Audience;
 
 const MEMBERS: [&str; 3] = ["planner", "critic", "scout"];
 
@@ -51,6 +52,8 @@ fn said(sequence: u64, author: &str, content: &str) -> SessionMessage {
             label: author.into(),
         },
         content: content.into(),
+        audience: Audience::Desk,
+        elided: None,
     }
     audience: Audience::Desk,
     elided: None,
@@ -61,6 +64,8 @@ fn operator(sequence: u64, content: &str) -> SessionMessage {
         sequence: Sequence(sequence),
         author: SessionAuthor::Operator,
         content: content.into(),
+        audience: Audience::Desk,
+        elided: None,
     }
     audience: Audience::Desk,
     elided: None,

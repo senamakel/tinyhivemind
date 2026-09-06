@@ -10,6 +10,7 @@ use tinyhivemind_core::aside::Audience;
     io,
     sync::{Arc, Mutex},
 };
+use tinyhivemind_core::aside::Audience;
 
 fn assert_wire_round_trip<T>(value: &T, expected: serde_json::Value)
 where
@@ -94,6 +95,7 @@ fn message(sequence: u64, chat: Option<&str>, parent: Option<u64>, content: &str
             label: format!("Agent {sequence}"),
         },
         content: content.into(),
+        audience: Audience::Desk,
     }
     audience: Audience::Desk,
 }

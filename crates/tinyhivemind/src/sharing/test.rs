@@ -12,6 +12,7 @@ use tinyhivemind_core::aside::Audience;
     io,
     sync::{Arc, Mutex},
 };
+use tinyhivemind_core::aside::Audience;
 
 #[derive(Debug)]
 struct FakeLog {
@@ -76,6 +77,7 @@ fn raw(sequence: u64, chat: Option<&str>, parent: Option<u64>, content: &str) ->
             label: format!("Agent {sequence}"),
         },
         content: content.into(),
+        audience: Audience::Desk,
     }
     audience: Audience::Desk,
 }

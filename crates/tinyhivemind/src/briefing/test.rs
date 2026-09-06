@@ -12,6 +12,7 @@ use tinyhivemind_core::aside::Audience;
     desk::{Desk, DeskMember, DeskOrder, ResponderMode},
     roster::{Person, RosterMember},
 };
+use tinyhivemind_core::aside::Audience;
 
 fn named_conversation() -> Conversation {
     Conversation {
@@ -440,6 +441,7 @@ fn desk_row(sequence: u64, parent: Option<u64>, content: &str) -> LogMessage {
         parent: parent.map(Sequence),
         author: SessionAuthor::Operator,
         content: content.into(),
+        audience: Audience::Desk,
     }
     audience: Audience::Desk,
 }

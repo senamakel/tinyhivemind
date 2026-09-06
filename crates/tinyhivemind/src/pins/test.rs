@@ -6,6 +6,7 @@ use super::*;
 use crate::{SessionFuture, SessionPage, SourceError};
 use std::{collections::VecDeque, io, sync::Mutex};
 use tinyhivemind_core::aside::Audience;
+use tinyhivemind_core::aside::Audience;
 
 #[derive(Debug)]
 struct FakeLog {
@@ -69,6 +70,7 @@ fn row(sequence: u64, chat: Option<&str>, parent: Option<u64>, content: &str) ->
         parent: parent.map(Sequence),
         author: agent("alice"),
         content: content.to_owned(),
+        audience: Audience::Desk,
     }
     audience: Audience::Desk,
 }
