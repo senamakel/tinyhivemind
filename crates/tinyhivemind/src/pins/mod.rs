@@ -67,6 +67,7 @@ use crate::{
     session::matches_conversation, threads::read_desk_rows,
 };
 use std::collections::BTreeMap;
+use tinyhivemind_core::masking::fenced_ranges;
 
 /// Default number of pins a board holds.
 ///
@@ -316,43 +317,3 @@ fn opening(content: &str) -> String {
     opening
 }
 
-/// Byte ranges covered by fenced code blocks, which markers do not escape.
-///
-/// Follows the Markdown fence rule a marker's author would expect: a closing
-/// fence must use the same character as the opener and be at least as long.
-/// A shorter run of the same character — three backticks closing a
-/// four-backtick block that itself contains an example fence — is content,
-/// not a close, so tracking only the character and not its length would
-/// resume directive parsing one line early and let quoted documentation
-/// mutate the board.
-fn fenced_ranges(body: &str) -> Vec<(usize, usize)> {
-    let mut ranges = Vec::new();
-    let mut open: Option<(usize, char, usize)> = None;
-    let mut offset = 0;
-    for line in body.split_inclusive('\n') {
-        let start = offset;
-        offset += line.len();
-        let trimmed = line.trim_start();
-        let fence = fence_run(trimmed, '`').or_else(|| fence_run(trimmed, '~'));
-        let Some((char, len)) = fence else { continue };
-        match open {
-            None => open = Some((start, char, len)),
-            Some((from, opener, opener_len)) if opener == char && len >= opener_len => {
-                ranges.push((from, offset));
-                open = None;
-            }
-            Some(_) => {}
-        }
-    }
-    if let Some((from, ..)) = open {
-        ranges.push((from, body.len()));
-    }
-    ranges
-}
-
-/// Whether a trimmed line opens or closes a fence built from `char`, and how
-/// long the leading run of it is.
-fn fence_run(trimmed: &str, char: char) -> Option<(char, usize)> {
-    let len = trimmed.chars().take_while(|&c| c == char).count();
-    (len >= 3).then_some((char, len))
-}
