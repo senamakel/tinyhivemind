@@ -1,0 +1,35 @@
+//! Unit tests for max-min fair character allocation.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use super::*;
+
+fn tight(total: usize, min_useful: usize) -> BudgetPolicy {
+    BudgetPolicy {
+        total_chars: total,
+        min_useful_chars: min_useful,
+    }
+}
+
+fn granted(shares: &[BudgetShare]) -> Vec<(&str, usize)> {
+    shares
+        .iter()
+        .map(|share| (share.source_id.as_str(), share.granted))
+        .collect()
+}
+
+#[test]
+fn grants_every_source_in_full_when_the_budget_covers_them() {
+    let requests = [
+        BudgetRequest::new("pins", 300),
+        BudgetRequest::new("threads", 200),
+    ];
+    let shares = allocate_chars(&requests, &tight(1_000, 100));
+    assert_eq!(granted(&shares), [("pins", 300), ("threads", 200)]);
+    assert!(shares.iter().all(|share| share.omitted == 0));
+    assert!(
+        shares
+            .iter()
+            .all(|share| share.verdict == BudgetVerdict::Whole)
+    );
+}
