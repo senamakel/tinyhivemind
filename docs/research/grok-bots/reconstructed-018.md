@@ -6,10 +6,9 @@
 - Commit read: `a9f633e09d49a85829b8236331b9e21f7e612634` (2026-08-23,
   "Document project and preserve original installers"), the only commit on a
   shallow clone of the default branch.
-- Licence: **none.** There is no `LICENSE` file. `NOTICE.md` states that "no
-  upstream source-code license is asserted or granted here" and asks anyone
-  redistributing to run their own rights review. Nothing here may be copied into
-  `tinyhivemind`; this is a read-and-learn exercise only.
+- Licence: **none.** There is no `LICENSE` file; `NOTICE.md` says "no upstream
+  source-code license is asserted or granted here". Nothing here may be copied
+  into `tinyhivemind` — this is a read-and-learn exercise only.
 - Size: 2,111 files. About 177,000 lines of hand-written TypeScript under
   `source/` (a further 264,000 lines there are generated protobuf), plus 52,000
   lines of React/TypeScript under `frontend/`. Eight `node --test` files under
@@ -320,13 +319,11 @@ reaches the original Statsig-experiment machinery
 
 ## Approvals, permissions, tools, sandboxing
 
-There are **two unrelated approval models**, and it is worth being clear that
-several nearby files that sound like gates are not. The
-`prompt-acceptance-ledger` / `ack-obligations` / `send-acceptance` cluster is
-message-delivery idempotency and crash-recovery machinery, and
-`host/extensions/action-audit/` is a telemetry sink that records
-`mcpToolCall`/`shellCommand`/`browserNavigation` events and never blocks
-anything (`action-audit-service.ts:9`).
+There are **two unrelated approval models**, and several nearby files that
+sound like gates are not: the `prompt-acceptance-ledger` / `ack-obligations` /
+`send-acceptance` cluster is delivery idempotency and crash recovery, and
+`host/extensions/action-audit/` is a telemetry sink that never blocks anything
+(`action-audit-service.ts:9`).
 
 **Model A — local tool permission.** A globally persisted three-valued setting
 (`SAND_LOCAL_TOOL_PERMISSIONS = ["always","ask","never"]`,
@@ -361,11 +358,11 @@ approvals, each with an `expiresAtMs`, a `userMessageEpoch` and a
 `hostGeneration` fence. `requestApproval` returns a promise settled by
 `resolveApproval` (line 138), by expiry, by cancellation, or by supersession —
 `beginUserMessageEpoch()` expires every pending approval when the user
-redirects. Modes resolve per surface (`hostShell`, `boxShell`, `mcp`,
-`computer`, `cloudAgent`, `subagentLaunch`) to `off`/`shadow`/`enforce`
-(line 12), and *whether* to ask is decided by a classifier. A per-action,
-per-turn, model-gated approval rather than a stored permission set — and the
-gate MCP calls pass through in `enforce` mode.
+redirects. Modes resolve per surface (`hostShell`, `boxShell`, `mcp`, `computer`,
+`cloudAgent`, `subagentLaunch`) to `off`/`shadow`/`enforce` (line 12), and
+*whether* to ask is decided by a classifier: a per-action, per-turn, model-gated
+approval rather than a stored permission set, and the gate MCP calls pass
+through in `enforce` mode.
 
 **A third gate is attention, not permission.** `evaluateAutomationSpendGuard`
 (`transcript/sand-automation-spend-guard.ts:32`) is a **pure function** from
@@ -393,11 +390,10 @@ miss. The same grouping appears host-side in `createSandMcpStateExecutor`
 
 Execution never happens in-process: it goes through `mcpExecutorResource`
 (`packages/agent-exec/mcp.ts:149`), a serialised RPC resource pointing at either
-the host or the box daemon, so `call_mcp_tool` dispatches transparently to a
-host-local or box-resident server. For the added router, Claude Code gets a real
-local HTTP MCP bridge (`node-agent-coordinator/routed-mcp-bridge.ts:39`) while
-Codex and OpenRouter get a direct tool-calling loop (`provider-session.ts:153`,
-`230`) proxying back to the same dispatch — two mechanisms, one inventory.
+the host or the box daemon. For the added router, Claude Code gets a real local
+HTTP MCP bridge (`node-agent-coordinator/routed-mcp-bridge.ts:39`) while Codex
+and OpenRouter get a direct tool-calling loop (`provider-session.ts:153`, `230`)
+proxying back to the same dispatch — two mechanisms, one inventory.
 
 ### Sandboxing
 
@@ -418,12 +414,11 @@ health-checked before the coordinator connects.
 A *second*, unrelated sandbox covers commands the host runs on the user's own
 machine: `spawnInSandbox` (`packages/shell-exec/sandbox/sandbox.ts:10`) wraps
 the spawn in a macOS Seatbelt profile with filesystem allow/deny lists and a
-network deny list (`sandbox/hardcoded-policy.ts`), unless the policy is
-`"insecure_none"`. Host-side path checks go through
-`assertPathOutsideProtectedRoots` (`host/box/protected-path-guard.ts`), which
-tests a candidate both as resolved and as `realpath`, so a symlink cannot
-escape. Agent state is isolated further in worker processes
-(`host/agent-isolation/`), each agent owning its own `conversation-blobs.db`.
+network deny list, unless the policy is `"insecure_none"`.
+`assertPathOutsideProtectedRoots` (`host/box/protected-path-guard.ts`) tests a
+candidate both as resolved and as `realpath`, so a symlink cannot escape. Agent
+state is isolated further in worker processes (`host/agent-isolation/`), each
+agent owning its own `conversation-blobs.db`.
 
 ## Usage and cost tracking
 
@@ -490,8 +485,7 @@ four added features are real, IO-performing implementations, not stubs.
   layer, and `RosterProjection` is not a projection. The README diagram renders
   `coordinator + host` as one box, hiding that the host is 35 extensions and a
   2,646-line composition root.
-- `frontend/` is described honestly as a "readable partial reconstruction", and
-  `PROVENANCE.md` repeats it. That restraint is warranted.
+- `frontend/` is honestly described as a "readable partial reconstruction".
 
 ## Mechanism → what `tinyhivemind` already has → what it does not
 
