@@ -10,6 +10,7 @@
 
 use std::collections::VecDeque;
 
+use tinyhivemind_hive::aside::Audience;
 use tinyhivemind_hive::{
     Conversation, EpisodePolicy, EpisodeState, HiveStep, HiveTurn, Phase, QuorumPolicy, Sequence,
     SessionAuthor, SessionMessage, Visibility,
@@ -20,7 +21,6 @@ use tinyhivemind_hive::{
     step,
     trace::read,
 };
-use tinyhivemind_hive::aside::Audience;
 
 const MEMBERS: [&str; 5] = ["planner", "scout", "critic", "archivist", "auditor"];
 

@@ -95,11 +95,8 @@ pub(crate) trait SwarmMember {
     ///
     /// Returns a host-side failure, such as an agent process that did not
     /// answer.
-    fn answer(
-        &mut self,
-        incoming: &Referral,
-        visible: &[SessionMessage],
-    ) -> Result<String, String>;
+    fn answer(&mut self, incoming: &Referral, visible: &[SessionMessage])
+    -> Result<String, String>;
 
     /// Take in whatever a message just appended to this desk carries.
     ///

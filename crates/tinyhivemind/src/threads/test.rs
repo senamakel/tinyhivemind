@@ -307,7 +307,13 @@ async fn index_stops_at_its_own_scan_bound_well_below_the_projection_limit() {
 #[tokio::test]
 async fn index_reports_read_and_validation_failures() {
     assert!(matches!(
-        read_thread_index(&FakeLog::failing(), &conversation(), &Viewer::Operator, THREAD_INDEX_LIMIT).await,
+        read_thread_index(
+            &FakeLog::failing(),
+            &conversation(),
+            &Viewer::Operator,
+            THREAD_INDEX_LIMIT
+        )
+        .await,
         Err(Error::Read { .. })
     ));
 

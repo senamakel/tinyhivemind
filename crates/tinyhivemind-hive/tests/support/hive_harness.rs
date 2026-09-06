@@ -7,6 +7,7 @@
 
 #![allow(dead_code)]
 
+use tinyhivemind::aside::Audience;
 use tinyhivemind::{Conversation, Sequence, SessionAuthor, SessionMessage};
 use tinyhivemind_hive::{
     EpisodePolicy, EpisodeState, HiveStep, HiveTurn,
@@ -16,7 +17,6 @@ use tinyhivemind_hive::{
     roster::{Roster, RosterMember},
     trace::TopicId,
 };
-use tinyhivemind::aside::Audience;
 
 /// A deterministic or model-backed participant.
 pub(crate) trait HiveAgent {

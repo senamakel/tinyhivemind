@@ -5,8 +5,8 @@
 use super::*;
 
 use crate::trace::read;
-use tinyhivemind::{SessionAuthor, SessionMessage};
 use tinyhivemind::aside::Audience;
+use tinyhivemind::{SessionAuthor, SessionMessage};
 
 fn said(sequence: u64, author: &str, content: &str) -> SessionMessage {
     SessionMessage {

@@ -10,8 +10,8 @@ use crate::{
     salience::SalienceWeights,
     trace::read,
 };
-use tinyhivemind::{Sequence, SessionAuthor, SessionMessage};
 use tinyhivemind::aside::Audience;
+use tinyhivemind::{Sequence, SessionAuthor, SessionMessage};
 
 const MEMBERS: [&str; 3] = ["planner", "critic", "scout"];
 

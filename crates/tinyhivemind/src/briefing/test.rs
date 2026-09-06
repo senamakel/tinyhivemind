@@ -7,13 +7,13 @@ use crate::{
     LogMessage, Sequence, SessionAuthor, SessionFuture, SessionPage, SessionQuery, SourceError,
 };
 use std::io;
+use tinyhivemind_core::aside::AsidePolicy;
+use tinyhivemind_core::aside::Audience;
+use tinyhivemind_core::aside::Viewer;
 use tinyhivemind_core::{
     desk::{Desk, DeskMember, DeskOrder, ResponderMode},
     roster::{Person, RosterMember},
 };
-use tinyhivemind_core::aside::Audience;
-use tinyhivemind_core::aside::Viewer;
-use tinyhivemind_core::aside::AsidePolicy;
 
 fn named_conversation() -> Conversation {
     Conversation {

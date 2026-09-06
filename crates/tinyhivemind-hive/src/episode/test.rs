@@ -5,12 +5,12 @@
 use super::*;
 
 use crate::{attention::BidReason, directory::DirectoryPolicy, trace::TopicId};
+use tinyhivemind::aside::Audience;
 use tinyhivemind::{
     Conversation, Sequence,
     desk::{Desk, DeskSet, ResponderMode},
     roster::{Roster, RosterMember},
 };
-use tinyhivemind::aside::Audience;
 
 const MEMBERS: [&str; 3] = ["planner", "critic", "scout"];
 

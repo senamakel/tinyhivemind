@@ -5,8 +5,8 @@
 use super::*;
 use crate::{Sequence, SessionFuture, SessionPage, SourceError};
 use std::{collections::VecDeque, io, sync::Mutex};
-use tinyhivemind_core::select::MatchKind;
 use tinyhivemind_core::aside::{Audience, Viewer};
+use tinyhivemind_core::select::MatchKind;
 
 #[derive(Debug)]
 struct FakeLog {
@@ -153,9 +153,12 @@ async fn matches_an_operator_and_a_system_row_by_author_id() {
         label: "Workflow".into(),
     };
     let log = FakeLog::new(vec![page(vec![operator, system])]);
-    let by_operator = search_messages(&log, &SearchQuery::new("ship", Viewer::Operator).by_author("operator"))
-        .await
-        .expect("searches");
+    let by_operator = search_messages(
+        &log,
+        &SearchQuery::new("ship", Viewer::Operator).by_author("operator"),
+    )
+    .await
+    .expect("searches");
     assert_eq!(by_operator.len(), 1);
     assert_eq!(by_operator[0].sequence, Sequence(3));
 
@@ -169,9 +172,12 @@ async fn matches_an_operator_and_a_system_row_by_author_id() {
             ..message(2, None, None, "ship it")
         },
     ])]);
-    let by_system = search_messages(&log, &SearchQuery::new("ship", Viewer::Operator).by_author("workflow"))
-        .await
-        .expect("searches");
+    let by_system = search_messages(
+        &log,
+        &SearchQuery::new("ship", Viewer::Operator).by_author("workflow"),
+    )
+    .await
+    .expect("searches");
     assert_eq!(by_system.len(), 1);
     assert_eq!(by_system[0].sequence, Sequence(2));
 }
@@ -292,7 +298,10 @@ async fn searches_threads_by_their_opening_words() {
         message(3, Some("engineering"), None, "shipping the launch email"),
     ])]);
     let hits = search_threads(
-        &log, &conversation(None), &Viewer::Operator, &SearchPattern::parse("shipping"),
+        &log,
+        &conversation(None),
+        &Viewer::Operator,
+        &SearchPattern::parse("shipping"),
         8,
     )
     .await
@@ -307,7 +316,10 @@ async fn searches_no_threads_from_inside_one_or_at_zero_limit() {
     let log = FakeLog::new(vec![page(vec![message(3, None, None, "shipping")])]);
     assert!(
         search_threads(
-            &log, &conversation(Some(3)), &Viewer::Operator, &SearchPattern::parse("ship"),
+            &log,
+            &conversation(Some(3)),
+            &Viewer::Operator,
+            &SearchPattern::parse("ship"),
             8
         )
         .await
@@ -315,16 +327,28 @@ async fn searches_no_threads_from_inside_one_or_at_zero_limit() {
         .is_empty()
     );
     assert!(
-        search_threads(&log, &conversation(None), &Viewer::Operator, &SearchPattern::parse("ship"), 0)
-            .await
-            .expect("searches")
-            .is_empty()
+        search_threads(
+            &log,
+            &conversation(None),
+            &Viewer::Operator,
+            &SearchPattern::parse("ship"),
+            0
+        )
+        .await
+        .expect("searches")
+        .is_empty()
     );
     assert!(
-        search_threads(&log, &conversation(None), &Viewer::Operator, &SearchPattern::parse(" "), 8)
-            .await
-            .expect("searches")
-            .is_empty()
+        search_threads(
+            &log,
+            &conversation(None),
+            &Viewer::Operator,
+            &SearchPattern::parse(" "),
+            8
+        )
+        .await
+        .expect("searches")
+        .is_empty()
     );
     assert_eq!(log.call_count(), 0);
 }

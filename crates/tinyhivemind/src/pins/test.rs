@@ -170,7 +170,11 @@ fn leaves_no_excerpt_when_the_pinned_row_is_outside_the_slice() {
 #[test]
 fn leaves_no_excerpt_for_a_blank_pinned_row() {
     let rows = [row(1, None, None, "   "), row(2, None, None, "!pin ^1")];
-    assert!(fold_pins(&rows, &Viewer::Operator, PIN_LIMIT)[0].excerpt.is_none());
+    assert!(
+        fold_pins(&rows, &Viewer::Operator, PIN_LIMIT)[0]
+            .excerpt
+            .is_none()
+    );
 }
 
 #[test]
@@ -236,9 +240,15 @@ async fn reads_a_desk_board_including_thread_interiors() {
         ],
         next_before: None,
     }]);
-    let board = read_pinboard(&log, &conversation(None), &Viewer::Operator, PIN_LIMIT, None)
-        .await
-        .expect("reads");
+    let board = read_pinboard(
+        &log,
+        &conversation(None),
+        &Viewer::Operator,
+        PIN_LIMIT,
+        None,
+    )
+    .await
+    .expect("reads");
     assert_eq!(board.len(), 1);
     assert_eq!(board[0].sequence, Sequence(3));
     assert_eq!(board[0].excerpt.as_deref(), Some("buried insight"));
@@ -255,9 +265,15 @@ async fn reads_a_thread_board_from_that_thread_alone() {
         ],
         next_before: None,
     }]);
-    let board = read_pinboard(&log, &conversation(Some(2)), &Viewer::Operator, PIN_LIMIT, None)
-        .await
-        .expect("reads");
+    let board = read_pinboard(
+        &log,
+        &conversation(Some(2)),
+        &Viewer::Operator,
+        PIN_LIMIT,
+        None,
+    )
+    .await
+    .expect("reads");
     assert_eq!(board.len(), 1);
     assert_eq!(board[0].sequence, Sequence(3));
 }
@@ -269,9 +285,15 @@ async fn honors_the_query_bound_when_reading_the_board() {
         next_before: None,
     }]);
     let bound = Sequence(5);
-    read_pinboard(&log, &conversation(None), &Viewer::Operator, PIN_LIMIT, Some(bound))
-        .await
-        .expect("reads");
+    read_pinboard(
+        &log,
+        &conversation(None),
+        &Viewer::Operator,
+        PIN_LIMIT,
+        Some(bound),
+    )
+    .await
+    .expect("reads");
     assert_eq!(log.first_call_before(), Some(bound));
 }
 
@@ -302,9 +324,15 @@ async fn reads_nothing_at_a_zero_limit_and_reports_a_read_failure() {
     assert_eq!(log.call_count(), 0);
 
     let failing = FakeLog::failing();
-    let error = read_pinboard(&failing, &conversation(None), &Viewer::Operator, PIN_LIMIT, None)
-        .await
-        .expect_err("read fails");
+    let error = read_pinboard(
+        &failing,
+        &conversation(None),
+        &Viewer::Operator,
+        PIN_LIMIT,
+        None,
+    )
+    .await
+    .expect_err("read fails");
     assert!(matches!(error, crate::Error::Read { .. }));
 }
 

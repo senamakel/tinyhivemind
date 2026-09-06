@@ -70,8 +70,8 @@ use tinyhivemind::{
     Conversation, SESSION_WINDOW, Sequence, SessionAuthor, SessionMessage, SessionQuery,
     project_session,
 };
-use tinyhivemind_core::mention::{MentionAuthor, resolve as resolve_mentions};
 use tinyhivemind_core::aside::Viewer;
+use tinyhivemind_core::mention::{MentionAuthor, resolve as resolve_mentions};
 
 /// The desk this harness seats, and what each seat is for.
 ///

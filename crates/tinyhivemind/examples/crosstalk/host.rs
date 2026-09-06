@@ -24,9 +24,9 @@ use tinyhivemind::{
     BoxError, Conversation, LogMessage, Sequence, SessionAuthor, SessionFuture, SessionLog,
     SessionPage,
 };
+use tinyhivemind_core::aside::Audience;
 use tinyhivemind_core::desk::{Desk, DeskSet, ResponderMode};
 use tinyhivemind_core::roster::{Person, RosterMember};
-use tinyhivemind_core::aside::Audience;
 
 /// The canonical desk this harness runs on.
 pub(crate) const DESK_ID: &str = "engineering";

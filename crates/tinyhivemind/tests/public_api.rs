@@ -2,14 +2,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use tinyhivemind::aside::Audience;
+use tinyhivemind::aside::Viewer;
 use tinyhivemind::{
     Conversation, EnqueueOutcome, EnqueueRefusal, MentionDispatchOutcome, PAGE_SIZE,
     PRESENT_SET_LIMIT, SCAN_LIMIT, SESSION_WINDOW, Sequence, SessionAuthor, SessionMessage,
     initialized_state, note_present,
     responder::{ResponderRung, SelectionDisposition},
 };
-use tinyhivemind::aside::Audience;
-use tinyhivemind::aside::Viewer;
 
 #[test]
 fn root_exports_runtime_records_and_constants() {

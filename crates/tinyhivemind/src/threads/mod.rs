@@ -11,8 +11,8 @@ use crate::{
     Conversation, Error, LogMessage, PAGE_SIZE, Result, Sequence, SessionLog,
     session::{admits, in_desk, validate_page},
 };
-use tinyhivemind_core::aside::Viewer;
 use std::collections::BTreeMap;
+use tinyhivemind_core::aside::Viewer;
 
 /// Default number of threads described to a viewer.
 pub const THREAD_INDEX_LIMIT: usize = 5;

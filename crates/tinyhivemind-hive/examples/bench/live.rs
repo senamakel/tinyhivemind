@@ -30,8 +30,8 @@ use tinyhivemind_hive::{
 use crate::run::Participant;
 use crate::scenario::Scenario;
 use crate::swarm::SwarmMember;
-use tinyhivemind_hive::referral::{Referral, ReferralKind};
 use tinyhivemind_hive::aside::Audience;
+use tinyhivemind_hive::referral::{Referral, ReferralKind};
 
 /// The moves available while the room is still deliberating.
 ///
