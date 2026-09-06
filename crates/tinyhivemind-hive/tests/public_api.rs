@@ -15,11 +15,11 @@ use tinyhivemind_hive::{
 // The runtime and the pure algebra arrive through this crate, so a host takes
 // one dependency and the types it hands to `step` are the same types.
 use tinyhivemind_hive::{
-use tinyhivemind::aside::Audience;
     Conversation, Sequence, SessionAuthor, SessionMessage,
     desk::{Desk, DeskSet, ResponderMode},
     roster::{Roster, RosterMember},
 };
+use tinyhivemind::aside::Audience;
 
 fn agent(id: &str) -> SessionAuthor {
     SessionAuthor::Agent {

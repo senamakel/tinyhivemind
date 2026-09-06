@@ -3,7 +3,6 @@
 #![allow(clippy::expect_used)]
 
 use tinyhivemind_hive::{
-use tinyhivemind::aside::Audience;
     Conversation, DirectoryPolicy, EpisodePolicy, EpisodeState, QuorumPolicy, SalienceWeights,
     Sequence, SessionAuthor, SessionMessage, TRACE_CAP,
     attention::{BidContext, bids},
@@ -12,6 +11,7 @@ use tinyhivemind::aside::Audience;
     roster::{Roster, RosterMember},
     standings, step,
 };
+use tinyhivemind::aside::Audience;
 
 const MEMBERS: [&str; 4] = ["agent-0", "agent-1", "agent-2", "agent-3"];
 
