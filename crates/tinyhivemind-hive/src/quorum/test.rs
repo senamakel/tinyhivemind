@@ -6,6 +6,7 @@ use super::*;
 
 use crate::trace::read;
 use tinyhivemind::{SessionAuthor, SessionMessage};
+use tinyhivemind::aside::Audience;
 
 fn said(sequence: u64, author: &str, content: &str) -> SessionMessage {
     SessionMessage {
@@ -15,6 +16,8 @@ fn said(sequence: u64, author: &str, content: &str) -> SessionMessage {
             label: author.into(),
         },
         content: content.into(),
+        audience: Audience::Desk,
+        elided: None,
     }
 }
 
@@ -266,6 +269,8 @@ fn a_trace_without_a_topic_or_an_agent_author_is_not_counted() {
             sequence: Sequence(3),
             author: SessionAuthor::Operator,
             content: "!support #stage ^1".into(),
+            audience: Audience::Desk,
+            elided: None,
         },
     ];
     let standings = fold(&transcript, &policy(2));

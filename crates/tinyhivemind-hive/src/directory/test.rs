@@ -6,6 +6,7 @@ use super::*;
 
 use crate::trace::read;
 use tinyhivemind::{SessionAuthor, SessionMessage};
+use tinyhivemind::aside::Audience;
 
 fn said(sequence: u64, author: &str, content: &str) -> SessionMessage {
     SessionMessage {
@@ -15,6 +16,8 @@ fn said(sequence: u64, author: &str, content: &str) -> SessionMessage {
             label: author.into(),
         },
         content: content.into(),
+        audience: Audience::Desk,
+        elided: None,
     }
 }
 
