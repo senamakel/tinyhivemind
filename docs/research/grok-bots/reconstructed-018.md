@@ -143,16 +143,16 @@ probing with `firstUnusedId` for the first free one; the boot turn is `"b"`. All
 78 lines are pure and would port to Rust unchanged.
 
 Paging is a fold over rows too. `readTranscriptPage` / `readTranscriptWindow` /
-`readTranscriptTail` (`agent-db-transcript-pages.ts:14-16`) take a prepared-
-statement bundle plus `{beforeSeq, sinceMs, untilMs, limit}`, over-fetch by one
-to detect more, reverse the rows, and return `{entries, nextBeforeSeq?}`. The
-cursor is a `seq`. Visibility is pushed into SQL as reusable filter fragments —
-`WINDOW_ENTRY_FILTER_SQL` drops tool-calls and branched entries;
-`MAIN_TRANSCRIPT_MESSAGE_FILTER_SQL` keeps only sends, attachments, user
-messages, and messages carrying `fromAgent`/`toAgent`
-(`agent-db-schema.ts:1,27`). That filter *is* the projection, expressed as a
-predicate over `json_extract` rather than as a fold — which is exactly the piece
-`tinyhivemind` keeps pure and portable.
+`readTranscriptTail` (`agent-db-transcript-pages.ts:14-16`) take a
+prepared-statement bundle plus `{beforeSeq, sinceMs, untilMs, limit}`,
+over-fetch by one to detect more, reverse the rows and return
+`{entries, nextBeforeSeq?}`; the cursor is a `seq`. Visibility is pushed into
+SQL as reusable fragments — `WINDOW_ENTRY_FILTER_SQL` drops tool-calls and
+branched entries, `MAIN_TRANSCRIPT_MESSAGE_FILTER_SQL` keeps only sends,
+attachments, user messages and messages carrying `fromAgent`/`toAgent`
+(`agent-db-schema.ts:1,27`). That filter *is* the projection, written as a
+`json_extract` predicate rather than a fold — exactly the piece `tinyhivemind`
+keeps pure and portable.
 
 ## How a message causes a turn
 
@@ -331,16 +331,15 @@ anything (`action-audit-service.ts:9`).
 **Model A — local tool permission.** A globally persisted three-valued setting
 (`SAND_LOCAL_TOOL_PERMISSIONS = ["always","ask","never"]`,
 `source/shared/local-tool-permission.ts:1`) plus an ephemeral per-scope approval
-cache. Per-request resolutions are four-valued: `"allow-once" | "deny" |
-"always" | "never"` (`local-tool-permission-controller.ts:20`); answering
-`always`/`never` writes back to the global setting, `allow-once`/`deny` touches
-only the in-memory cache. The **scope key** is
+cache. Per-request resolutions are four-valued — `"allow-once" | "deny" |
+"always" | "never"` (`local-tool-permission-controller.ts:20`) — where
+`always`/`never` writes back to the global setting and `allow-once`/`deny`
+touches only the cache. The **scope key** is
 `askKey(scope, request) = ${agentId}\0${toolCallId}\0${action}\0${target}`
-(line 34), so an approval is scoped to one tool call on one agent for one action
-against one target; `completeScope` (line 48) retires every approval for that
-tool call unless it was marked `outlivesScope`. An approval may instead be
-pinned to a `resourcePath`, which is how a grant survives across tool calls
-touching the same file or terminal folder.
+(line 34): one tool call, one agent, one action, one target. `completeScope`
+(line 48) retires every approval for that tool call unless marked
+`outlivesScope`; an approval may instead be pinned to a `resourcePath`, which is
+how a grant survives across calls touching the same file or terminal folder.
 
 Whether a stored approval covers a new request *is* a pure predicate —
 `localToolApprovalCovers` (`shared/local-tool-permission-machinery.ts:83`), four
@@ -505,8 +504,7 @@ four added features are real, IO-performing implementations, not stubs.
 | `"(pass)"` convention + `isPotentialPassPrefix` streaming suppression | Response thresholds, cross-inhibition | An explicit *textual* pass token the model emits, and prefix-suppression while it streams |
 | `orderRoundSpeakers` round-rotation | Deterministic one-responder selection | Rotating the opener by round number to avoid a fixed speaker order |
 | `messagesSinceMemberLastSpoke` + `formatGroupHistory(limit=24)` | Projection fold, `docs/specs/sessions.md` | Slicing from the viewer's own last utterance as the whole prompt input |
-| `seq` + stable `id` on one table (`agent-db-schema.ts:15`) | Sequence-number addressing across host surfaces | Nothing — this agrees |
-| `nextEntryId` position-derived ids `t3a0` (`transcript-entry-ids.ts:5`) | Host-minted ids | Deriving an id from a fold over the transcript so it is reproducible |
+| `seq` + stable `id` on one table, ids position-derived by `nextEntryId` (`agent-db-schema.ts:15`, `transcript-entry-ids.ts:5`) | Sequence-number addressing across host surfaces | Nothing on `seq` — that agrees. New: deriving the string id from a fold over the transcript, so it is reproducible |
 | SQL visibility filters as the projection (`agent-db-schema.ts:1,27`) | Pure projection fold | Pushing the filter into the store — the opposite trade; worth knowing as a host-side option |
 | `clientNonce` + canonical SHA-256 digest ledger, 256 records | Idempotent dispatch, `docs/specs/mention-dispatch.md` | The digest-mismatch error on a reused nonce; a bounded persisted ledger |
 | Epoch supersession + `MAX_REPLY_NUDGES = 3` (`turn-runtime.ts:534`) | Bounded turns | Re-invoking a runner that owed a delivery and produced none |
@@ -516,8 +514,7 @@ four added features are real, IO-performing implementations, not stubs.
 | Direction epochs invalidating refusals and standing grants (`local-tool-permission-controller.ts:64-67`) | — | Epoch-scoped consent — a grant must not retroactively cover an older request |
 | `evaluateAutomationSpendGuard` seven-verdict window fold | Decaying salience, quorum | A pure "should I keep spending attention here" verdict over unread/idle counters |
 | `truncatePromptFairly` max-min fair char allocation (`prompt-truncation.ts:17`) | Attention market, stated per-message budget | The concrete max-min algorithm and the `minUsefulChars` drop-and-mark rule |
-| Provider switch as a global enum re-read per turn (`inference-service.ts:56`) | Model selector boundary, `docs/specs/responders.md` | Nothing worth taking; confirms the selector belongs behind a port, not in the algebra |
-| Usage fold `previous + clamped delta` per provider (`sand-settings-store.ts:161`) | — | A per-provider counter fold; note their storage (JSON round trip per turn) is the part not to copy |
+| Provider switch as a global enum re-read per turn; usage fold `previous + clamped delta` (`inference-service.ts:56`, `sand-settings-store.ts:161`) | Model selector boundary, `docs/specs/responders.md` | Nothing from the switch — it confirms the selector belongs behind a port. New: a per-provider counter fold (their JSON-round-trip storage is the part not to copy) |
 | `resolveHostExtensionBootOrder` pure topo-sort with named cycle errors | Crate-level module wiring | A pattern for a host assembling ports in dependency order with diagnosable failures |
 | `RemoteRoomMember {kind: "agent" \| "human", authId, agentId}` | Roster records distinguishing participants | Carrying an owning account id alongside the agent id for cross-user rooms |
 | One agent = one conversation = one directory = one SQLite file | Host owns storage; desks as overlays | Their conflation of identity and conversation — `tinyhivemind`'s desk overlay is the thing they lack |
