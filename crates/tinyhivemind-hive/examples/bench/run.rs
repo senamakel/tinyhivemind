@@ -270,11 +270,6 @@ impl Host {
         self.append(SessionAuthor::Operator, content.to_owned())
     }
 
-    /// Append an agent turn.
-    fn agent(&mut self, id: &str, content: String) -> Sequence {
-        self.agent_to(id, content, Audience::Desk)
-    }
-
     /// Append an agent turn addressed to `audience`.
     fn agent_to(&mut self, id: &str, content: String, audience: Audience) -> Sequence {
         self.append_to(
@@ -303,13 +298,6 @@ pub(crate) enum AsideMode {
     Private,
     /// The identical exchange, in the open, where every member reads it.
     Public,
-}
-
-impl AsideMode {
-    /// Whether a participant may spend a turn on a check at all.
-    pub(crate) const fn opens(self) -> bool {
-        !matches!(self, Self::Off)
-    }
 }
 
 /// The audience one authored line is committed under.
