@@ -2,6 +2,7 @@
 
 use crate::{SESSION_WINDOW, SessionMessage, ThreadLine, pins::Pin};
 use serde::{Deserialize, Serialize};
+use tinyhivemind_core::aside::AsidePolicy;
 
 /// One teammate described to the initialized viewer.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -87,6 +88,14 @@ pub struct TeamBriefing {
     /// How much of the bounded window one message may spend.
     #[serde(default)]
     pub brevity: BrevityPolicy,
+    /// Whether this desk permits private asides, and within what bounds.
+    ///
+    /// Defaults to [`AsidePolicy::DEFAULT`], which permits none. The grammar
+    /// is rendered into the system text only when it is enabled: a grammar is
+    /// a fixed cost paid in every agent's prompt on every turn, and teaching a
+    /// move nobody may make spends that budget for nothing.
+    #[serde(default)]
+    pub asides: AsidePolicy,
 }
 
 /// One host-supplied block of context that is not in the log and not a thread.
