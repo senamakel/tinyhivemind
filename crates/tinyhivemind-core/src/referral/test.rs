@@ -696,8 +696,7 @@ fn an_empty_desk_and_a_deskless_target_refuse_in_the_same_words() {
     // the asker. Both are refused, and neither sentence reports which.
     let members = members();
     let roster = Roster::new(&members, &[], &[]);
-    let mut desk_records = desks();
-    desk_records.push(desk("solo", &["ada"]));
+    let desk_records = vec![desk("payments", &["ada", "grace"]), desk("solo", &["ada"])];
     let desks = DeskSet::new(&desk_records, &[], &[], &[], &[]);
     let refuse = |mention| {
         match referral(OPEN, &input("ada", "payments", vec![mention]), &roster, &desks)
