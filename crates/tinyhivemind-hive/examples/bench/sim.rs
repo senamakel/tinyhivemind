@@ -1291,7 +1291,10 @@ impl View {
             .iter()
             .filter(|trace| trace.topic.as_ref() == Some(topic))
             .filter(|trace| matches!(trace.kind, TraceKind::Evidence))
-            .map(|trace| trace.author.clone())
+            .filter_map(|trace| match &trace.author {
+                SessionAuthor::Agent { id, .. } => Some(id.clone()),
+                _ => None,
+            })
             .find(|author| author != excluding)
     }
 
