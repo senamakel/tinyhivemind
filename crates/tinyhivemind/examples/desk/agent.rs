@@ -26,6 +26,8 @@ pub(crate) struct TurnOutput {
     pub(crate) tools: Vec<String>,
     /// Whether the process was killed at its deadline rather than finishing.
     pub(crate) timed_out: bool,
+    /// The agent CLI's own session id, so this seat can resume its own work.
+    pub(crate) session: Option<String>,
 }
 
 /// A configured agent CLI: one process per turn.
@@ -70,11 +72,18 @@ impl AgentRunner {
         prompt: &str,
         label: &str,
         timeout: Duration,
+        session: Option<&str>,
     ) -> Result<TurnOutput, Box<dyn std::error::Error + Send + Sync>> {
         let started = Instant::now();
         let mut command = Command::new(&self.program);
+        command.args(&self.args);
+        // A seat that resumes its own CLI session keeps the working context it
+        // built last turn — its scratch reasoning, its file reads — which is
+        // what a persistent agent has and a fresh process does not.
+        if let Some(session) = session {
+            command.args(["--session", session]);
+        }
         command
-            .args(&self.args)
             .arg(prompt)
             .current_dir(&self.workspace)
             .stdin(Stdio::null())
@@ -166,6 +175,16 @@ fn parse_events(stdout: &str) -> TurnOutput {
                     turn.tools.push(name.to_string());
                 }
             }
+            Some("step_start") | Some("step_finish") | Some("text") | Some("tool_use") => {
+                if turn.session.is_none()
+                    && let Some(id) = event.get("sessionID").and_then(serde_json::Value::as_str)
+                {
+                    turn.session = Some(id.to_string());
+                }
+            }
+            _ => {}
+        }
+        match event.get("type").and_then(serde_json::Value::as_str) {
             Some("step_finish") => {
                 if let Some(total) = event
                     .pointer("/part/tokens/total")
