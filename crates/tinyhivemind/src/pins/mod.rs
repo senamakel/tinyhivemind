@@ -67,7 +67,7 @@ use crate::{
     session::matches_conversation, threads::read_desk_rows,
 };
 use std::collections::BTreeMap;
-use tinyhivemind_core::masking::fenced_ranges;
+use tinyhivemind_core::masking::{code_ranges, is_masked};
 
 /// Default number of pins a board holds.
 ///
@@ -85,7 +85,9 @@ pub const PIN_MARKER_CAP: usize = 8;
 /// Read pin markers from an authored body, in reading order.
 ///
 /// A body carrying no marker yields nothing: ordinary conversation never pins
-/// itself by accident.
+/// itself by accident, and a marker inside code -- a fenced or indented
+/// block, or an inline span opened on an earlier line -- is quoted
+/// documentation rather than a directive.
 #[must_use]
 pub fn read_directives(
     body: &str,
@@ -95,16 +97,13 @@ pub fn read_directives(
     if !body.contains('!') {
         return Vec::new();
     }
-    let fenced = fenced_ranges(body);
+    let masked = code_ranges(body);
     let mut directives = Vec::new();
     let mut offset = 0;
     for line in body.split_inclusive('\n') {
         let start = offset;
         offset += line.len();
-        if fenced
-            .iter()
-            .any(|(from, to)| *from <= start && start < *to)
-        {
+        if is_masked(start, &masked) {
             continue;
         }
         let trimmed = line.trim_end_matches(['\n', '\r']).trim_start();
