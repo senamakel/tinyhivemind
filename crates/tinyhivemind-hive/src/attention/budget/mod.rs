@@ -14,16 +14,15 @@ pub fn allocate_chars(requests: &[BudgetRequest], policy: &BudgetPolicy) -> Vec<
     requests
         .iter()
         .map(|request| {
-            let granted = request.wanted.min(level);
+            let mut granted = request.wanted.min(level);
+            if granted < request.wanted && granted < policy.min_useful_chars {
+                granted = 0;
+            }
             BudgetShare {
                 source_id: request.source_id.clone(),
                 granted,
                 omitted: request.wanted - granted,
-                verdict: if granted == request.wanted {
-                    BudgetVerdict::Whole
-                } else {
-                    BudgetVerdict::Truncated
-                },
+                verdict: verdict(granted, request.wanted),
             }
         })
         .collect()
@@ -66,4 +65,19 @@ fn fits(requests: &[BudgetRequest], level: usize, total: usize) -> bool {
         }
     }
     true
+}
+
+/// Read one settled pair of numbers as an outcome the caller can report.
+///
+/// Zero characters is [`BudgetVerdict::Dropped`] rather than a truncation to
+/// nothing: a source that contributes no text is not carried, and the caller
+/// owes the reader a note saying so.
+fn verdict(granted: usize, wanted: usize) -> BudgetVerdict {
+    if granted >= wanted {
+        BudgetVerdict::Whole
+    } else if granted == 0 {
+        BudgetVerdict::Dropped
+    } else {
+        BudgetVerdict::Truncated
+    }
 }
