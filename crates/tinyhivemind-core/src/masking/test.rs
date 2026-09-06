@@ -14,7 +14,10 @@ fn a_fence_indented_four_spaces_does_not_open_a_block() {
     // With the opener disqualified the bare fence on the last line is an
     // opener in its own right, and masks to the end of the body.
     let over_indented = "    ```\n@alice\n```\n";
-    assert_eq!(fenced_ranges(over_indented), vec![(15, over_indented.len())]);
+    assert_eq!(
+        fenced_ranges(over_indented),
+        vec![(15, over_indented.len())]
+    );
 }
 
 #[test]

@@ -51,7 +51,10 @@ mod test;
 /// ```
 #[must_use]
 pub fn code_ranges(body: &str) -> Vec<(usize, usize)> {
-    fenced_ranges(body)
+    let mut ranges = fenced_ranges(body);
+    ranges.extend(inline_ranges(body, &ranges));
+    ranges.sort_unstable();
+    ranges
 }
 
 /// Whether the byte at `offset` falls inside one of `ranges`.
@@ -127,6 +130,53 @@ pub fn fenced_ranges(body: &str) -> Vec<(usize, usize)> {
     }
     if let Some((start, _, _)) = open {
         ranges.push((start, body.len()));
+    }
+    ranges
+}
+
+fn inline_ranges(body: &str, fenced: &[(usize, usize)]) -> Vec<(usize, usize)> {
+    let bytes = body.as_bytes();
+    let mut ranges = Vec::new();
+    let mut offset = 0;
+    while offset < bytes.len() {
+        if let Some((_, end)) = fenced
+            .iter()
+            .find(|(start, end)| *start <= offset && offset < *end)
+        {
+            offset = *end;
+            continue;
+        }
+        if bytes[offset] != b'`' {
+            offset += 1;
+            continue;
+        }
+        let run = bytes[offset..]
+            .iter()
+            .take_while(|byte| **byte == b'`')
+            .count();
+        let mut candidate = offset + run;
+        let mut closing = None;
+        while candidate < bytes.len() {
+            if is_masked(candidate, fenced) || bytes[candidate] != b'`' {
+                candidate += 1;
+                continue;
+            }
+            let closing_run = bytes[candidate..]
+                .iter()
+                .take_while(|byte| **byte == b'`')
+                .count();
+            if closing_run == run {
+                closing = Some(candidate + closing_run);
+                break;
+            }
+            candidate += closing_run;
+        }
+        if let Some(end) = closing {
+            ranges.push((offset, end));
+            offset = end;
+        } else {
+            offset += run;
+        }
     }
     ranges
 }
