@@ -187,6 +187,16 @@ fn active_members<'a>(
 /// Without this filter a retired agent, or one from a different desk, whose
 /// message lands after the watermark would still be folded into standings
 /// and could manufacture quorum nobody eligible actually holds.
+///
+/// A trace deposited in a row addressed to an aside is dropped for the same
+/// reason and by the same test: **an aside carries information, never
+/// support.** The filter is uniform rather than per-reader — every participant
+/// counts the same medium, so quorum, the floor and the directory stay
+/// single-valued — and it is what makes a private exchange owe the room a
+/// settlement. To make an aside count, a member spends a desk-visible turn
+/// saying so in the open. See [ADR 0008][adr].
+///
+/// [adr]: https://github.com/tinyhumansai/tinyhivemind/blob/main/docs/adr/0008-an-aside-carries-information-never-support.md
 fn live_traces<'a>(
     transcript: &'a [SessionMessage],
     state: &EpisodeState,
@@ -199,6 +209,7 @@ fn live_traces<'a>(
     let live: Vec<&SessionMessage> = transcript
         .iter()
         .filter(|message| message.sequence > state.watermark)
+        .filter(|message| message.audience.is_desk())
         .filter(|message| match &message.author {
             SessionAuthor::Agent { id, .. } => members.iter().any(|member| *member == id),
             SessionAuthor::Operator
@@ -274,17 +285,34 @@ fn next_commit_boundary(
 
 /// Filter a transcript to what one authorized turn may see.
 ///
-/// Under [`Visibility::Full`] every message is visible. Under
-/// [`Visibility::Blind`] the messages of *peer agents authored within this
-/// episode* are withheld, while operator, person and system messages, the
+/// Two filters compose here, and they narrow along different axes.
+///
+/// **Visibility**, by time. Under [`Visibility::Full`] every message passes.
+/// Under [`Visibility::Blind`] the messages of *peer agents authored within
+/// this episode* are withheld, while operator, person and system messages, the
 /// turn-holder's own, and anything at or below the episode's watermark
 /// remain — the participant still sees the task, its own work, and the
 /// conversation that led into the episode, just not the positions its peers
-/// have taken since the room opened.
+/// have taken since the room opened. A message withheld this way is **dropped**:
+/// the round ends, and it arrives on the next turn.
+///
+/// **Audience**, by addressee. A row addressed to an aside the turn-holder is
+/// not part of is **elided rather than dropped**, and a run of them from one
+/// aside collapses into a single stub. It keeps its sequence, its author and
+/// its audience, and loses only its content, so a citation still resolves and
+/// the turn-holder can tell that a peer knows something it does not.
+///
+/// `transcript` is expected to be the true medium — projected for an operator,
+/// or otherwise unelided. Narrowing it beforehand would not make this function
+/// wrong, but it would mean [`step`] had folded a transcript that is nobody's
+/// room, which is the one thing the episode may not do.
 #[must_use]
-pub fn project_for<'a>(turn: &HiveTurn, messages: &'a [SessionMessage]) -> Vec<&'a SessionMessage> {
+pub fn project_for(turn: &HiveTurn, messages: &[SessionMessage]) -> Vec<SessionMessage> {
     let watermark = turn.next_state.watermark;
-    messages
+    let viewer = Viewer::Agent {
+        id: turn.agent_id.clone(),
+    };
+    let visible: Vec<SessionMessage> = messages
         .iter()
         .filter(|message| match turn.visibility {
             Visibility::Full => true,
@@ -297,7 +325,33 @@ pub fn project_for<'a>(turn: &HiveTurn, messages: &'a [SessionMessage]) -> Vec<&
                 | SessionAuthor::System { .. } => true,
             },
         })
-        .collect()
+        .map(|message| present_for(message, &viewer))
+        .collect();
+    collapse_elisions(visible)
+}
+
+/// One transcript row as this viewer reads it, eliding what it may not.
+fn present_for(message: &SessionMessage, viewer: &Viewer) -> SessionMessage {
+    let author_id = match &message.author {
+        SessionAuthor::Agent { id, .. } => Some(id.as_str()),
+        SessionAuthor::Operator | SessionAuthor::Person { .. } | SessionAuthor::System { .. } => {
+            None
+        }
+    };
+    if message.elided.is_some() || message.audience.admits(viewer, author_id) {
+        return message.clone();
+    }
+    SessionMessage {
+        sequence: message.sequence,
+        author: message.author.clone(),
+        content: String::new(),
+        audience: message.audience.clone(),
+        elided: Some(Elision {
+            through: message.sequence,
+            messages: 1,
+            settled_at: None,
+        }),
+    }
 }
 
 fn context<'a>(
