@@ -197,3 +197,108 @@ fn the_default_policy_is_derived_from_the_stated_message_budget() {
     assert_eq!(BudgetPolicy::DEFAULT.min_useful_chars, 200);
     assert_eq!(BudgetPolicy::default(), BudgetPolicy::DEFAULT);
 }
+
+fn assert_wire_round_trip<T>(value: &T, expected: serde_json::Value)
+where
+    T: serde::Serialize + serde::de::DeserializeOwned + Eq + std::fmt::Debug,
+{
+    assert_eq!(serde_json::to_value(value).expect("serializes"), expected);
+    assert_eq!(
+        serde_json::from_value::<T>(expected).expect("deserializes"),
+        *value
+    );
+}
+
+#[test]
+fn a_request_pins_its_wire_form() {
+    assert_wire_round_trip(
+        &BudgetRequest::new("pins", 300),
+        serde_json::json!({ "source_id": "pins", "wanted": 300 }),
+    );
+}
+
+#[test]
+fn a_policy_pins_its_wire_form() {
+    assert_wire_round_trip(
+        &tight(500, 200),
+        serde_json::json!({ "total_chars": 500, "min_useful_chars": 200 }),
+    );
+}
+
+#[test]
+fn a_share_pins_its_wire_form() {
+    assert_wire_round_trip(
+        &BudgetShare {
+            source_id: "digest".into(),
+            granted: 0,
+            omitted: 1_000,
+            verdict: BudgetVerdict::Dropped,
+        },
+        serde_json::json!({
+            "source_id": "digest",
+            "granted": 0,
+            "omitted": 1_000,
+            "verdict": "dropped",
+        }),
+    );
+}
+
+#[test]
+fn every_verdict_pins_its_wire_spelling() {
+    for (verdict, spelling) in [
+        (BudgetVerdict::Whole, "whole"),
+        (BudgetVerdict::Truncated, "truncated"),
+        (BudgetVerdict::Dropped, "dropped"),
+    ] {
+        assert_wire_round_trip(&verdict, serde_json::json!(spelling));
+    }
+}
+
+#[test]
+fn arbitrary_claims_never_overspend_and_never_leave_a_fragment() {
+    let mut state = 0x0b0d_6e75_c0de_u64;
+    let mut next = move || {
+        state ^= state << 7;
+        state ^= state >> 9;
+        state
+    };
+
+    for _ in 0..2_000 {
+        let count = usize::try_from(next() % 7).expect("bounded count");
+        let requests: Vec<BudgetRequest> = (0..count)
+            .map(|index| BudgetRequest::new(format!("source-{index}"), (next() % 2_000) as usize))
+            .collect();
+        let policy = tight((next() % 3_000) as usize, (next() % 400) as usize);
+
+        let shares = allocate_chars(&requests, &policy);
+        assert_eq!(shares.len(), requests.len());
+        let spent: usize = shares.iter().map(|share| share.granted).sum();
+        assert!(spent <= policy.total_chars, "{shares:?} overspent {policy:?}");
+
+        for (request, share) in requests.iter().zip(&shares) {
+            assert_eq!(share.source_id, request.source_id);
+            assert!(share.granted <= request.wanted);
+            assert_eq!(share.omitted, request.wanted - share.granted);
+            match share.verdict {
+                BudgetVerdict::Whole => assert_eq!(share.granted, request.wanted),
+                BudgetVerdict::Truncated => {
+                    assert!(share.granted > 0 && share.granted < request.wanted);
+                    assert!(
+                        share.granted >= policy.min_useful_chars,
+                        "kept a fragment: {share:?} under {policy:?}"
+                    );
+                }
+                BudgetVerdict::Dropped => {
+                    assert_eq!(share.granted, 0);
+                    assert!(request.wanted > 0);
+                }
+            }
+        }
+
+        let mut reversed = requests.clone();
+        reversed.reverse();
+        let mut mirrored = allocate_chars(&reversed, &policy);
+        mirrored.reverse();
+        assert_eq!(mirrored, shares, "order changed the allocation");
+    }
+}
