@@ -146,6 +146,17 @@ pub async fn prepare_delta(
     // aside rows split across two ticks cannot merge, because the earlier half
     // is already in the agent's context and this crate holds no memory of
     // having sent it.
+    //
+    // The same bound applies to `settled_at`. A stub delivered in one tick,
+    // whose settlement is published in a later one, keeps the `None` it was
+    // sent with: the row has already been accepted and the watermark has moved
+    // past it, and this crate cannot revise a message it no longer holds.
+    // A re-seed shows it settled, because a projection sees the whole window
+    // at once. Fixing it incrementally would mean carrying pending-aside
+    // state across ticks — caller-owned or not, that is a second store to
+    // invalidate, which the charter refuses. The honest reading is that
+    // `settled_at` on an incremental delta is a floor rather than a fact: it
+    // says "settled by here", never "not settled".
     let messages = crate::session::project_as(&messages, query.viewer);
     let mut next_state = query.state.clone();
     next_state.watermark = query.before;

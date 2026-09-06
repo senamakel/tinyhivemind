@@ -419,6 +419,20 @@ pub(crate) fn http_turn(
 }
 
 /// Run one agent CLI with the prompt as its final argument.
+///
+/// The prompt therefore appears in that process's argument list, where any
+/// local process can read it out of `ps` for as long as the turn runs — the
+/// transcript included, asides and all. That is inherent to the `--agent-cmd`
+/// contract, which exists precisely so any CLI taking a prompt as its final
+/// argument works unmodified, and it is why the credential path is the HTTP
+/// backend's rather than this one's: there is no key here to leak. A host that
+/// needs the transcript off the argument list should drive an endpoint
+/// instead.
+///
+/// `--timeout` is not enforced here either. `std::process::Command` offers no
+/// deadline, and bolting a reaper thread onto an example would be more
+/// machinery than the example is worth; the flag documents itself as applying
+/// to the HTTP backend.
 fn command_turn(argv: &[String], prompt: &str) -> Result<String, String> {
     let (program, flags) = argv
         .split_first()

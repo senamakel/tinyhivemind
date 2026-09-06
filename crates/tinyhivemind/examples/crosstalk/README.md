@@ -200,6 +200,14 @@ A CLI backend gets **no selector**: spending a whole agent process to answer
 to the desk lead and reports the disposition as `Unavailable`. That is the
 ladder behaving correctly with a rung it cannot reach, and it is worth seeing.
 
+Two things the CLI backend does not do, both inherent to its contract rather
+than oversights: the prompt reaches the agent as its final **argument**, so the
+transcript is readable out of `ps` while the turn runs, and `--timeout` is not
+enforced because `std::process::Command` has no deadline. Neither applies to
+the HTTP backend, which carries the only credential and keeps everything on
+stdin. A host that needs the transcript off the argument list should drive an
+endpoint.
+
 Every HTTP request goes through the `curl` binary rather than an HTTP crate,
 because this workspace forbids a transport dependency in `tinyhivemind` and an
 example is built alongside it. The whole request, headers included, is written
@@ -220,7 +228,7 @@ honest about what is being measured.
 | `--api-key-env NAME` | environment variable holding its key (default `LADDER_API_KEY`) |
 | `--model ID` | model id for the seats and the selector (default `flash`) |
 | `--agent-cmd "CMD"` | run an agent CLI per turn instead of an endpoint |
-| `--timeout N` | per-request deadline in seconds (default 120) |
+| `--timeout N` | per-request deadline in seconds, **HTTP backend only** (default 120) |
 | `--thinking on\|off` | let the endpoint reason first, or not (default `off`) |
 | `--hops N` | host hop budget for agent-to-agent dispatch (default 3) |
 | `--instruction TEXT` | what the operator posts to open the desk |
