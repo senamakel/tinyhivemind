@@ -7,7 +7,6 @@ use crate::{Sequence, SessionFuture, SessionPage, SourceError};
 use std::{collections::VecDeque, io, sync::Mutex};
 use tinyhivemind_core::select::MatchKind;
 use tinyhivemind_core::aside::Audience;
-use tinyhivemind_core::aside::Audience;
 
 #[derive(Debug)]
 struct FakeLog {

@@ -11,7 +11,6 @@ use tinyhivemind::{
     roster::{Roster, RosterMember},
 };
 use tinyhivemind::aside::Audience;
-use tinyhivemind::aside::Audience;
 
 const MEMBERS: [&str; 3] = ["planner", "critic", "scout"];
 

@@ -6,7 +6,6 @@ use super::*;
 use crate::{SessionAuthor, SessionFuture, SessionPage, SourceError};
 use std::{collections::VecDeque, io, sync::Mutex};
 use tinyhivemind_core::aside::Audience;
-use tinyhivemind_core::aside::Audience;
 
 #[derive(Debug)]
 struct FakeLog {
