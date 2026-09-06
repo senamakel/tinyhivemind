@@ -65,10 +65,9 @@ carries exactly one turn and there is one floor.
 The mechanism that makes a divergent view dangerous is not the divergence. It is
 that neither side can see it.
 
-**Agents do not spontaneously model what a peer knows.** Wang, Ye, Zhou et al.,
-"Systematic Failures in Collective Reasoning under Distributed Information in
-Multi-Agent LLMs", [arXiv:2505.11556](https://arxiv.org/abs/2505.11556),
-introduces **HiddenBench**, 65 tasks built on the hidden-profile paradigm
+**Agents do not spontaneously model what a peer knows.** "Systematic Failures in
+Collective Reasoning under Distributed Information in Multi-Agent LLMs",
+[arXiv:2505.11556](https://arxiv.org/abs/2505.11556), introduces **HiddenBench**, 65 tasks built on the hidden-profile paradigm
 (Stasser & Titus, already covered in [`biology.md`](biology.md)). Multi-agent
 LLM groups reach **30.1%** accuracy when the deciding facts are distributed,
 against **80.7%** for a single agent handed all of them. The diagnosis is the
@@ -106,8 +105,8 @@ and for requiring that something come back out of it — not for leaving it out.
 It would be convenient if the conservative choice were to show everyone
 everything. It is not.
 
-Zhang, Qiu, Sun et al., "Understanding the Information Propagation Effects of
-Communication Topologies in LLM-based Multi-Agent Systems",
+"Understanding the Information Propagation Effects of Communication Topologies
+in LLM-based Multi-Agent Systems",
 [arXiv:2505.23352](https://arxiv.org/abs/2505.23352), EMNLP 2025, compares
 topologies systematically and finds sparse ones preserving or improving
 reasoning at lower cost, with dense connectivity propagating errors as
@@ -140,8 +139,7 @@ cost, and P16 is the same admission generalised from *per-turn and time-based* t
 Two literatures say the bill, and both are about auditability rather than
 performance.
 
-Motwani, Baranchuk, Strohmeier et al., "Secret Collusion among AI Agents:
-Multi-Agent Deception via Steganography",
+"Secret Collusion among AI Agents: Multi-Agent Deception via Steganography",
 [arXiv:2402.07510](https://arxiv.org/html/2402.07510v3), and "Colosseum:
 Auditing Collusion in Cooperative Multi-Agent Systems",
 [arXiv:2602.15198](https://arxiv.org/abs/2602.15198), describe agents
