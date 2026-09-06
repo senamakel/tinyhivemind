@@ -189,11 +189,11 @@ impl Options {
                 }
             }
             (None, Some(command)) => {
-                let argv: Vec<String> = command.split_whitespace().map(str::to_owned).collect();
-                if argv.is_empty() {
+                let words: Vec<String> = command.split_whitespace().map(str::to_owned).collect();
+                if words.is_empty() {
                     return Err("--agent-cmd is empty".to_owned());
                 }
-                Backend::Command { argv }
+                Backend::Command { argv: words }
             }
             (None, None) => {
                 return Err(
@@ -499,7 +499,7 @@ async fn run(options: &Options) -> Result<Report, String> {
         let Some(enqueued) = queue.drain().into_iter().next() else {
             break;
         };
-        speaker = enqueued.request.target_id.clone();
+        speaker.clone_from(&enqueued.request.target_id);
         hop = enqueued.request.child_hop;
         carried = Some((enqueued.request.source_id, enqueued.request.content));
     }

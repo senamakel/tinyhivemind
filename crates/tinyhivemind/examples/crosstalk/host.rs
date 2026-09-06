@@ -84,7 +84,7 @@ impl SessionLog for Journal {
             .take(limit)
             .cloned()
             .collect();
-        page.sort_by(|left, right| right.sequence.cmp(&left.sequence));
+        page.sort_by_key(|row| std::cmp::Reverse(row.sequence));
         let next_before = page.last().map(|row| row.sequence);
         let has_older =
             next_before.is_some_and(|oldest| rows.iter().any(|row| row.sequence < oldest));
@@ -185,7 +185,7 @@ impl Queue<'_> {
             };
         }
 
-        if !self.available.iter().any(|id| *id == request.target_id) {
+        if !self.available.contains(&request.target_id) {
             return EnqueueOutcome::Refused {
                 reason: EnqueueRefusal::TargetUnavailable,
             };
