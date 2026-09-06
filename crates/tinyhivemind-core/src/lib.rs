@@ -46,6 +46,8 @@
 //! - [`dispatch`] — bounded selection of at most one mentioned child turn.
 //! - [`error`] — typed failures from malformed records or unresolved desks.
 //! - [`find`] — name searches over a roster snapshot and a desk snapshot.
+//! - [`masking`] — the one code scanner every authored grammar shares: which
+//!   spans of a body are fenced or inline code, and so carry no grammar.
 //! - [`mention`] — authored mention parsing and pure routing choices.
 //! - [`referral`] — bounded selection of one child turn that may cross a desk,
 //!   and the one answer that comes back.
