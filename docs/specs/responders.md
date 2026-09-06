@@ -108,14 +108,20 @@ is specified to fall back deterministically and record why in
 `NoActiveResponder`, which is a malformed-roster error rather than a message to
 anyone.
 
-The rendering is settled. `SelectionDisposition` and `ResponderRung` carry a
-`Display` impl, so the sentence a host shows a person comes from the library
-rather than from each host's own wording. Both types render every variant
-distinctly, because the ladder withholds nothing: every disposition and rung
-arrives beside the responder id it explains, so none of them discloses the
-existence, activity or reachability of a participant the caller could not
-already read from the roster it supplied. See
+The rendering mechanism is settled, and today every variant renders
+distinctly. `SelectionDisposition` and `ResponderRung` carry a `Display` impl,
+so the sentence a host shows a person comes from the library rather than from
+each host's own wording, and every disposition and rung arrives beside the
+responder id it explains, so none of them currently discloses the existence,
+activity or reachability of a participant the caller could not already read
+from the roster it supplied. See
 [ADR 0009](../adr/0009-a-refusal-renders-what-the-caller-already-holds.md).
+Whether any two of these specific variants must one day collapse onto a
+shared sentence — the way ADR 0009 collapses dispatch and approval refusals —
+is the open question the closing section of this spec leaves to enumeration
+work in core, not a contradiction of "settled": settled describes the
+mechanism and the current, per-variant wording, not a permanent ban on ever
+grouping two of them.
 
 It is bounded by [ADR 0008](../adr/0008-an-approval-decision-is-total.md),
 which rules that a denial's reason is for the operator's log, because refusals
