@@ -394,3 +394,102 @@ fn pins_the_wire_form_of_a_pin_and_a_directive() {
         })
     );
 }
+
+// ---------------------------------------------------------------------------
+// Private asides
+// ---------------------------------------------------------------------------
+
+fn aside_row(sequence: u64, id: &str, members: &[&str], content: &str) -> LogMessage {
+    LogMessage {
+        sequence: Sequence(sequence),
+        chat_id: Some("engineering".into()),
+        parent: None,
+        author: agent(id),
+        content: content.into(),
+        audience: Audience::Aside {
+            members: members.iter().map(|member| (*member).to_owned()).collect(),
+        },
+    }
+}
+
+fn desk_row(sequence: u64, id: &str, content: &str) -> LogMessage {
+    LogMessage {
+        author: agent(id),
+        ..row(sequence, Some("engineering"), None, content)
+    }
+}
+
+fn viewer(id: &str) -> Viewer {
+    Viewer::Agent { id: id.into() }
+}
+
+#[test]
+fn a_non_member_never_receives_an_excerpt_of_an_aside() {
+    // The shortest path from a private message to somebody else's system
+    // prompt: pin it, and let `pin_note` render 120 verbatim characters.
+    let rows = [
+        aside_row(1, "planner", &["auditor"], "The credentials rotate on Friday."),
+        desk_row(2, "auditor", "!pin ^1 #creds"),
+    ];
+
+    let board = fold_pins(&rows, &viewer("archivist"), PIN_LIMIT);
+    assert!(board.is_empty(), "a pin the reader cannot open is not a working set entry");
+
+    let note = pin_note(&board);
+    assert!(note.is_none());
+}
+
+#[test]
+fn a_member_pins_inside_its_own_aside_and_reads_the_excerpt() {
+    // The other half of the same rule, and the one that makes the mechanism
+    // usable: an agent that cannot re-find what it said privately once the
+    // window has moved past it is worse off than if it had never said it.
+    let rows = [
+        aside_row(1, "planner", &["auditor"], "The credentials rotate on Friday."),
+        aside_row(2, "auditor", &["planner"], "!pin ^1 #creds"),
+    ];
+    for id in ["planner", "auditor"] {
+        let board = fold_pins(&rows, &viewer(id), PIN_LIMIT);
+        assert_eq!(board.len(), 1, "{id} is in this aside");
+        assert_eq!(board[0].sequence, Sequence(1));
+        assert_eq!(
+            board[0].excerpt.as_deref(),
+            Some("The credentials rotate on Friday."),
+        );
+    }
+}
+
+#[test]
+fn a_marker_in_an_unreadable_row_never_touches_the_board() {
+    // The directive was never visible to this viewer, so it never happened to
+    // its board. Reading it anyway would let an aside silently rearrange what
+    // a non-member is told to keep.
+    let rows = [
+        desk_row(1, "planner", "The rate limiter resets at midnight."),
+        aside_row(2, "auditor", &["planner"], "!unpin ^1"),
+        desk_row(3, "archivist", "!pin ^1 #limits"),
+    ];
+    let outsider = fold_pins(&rows, &viewer("scribe"), PIN_LIMIT);
+    assert_eq!(outsider.len(), 1);
+    assert_eq!(outsider[0].sequence, Sequence(1));
+
+    // A member of the aside saw the unpin, so for it the pin came off and the
+    // later `!pin` put it back.
+    let member = fold_pins(&rows, &viewer("planner"), PIN_LIMIT);
+    assert_eq!(member.len(), 1);
+}
+
+#[test]
+fn a_desk_pin_is_unaffected_by_an_aside_beside_it() {
+    let rows = [
+        desk_row(1, "planner", "The rate limiter resets at midnight."),
+        aside_row(2, "planner", &["auditor"], "and privately, something else"),
+        desk_row(3, "auditor", "!pin ^1 #limits"),
+    ];
+    let board = fold_pins(&rows, &viewer("archivist"), PIN_LIMIT);
+    assert_eq!(board.len(), 1);
+    assert_eq!(
+        board[0].excerpt.as_deref(),
+        Some("The rate limiter resets at midnight."),
+    );
+}
