@@ -780,11 +780,14 @@ async fn the_briefing_states_the_window_a_viewer_actually_received() {
     // A viewer outside the aside receives two rows for a window of thirty,
     // because collapsing happens after the window is filled. Promising thirty
     // would be promising a budget this turn does not have.
-    let log = FakeLog::new(vec![page(rows.clone().into_iter().rev().collect(), None)]);
+    let log = OnePage(SessionPage {
+        messages: rows.clone().into_iter().rev().collect(),
+        next_before: None,
+    });
     let narrowed = initialize_session(
         &log,
         &SessionQuery {
-            conversation: conversation(),
+            conversation: named_conversation(),
             before: None,
             window: 30,
             viewer: Viewer::Agent {
@@ -800,11 +803,14 @@ async fn the_briefing_states_the_window_a_viewer_actually_received() {
     assert!(narrowed.briefing.system_text().contains("about 2 messages"));
 
     // A member elides nothing, so it is told the window it actually has.
-    let log = FakeLog::new(vec![page(rows.into_iter().rev().collect(), None)]);
+    let log = OnePage(SessionPage {
+        messages: rows.into_iter().rev().collect(),
+        next_before: None,
+    });
     let full = initialize_session(
         &log,
         &SessionQuery {
-            conversation: conversation(),
+            conversation: named_conversation(),
             before: None,
             window: 30,
             viewer: Viewer::Agent { id: "bob".into() },
@@ -820,11 +826,14 @@ async fn the_briefing_states_the_window_a_viewer_actually_received() {
 async fn a_young_desk_still_states_the_window_it_will_grow_into() {
     // Only a projection that actually elided something is restated. A desk
     // with three messages and no aside is not told its budget is three.
-    let log = FakeLog::new(vec![page(vec![desk_row(1, None, "hello")], None)]);
+    let log = OnePage(SessionPage {
+        messages: vec![desk_row(1, None, "hello")],
+        next_before: None,
+    });
     let initialized = initialize_session(
         &log,
         &SessionQuery {
-            conversation: conversation(),
+            conversation: named_conversation(),
             before: None,
             window: 30,
             viewer: Viewer::Operator,
