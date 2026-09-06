@@ -369,6 +369,32 @@ async fn route_opening(
     .map_err(|error| format!("the responder ladder failed: {error}"))
 }
 
+/// Everything one desk run holds: its seats and the storage they read through.
+///
+/// Bundled rather than passed one by one because the chain needs all of it on
+/// every turn, and a signature that lists six borrows says less about the
+/// shape of a turn than one that says "the room".
+struct Room<'a> {
+    /// One seat per desk member, in seating order.
+    seats: Vec<Seat>,
+    /// The same ids, borrowed for the roster and desk views.
+    ids: Vec<&'a str>,
+    /// The host's journal.
+    journal: Journal,
+    /// The host's enqueue boundary over that journal.
+    queue: Queue<'a>,
+    /// The borrowed roster view.
+    roster: tinyhivemind_core::roster::Roster<'a>,
+    /// The borrowed desk view.
+    desks: tinyhivemind_core::desk::DeskSet<'a>,
+}
+
+impl std::fmt::Debug for Room<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_struct("Room").field("ids", &self.ids).finish()
+    }
+}
+
 /// Run the hand-off chain until the library stops it.
 ///
 /// One turn per iteration, and at most one child turn per turn — that bound is
@@ -379,15 +405,18 @@ async fn route_opening(
 /// the last turn rather than inferred afterwards.
 async fn run_chain(
     options: &Options,
-    seats: &[Seat],
-    ids: &[&str],
-    journal: &Journal,
-    queue: &Queue<'_>,
-    roster: &tinyhivemind_core::roster::Roster<'_>,
-    desks: &tinyhivemind_core::desk::DeskSet<'_>,
+    room: &Room<'_>,
     floor: &Conversation,
     first: &str,
 ) -> Result<Vec<Turn>, String> {
+    let Room {
+        seats,
+        ids,
+        journal,
+        queue,
+        roster,
+        desks,
+    } = room;
     let mut turns: Vec<Turn> = Vec::new();
     let mut speaker = first.to_owned();
     let mut hop = 0_u32;
@@ -574,18 +603,7 @@ async fn run(options: &Options) -> Result<Report, String> {
         thread_root: options.thread.then_some(opening),
     };
 
-    let turns = run_chain(
-        options,
-        &seats,
-        &ids,
-        &journal,
-        &queue,
-        &roster,
-        &desks,
-        &floor,
-        &decision.responder_id,
-    )
-    .await?;
+    let turns = run_chain(options, &room, &floor, &decision.responder_id).await?;
 
     let channel_view = view(&journal, channel, options.window).await?;
     let thread_view = if options.thread {
