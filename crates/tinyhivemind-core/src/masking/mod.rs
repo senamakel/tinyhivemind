@@ -8,17 +8,22 @@
 //!
 //! # Two levels of masking, and why
 //!
-//! [`fenced_ranges`] masks fenced code blocks only. [`code_ranges`] masks
-//! those *and* inline code spans. A grammar picks the level its markers
-//! need:
+//! [`fenced_ranges`] masks `CommonMark`'s two *block* code constructs, a
+//! fenced block and an indented one. [`code_ranges`] masks those **and**
+//! inline code spans, and is the level every grammar in this workspace reads:
 //!
-//! - A **line-leading** grammar — one whose marker only counts at the start of
-//!   a line, like `!propose` or a pin directive — needs fences alone. A marker
-//!   preceded by an inline backtick is by definition not line-leading, so
-//!   inline masking would only cost a scan.
 //! - A **mid-line** grammar — a mention, which may appear anywhere in a
-//!   sentence — needs both. `` `@alice` `` is a name in prose about a name,
-//!   not a ping.
+//!   sentence — needs the spans for the obvious reason. `` `@alice` `` is a
+//!   name in prose about a name, not a ping.
+//! - A **line-leading** grammar — one whose marker only counts at the start
+//!   of a line, like `!propose` or a pin directive — needs them for a less
+//!   obvious one. A span opened on one line and closed on a later one quotes
+//!   every line between them, so a marker with no backtick ahead of it *on
+//!   its own line* can still sit inside quoted code. Masking on fences alone
+//!   fires such a marker as a live directive.
+//!
+//! [`fenced_ranges`] is that block half on its own, for a caller that wants
+//! `CommonMark`'s block code and nothing more.
 //!
 //! # Fence rules
 //!
@@ -90,9 +95,10 @@ mod test;
 
 /// Every byte range of `body` that is code: fenced blocks and inline spans.
 ///
-/// Ranges are half-open and returned in ascending order. Use this for a
-/// grammar whose markers may appear mid-line; a line-leading grammar wants
-/// [`fenced_ranges`] instead.
+/// Ranges are half-open and returned in ascending order, and may overlap
+/// where a block and a span cover the same byte. This is the level an
+/// authored grammar wants, line-leading or not; [`fenced_ranges`] is the
+/// block-only half.
 ///
 /// ```
 /// use tinyhivemind_core::masking::code_ranges;
@@ -130,8 +136,8 @@ pub fn is_masked(offset: usize, ranges: &[(usize, usize)]) -> bool {
 /// The byte ranges of `body` covered by a fenced or indented code block.
 ///
 /// Each range is half-open — `start` is masked, `end` is not — and they are
-/// returned in ascending order. Use this for a line-leading grammar; see
-/// [`code_ranges`] for one that also needs inline spans masked.
+/// returned in ascending order. This is block code alone; a grammar reading
+/// an authored body wants [`code_ranges`], which masks inline spans too.
 ///
 /// ```
 /// use tinyhivemind_core::masking::fenced_ranges;
