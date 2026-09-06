@@ -184,6 +184,12 @@ impl Options {
     }
 }
 
+// One function on purpose. This is the host written out as one story — open the
+// desk, choose who answers, run a turn, post it, route the reply — and the
+// value of an example host is that a reader can follow that order without
+// chasing five helpers. `crosstalk` makes the same trade with
+// `too_many_arguments`.
+#[allow(clippy::too_many_lines)]
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), BoxError> {
     let options = Options::parse()?;
