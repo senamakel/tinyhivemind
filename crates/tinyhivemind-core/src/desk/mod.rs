@@ -232,7 +232,7 @@ impl<'a> DeskSet<'a> {
     /// [`Self::is_unavailable`] alone cannot distinguish the two, and a
     /// stored order naming an id from the second group is malformed, not
     /// merely stale.
-    fn raw_members(&self, desk_id: &str) -> impl Iterator<Item = &'a str> + '_ {
+    fn raw_members<'b>(&'b self, desk_id: &'b str) -> impl Iterator<Item = &'a str> + 'b {
         let declared = self
             .find_id(desk_id)
             .into_iter()
