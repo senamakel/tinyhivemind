@@ -72,6 +72,59 @@ output produces the auto-selection rung with a `selected` disposition.
 - The orchestrator is required to be active only if its fallback rung is
   reached; otherwise `NoActiveResponder` is returned.
 
+## Refusals a model could repeat
+
+Two rules from the OpenBot survey
+([`../research/grok-bots/copilotkit-openbot.md`](../research/grok-bots/copilotkit-openbot.md)),
+and where the ladder stands against each.
+
+**Withhold rather than offer and then refuse.** The ladder already has this
+shape, and it has it by construction rather than by rule. Selection is never
+offered and then declined: a rung that cannot use a selector's answer does not
+build a `SelectionRequest` at all, disabled selection goes straight to the first
+candidate at the desk-default rung, a desk with fewer than two effective
+candidates never reaches the model, and candidate metadata is not even validated
+on a rung that constructs no request. The selector is asked exactly when its
+answer can be acted on, which is the same discipline as not offering a
+delegation tool to a run already at its hop cap
+([`mention-dispatch.md`](mention-dispatch.md)).
+
+**A decline is a sentence before it is a type.** This one the ladder mostly
+sidesteps rather than satisfies. It does not decline: every rung ends in an
+agent id, and each way a rung could have failed — an ambiguous agent name, an
+absent selector, a failed one, output that is prose or names two candidates —
+is specified to fall back deterministically and record why in
+`SelectionDisposition`. The only outcome that is not an id is
+`NoActiveResponder`, which is a malformed-roster error rather than a message to
+anyone.
+
+What is missing is the rendering. `SelectionDisposition` and `ResponderRung`
+are typed values with no `Display` and no vocabulary of sentences: a host that
+wants to tell a person why the desk lead answered instead of the model's pick
+writes that sentence itself, from the disposition. That is a gap, not a
+decision, and it is the same gap `NoDispatchReason` has.
+
+It is also bounded by [ADR 0008](../adr/0008-an-approval-decision-is-total.md),
+and the two do not simply agree. ADR 0008 rules that a denial's reason is for
+the operator's log, because refusals a caller can tell apart are refusals a
+caller can probe — OpenBot returns one sentence for "no such bot" and "not
+yours to see" precisely so an agent cannot enumerate a roster by reading which
+refusal came back. "Every decline is text an agent can repeat to a person" and
+"a decline must not distinguish what it distinguishes internally" pull in
+opposite directions, and the tension is real rather than a wording problem.
+
+They are reconcilable only by separating the two audiences, and by accepting
+that the sentence is the coarser of the two: a rendered decline may say *that*
+it declined and what the person can do next, while the reason that selects it
+stays in the log, and any two internal reasons a caller must not be able to
+distinguish must map to the *same* sentence. This spec does not settle which
+reasons those are. The selection path is milder than the gate — a disposition
+reports a fallback that already happened rather than withholding something —
+but "the model you asked for was not consulted" and "the model you asked for
+declined to name a candidate" are still distinguishable, and whether they may
+be is unresolved. Work on enumeration-resistant refusals in core is where it
+should be settled, not here.
+
 ## Acceptance criteria
 
 - Desk lead and auto wire forms are pinned.
@@ -84,4 +137,9 @@ output produces the auto-selection rung with a `selected` disposition.
 
 ## Open questions
 
-None for P6. Turn creation and hop bounds are deferred to P7.
+- Which dispositions, if any, may be rendered to the acting agent as distinct
+  sentences, and which must collapse into one. See the section above and
+  ADR 0008; this is the same question `mention-dispatch.md` leaves open for its
+  refusal reasons, and it should be answered once for both.
+
+Nothing else is open for P6. Turn creation and hop bounds are deferred to P7.
