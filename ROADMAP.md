@@ -27,6 +27,7 @@ dependency direction is enforced by construction.
 | P13 | Digests and supersession | planned |
 | P15 | Cross-desk referral: one child turn that may run on another channel, the answer that comes back, and the federated benchmark that scored it | **done**, every knob **off by default** |
 | P14 | Recall: one selection ranking, roster and desk pickers, bounded transcript search with optional regular expressions, pinning as a fold, and a stated per-message budget | **done** |
+| P16 | Private asides: an audience on a stored row, a viewer on a query, the collapsed redaction stub and its settlement pointer, and the rule that an aside carries information rather than support | in progress, **off by default** |
 
 P15 is also out of order, and for a related reason: it is not a wire-format
 change either, and it answers a pressure none of P11 through P13 address. Every
@@ -37,6 +38,20 @@ and no amount of deliberating inside a channel cancels an error every member
 shares. See [`docs/specs/cross-desk-referral.md`](docs/specs/cross-desk-referral.md),
 [ADR 0006](docs/adr/0006-a-referral-crosses-one-channel-at-a-time.md) and
 [the federated experiment](docs/experiments/2026-09-02-federated-hidden-profile.md).
+
+P16 is also out of order, and unlike P14 and P15 it *is* a wire-format change —
+so it owes the compatibility story P11 and P12 owe, and
+[`docs/specs/private-asides.md`](docs/specs/private-asides.md) carries it. It
+comes first because it answers a pressure none of P11 through P13 touch. Every
+mechanism to date narrows what a turn *sees* by time or by conversation, never
+by *reader*: two agents on one desk receive byte-identical projections, so a
+room where everyone reads everything is the only room this library can express.
+That is a group chat. The measured cost is already in the harness — ADR 0005
+records a 24-point gap between a blind opening and full visibility — and P16
+generalises that one crude knob from per-turn and time-based to per-message and
+addressee-based. See [`docs/specs/private-asides.md`](docs/specs/private-asides.md),
+[ADR 0008](docs/adr/0008-an-aside-carries-information-never-support.md) and
+[the reading](docs/research/context-in-agent-teams.md).
 
 P14 is out of order on purpose. It is not a wire-format change and does not
 wait on P11 through P13: it answers the same pressure they do — a bounded
