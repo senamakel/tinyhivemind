@@ -22,8 +22,7 @@ use crate::{
     trace::{TraceKind, read_borrowed},
 };
 use tinyhivemind::{
-    Elision, SessionAuthor, SessionMessage, aside::Viewer, desk::DeskSet, roster::Roster,
-    session::collapse_elisions,
+    SessionAuthor, SessionMessage, aside::Viewer, desk::DeskSet, project_as, roster::Roster,
 };
 
 /// How much a speaker's threshold rises after taking the floor.
@@ -328,33 +327,9 @@ pub fn project_for(turn: &HiveTurn, messages: &[SessionMessage]) -> Vec<SessionM
                 | SessionAuthor::System { .. } => true,
             },
         })
-        .map(|message| present_for(message, &viewer))
+        .cloned()
         .collect();
-    collapse_elisions(visible)
-}
-
-/// One transcript row as this viewer reads it, eliding what it may not.
-fn present_for(message: &SessionMessage, viewer: &Viewer) -> SessionMessage {
-    let author_id = match &message.author {
-        SessionAuthor::Agent { id, .. } => Some(id.as_str()),
-        SessionAuthor::Operator | SessionAuthor::Person { .. } | SessionAuthor::System { .. } => {
-            None
-        }
-    };
-    if message.elided.is_some() || message.audience.admits(viewer, author_id) {
-        return message.clone();
-    }
-    SessionMessage {
-        sequence: message.sequence,
-        author: message.author.clone(),
-        content: String::new(),
-        audience: message.audience.clone(),
-        elided: Some(Elision {
-            through: message.sequence,
-            messages: 1,
-            settled_at: None,
-        }),
-    }
+    project_as(&visible, &viewer)
 }
 
 fn context<'a>(

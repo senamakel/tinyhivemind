@@ -87,7 +87,7 @@ pub use search::{
 pub use session::{
     Conversation, Elision, LogMessage, PAGE_SIZE, SCAN_LIMIT, SESSION_WINDOW, Sequence,
     SessionAuthor, SessionFuture, SessionLog, SessionMessage, SessionPage, SessionQuery,
-    SourceError, project_session,
+    SourceError, project_as, project_session,
 };
 pub use sharing::{
     PRESENT_SET_LIMIT, ReinitializeReason, SessionDelta, SharingPlan, SharingQuery, SharingState,

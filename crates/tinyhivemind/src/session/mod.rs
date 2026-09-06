@@ -107,6 +107,37 @@ pub(crate) fn admits(message: &LogMessage, viewer: &Viewer) -> bool {
         .admits(viewer, author_agent_id(&message.author))
 }
 
+/// Narrow an already-projected transcript to what one viewer may read.
+///
+/// Elides every row the viewer is not admitted to and collapses each run of
+/// them from one aside into a single stub, exactly as [`project_session`]
+/// does. It exists because the same narrowing is needed by a caller that
+/// already holds a transcript rather than a log — `tinyhivemind-hive` composes
+/// it with an episode's `Visibility` — and two implementations of a rule this
+/// load-bearing would eventually disagree.
+///
+/// A row that is already elided is left alone: it cannot be narrowed further,
+/// and re-eliding it would lose the run it stands for.
+#[must_use]
+pub fn project_as(messages: &[SessionMessage], viewer: &Viewer) -> Vec<SessionMessage> {
+    let narrowed = messages
+        .iter()
+        .map(|message| {
+            if message.elided.is_some() {
+                return message.clone();
+            }
+            present(
+                message.sequence,
+                message.author.clone(),
+                message.content.clone(),
+                message.audience.clone(),
+                viewer,
+            )
+        })
+        .collect();
+    collapse_elisions(narrowed)
+}
+
 /// Build one projected message, eliding its content when the viewer is not
 /// admitted to it.
 ///
@@ -114,7 +145,7 @@ pub(crate) fn admits(message: &LogMessage, viewer: &Viewer) -> bool {
 /// nothing, would hide the existence of an exchange the room is entitled to
 /// know happened, and would take from a peer the only signal that there is
 /// something worth asking about.
-pub(crate) fn present(
+fn present(
     sequence: Sequence,
     author: SessionAuthor,
     content: String,
@@ -174,7 +205,7 @@ fn participants(message: &SessionMessage) -> HashSet<&str> {
 /// is the honest one: the alternative is backfilling from older history, which
 /// would make two viewers of the same desk disagree about how far back the
 /// window reaches.
-pub(crate) fn collapse_elisions(projected: Vec<SessionMessage>) -> Vec<SessionMessage> {
+fn collapse_elisions(projected: Vec<SessionMessage>) -> Vec<SessionMessage> {
     if !projected.iter().any(|message| message.elided.is_some()) {
         return projected;
     }
