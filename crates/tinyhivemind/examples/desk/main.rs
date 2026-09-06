@@ -43,6 +43,9 @@ use tinyhivemind::{
     roster::{Person, Roster, RosterMember},
 };
 
+/// How long a seat gets to write the message it never got round to writing.
+const WRAP_UP_TIMEOUT: Duration = Duration::from_secs(420);
+
 /// The error every host-side call in this example returns.
 type BoxError = Box<dyn StdError + Send + Sync + 'static>;
 
@@ -115,7 +118,7 @@ impl Options {
             max_turns: 40,
             max_hops: 6,
             window: 40,
-            timeout: Duration::from_secs(900),
+            timeout: Duration::from_secs(2700),
             cortex_base: std::env::var("CORTEX_BASE").ok(),
             cortex_key: std::env::var("CORTEX_API_KEY").ok(),
             library_scope: "org:math/problem:euler1006/kind:library".into(),
@@ -196,6 +199,7 @@ async fn main() -> Result<(), BoxError> {
         &options.workspace.to_string_lossy(),
         options.opencode_config.clone(),
         options.timeout,
+        Some(options.workspace.join(".desk")),
     );
     let store = match (&options.cortex_base, &options.cortex_key) {
         (Some(base), Some(key)) => Some(memory::Memory::new(
@@ -345,11 +349,35 @@ async fn main() -> Result<(), BoxError> {
             prompt.len(),
             session.history.len()
         );
-        let output = runner.run(&prompt)?;
+        let mut output = runner.run(&prompt, &format!("turn-{turns:03}-{}", seat.id), runner.timeout())?;
         tokens += output.tokens;
-        if output.message.trim().is_empty() {
-            println!("   !! empty turn after {:?}", output.elapsed);
-            continue;
+        if output.timed_out || output.message.trim().is_empty() {
+            // A seat that spent its whole budget inside tool calls has said
+            // nothing, and a room cannot read work it was never told about.
+            // One short, tool-less turn to make it speak is a host obligation:
+            // the library has no way to know a process was killed.
+            println!(
+                "   !! {} after {:?} — asking for a wrap-up",
+                if output.timed_out { "timed out" } else { "silent" },
+                output.elapsed
+            );
+            let wrap = format!(
+                "{prompt}\n\n## Out of time\nYour working turn ended before you posted \
+                 anything. Do NOT start new work and do NOT run any more tools. Post now, \
+                 in one message wrapped in <<<POST and POST>>>: what you established this \
+                 turn, what you did not finish, and the one seat you need next."
+            );
+            let salvage = runner.run(
+                &wrap,
+                &format!("turn-{turns:03}-{}-wrapup", seat.id),
+                WRAP_UP_TIMEOUT,
+            )?;
+            tokens += salvage.tokens;
+            if salvage.message.trim().is_empty() {
+                println!("   !! wrap-up also silent; the seat forfeits this turn");
+                continue;
+            }
+            output.message = salvage.message;
         }
         println!(
             "   {:?}, {} tokens, tools: {}",
@@ -466,6 +494,8 @@ fn compose_prompt(
          - So: end with the one seat you actually need, and put it first among \
            your mentions.\n\
          - Never claim a number you did not compute. Say what you ran.\n\
+         - One turn is one step. You have a bounded amount of tool time; when \
+           it is nearly gone, post what you have rather than posting nothing.\n\
          - Wrap the message you want posted in <<<POST and POST>>>. Anything \
            outside those markers is not posted.\n",
     );
