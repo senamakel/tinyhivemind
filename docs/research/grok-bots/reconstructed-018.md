@@ -157,8 +157,8 @@ There are two paths, and they follow different rules.
 accepted nonce with a matching digest is a no-op, and a reused nonce with a
 different digest raises `PromptAcceptanceDigestMismatchError`. The digest is a
 SHA-256 over canonicalised `(agentId, prompt, richText, replyToId, isFork,
-attachmentPaths, attachmentNames)` (`source/shared/send-acceptance.ts`), and the
-ledger persists to `send-acceptance.json`, capped at 256 records.
+attachmentPaths, attachmentNames)`, and the ledger persists to
+`send-acceptance.json`, capped at 256 records.
 `dispatchUserTurn` mints one epoch and enqueues exactly one run; any in-flight
 turn on that session is *interrupted*, not run alongside
 (`send-turn-dispatch.ts:129`). This is one message, one turn.
@@ -336,14 +336,13 @@ Whether a stored approval covers a new request *is* a pure predicate —
 lines: same action and target, or the same normalised resource path. It is
 reused by the out-of-process local-exec daemon
 (`host/local-exec/local-exec-daemon.ts:59`) — one decision function, two
-processes. `authorize` itself (line 47) is not pure: it consults the setting,
-the cache, remembered refusals and an epoch. That epoch is the mechanism worth
-stealing: a refusal is remembered against the *direction epoch* in which it
-happened (`refusalFor`, line 64), and when the user gives new direction the
-epoch advances and stale refusals stop applying. Widening the setting to
-`"always"` records `alwaysGrantedAtEpoch` per agent so a tool call minted
-*before* the grant does not silently benefit from it (lines 65, 67). Memory is
-bounded: 64 settled ids, 512 refused actions per agent, 256 forgotten agents.
+processes. `authorize` itself (line 47) is not pure: it also consults remembered
+refusals and an epoch. That epoch is the mechanism worth stealing: a refusal is
+remembered against the *direction epoch* in which it happened (line 64), and
+when the user gives new direction the epoch advances and stale refusals stop
+applying. Widening the setting to `"always"` records `alwaysGrantedAtEpoch` per
+agent so a call minted *before* the grant does not silently benefit from it
+(lines 65, 67). Memory is bounded: 64 settled ids, 512 refusals per agent.
 
 **Model B — auto-review.** `SandAutoReviewController`
 (`source/host/runner/sand-auto-review.ts:108`) is a per-agent queue of pending
@@ -393,8 +392,7 @@ A "box" is a separate execution environment running a small Connect daemon
 (`source/box-exec-daemon/server.ts:9`) exposing `ExecService`/`ControlService` —
 shell spawn, read/write, ping, `UpdateEnvironmentVariables`, `LoadMcpServers`.
 The isolation boundary is process/container plus an authenticated network hop
-(`BoxEndpoint{host, port, authToken, headers}`,
-`host/box/loopback-sand-box.ts:20`), not a permission check. Three connectors implement the same `SandRemoteHostConnector` interface
+(`BoxEndpoint{host, port, authToken, headers}`), not a permission check. Three connectors implement the same `SandRemoteHostConnector` interface
 (`electron-main/box/box-host-connector.ts:38`) and are interchangeable to the
 host: loopback (host inside the same container, port 1337), brokered/remote
 (`GrokBotService.ensureSandBox` returns a gateway URL and token, backoff on
