@@ -7,8 +7,8 @@
 
 [`docs/specs/approval.md`](../specs/approval.md) adds a pure approval gate to
 `crates/tinyhivemind-core`. That approval *decides* and never enacts was never
-in doubt — it is the charter's core/port line restated, and the Grok Bot survey
-found five independent projects that had already drawn it. The genuinely
+in doubt — it is the charter's core/port line restated, and the Grok Bot
+survey found five independent projects that had already drawn it. The genuinely
 contested question is narrower and sits one level down.
 
 This crate has a written convention: fallible public functions return

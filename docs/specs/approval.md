@@ -140,9 +140,10 @@ pub struct ScopeKey {
 }
 ```
 
-This is the reconstruction's `askKey = ${agentId}\0${toolCallId}\0${action}\0${target}`
-— one agent, one tool call, one action, one target — kept as four typed fields
-rather than a joined string. The NUL-joined rendering exists only as
+This is the reconstruction's `askKey`, which joins
+`agentId`, `toolCallId`, `action` and `target` with NUL bytes — one agent, one
+tool call, one action, one target — kept here as four typed fields rather than
+as one joined string. The NUL-joined rendering exists only as
 `ScopeKey::render()` for a host that wants one opaque dedupe token, and its
 form is pinned by a serde test.
 
@@ -301,9 +302,9 @@ lets a permissive rule placed first hide a restrictive one placed later.
 7. `policy.allow_grants` and a live, covering, epoch-eligible grant exists →
    `Allow { Grant }`.
 8. Any matching rule with `RuleVerdict::Allow` → `Allow { Policy }`.
-9. Any matching rule with `RuleVerdict::Ask`, or `default == Ask` → resolve the
-   approver; on success `Ask`, on failure `Deny { UnresolvableApprover }` or
-   `Deny { NoApprover }`.
+9. Any matching rule with `RuleVerdict::Ask`, or `default == Ask` → resolve
+   the approver; on success `Ask`, on failure `Deny { UnresolvableApprover }`
+   or `Deny { NoApprover }`.
 10. Otherwise `Deny { NoRule }`.
 
 ### Where the waiting goes
