@@ -23,10 +23,14 @@ pub struct DeskSet<'a> {
     member_additions: &'a [DeskMember],
     orders: &'a [DeskOrder],
     retired_agent_ids: &'a [String],
+    tombstoned_agent_ids: &'a [String],
 }
 
 impl<'a> DeskSet<'a> {
     /// Borrow the snapshots that define the current desk view.
+    ///
+    /// No agent is tombstoned; add that snapshot with
+    /// [`Self::with_tombstoned`].
     #[must_use]
     pub const fn new(
         declared: &'a [Desk],
@@ -41,7 +45,20 @@ impl<'a> DeskSet<'a> {
             member_additions,
             orders,
             retired_agent_ids,
+            tombstoned_agent_ids: &[],
         }
+    }
+
+    /// Borrow the ids of agents that were removed for good.
+    ///
+    /// A tombstoned agent leaves every desk it was declared or added to, so
+    /// [`Self::lead`] and [`Self::members`] cannot name one even when the host
+    /// has not also retired it. See [`Roster`](crate::roster::Roster) for the
+    /// three states and why a tombstone is not merely a retirement.
+    #[must_use]
+    pub const fn with_tombstoned(mut self, tombstoned_agent_ids: &'a [String]) -> Self {
+        self.tombstoned_agent_ids = tombstoned_agent_ids;
+        self
     }
 
     /// Iterate declared then operator-added desk records.
@@ -190,7 +207,7 @@ impl<'a> DeskSet<'a> {
         let mut members = Vec::new();
         if let Some(desk) = self.find_id(desk_id) {
             for member in &desk.members {
-                Self::push_active_once(&mut members, member, self.retired_agent_ids);
+                self.push_active_once(&mut members, member);
             }
         }
         for addition in self
@@ -198,21 +215,22 @@ impl<'a> DeskSet<'a> {
             .iter()
             .filter(|addition| addition.desk_id == desk_id)
         {
-            Self::push_active_once(&mut members, &addition.agent_id, self.retired_agent_ids);
+            self.push_active_once(&mut members, &addition.agent_id);
         }
         members
     }
 
-    fn push_active_once(
-        members: &mut Vec<&'a str>,
-        agent_id: &'a str,
-        retired_agent_ids: &[String],
-    ) {
-        if !retired_agent_ids.iter().any(|retired| retired == agent_id)
-            && !members.contains(&agent_id)
-        {
+    fn push_active_once(&self, members: &mut Vec<&'a str>, agent_id: &'a str) {
+        if !self.is_unavailable(agent_id) && !members.contains(&agent_id) {
             members.push(agent_id);
         }
+    }
+
+    fn is_unavailable(&self, agent_id: &str) -> bool {
+        self.retired_agent_ids
+            .iter()
+            .chain(self.tombstoned_agent_ids)
+            .any(|unavailable| unavailable == agent_id)
     }
 
     fn validate_order(&self, order: &DeskOrder) -> Result<()> {
