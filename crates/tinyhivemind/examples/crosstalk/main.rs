@@ -639,17 +639,69 @@ fn address(
     })
 }
 
-/// How many rows this speaker has already spent inside an open aside.
+/// How many rows the currently open aside has already spent.
 ///
 /// Folded from the turns the run has taken rather than stored, because this
-/// harness holds no state the journal does not already carry.
-fn spent_in_aside(turns: &[Turn], speaker: &str) -> usize {
+/// harness holds no state the journal does not already carry. Every row in
+/// the run of consecutive non-desk turns counts, not only the ones this
+/// speaker wrote: two peers alternating inside the same aside share one
+/// budget.
+fn spent_in_aside(turns: &[Turn]) -> usize {
     turns
         .iter()
         .rev()
         .take_while(|turn| !turn.audience.is_desk())
-        .filter(|turn| turn.speaker == speaker)
         .count()
+}
+
+/// Whether a prior aside among the same participants has not yet surfaced.
+///
+/// `mentions` is the current line's addressed targets, resolved the same way
+/// [`aside`] resolves them: quiet mentions and the author itself are dropped
+/// before the set is compared. Walking forward through the turns already
+/// taken, an aside opens the run when its own participant set — author plus
+/// addressed members — matches this line's, and closes it the first time one
+/// of those participants speaks on the desk afterwards. What is left open at
+/// the end is what `aside` must refuse to add to.
+fn unsettled_aside(turns: &[Turn], author_id: &str, mentions: &[Mention]) -> bool {
+    let mut participants: Vec<&str> = mentions
+        .iter()
+        .filter(|mention| !mention.quiet)
+        .filter_map(|mention| match &mention.target {
+            MentionTarget::Agent { id } if id != author_id => Some(id.as_str()),
+            _ => None,
+        })
+        .collect();
+    if participants.is_empty() {
+        return false;
+    }
+    participants.push(author_id);
+    participants.sort_unstable();
+    participants.dedup();
+
+    let mut open = false;
+    for turn in turns {
+        match &turn.audience {
+            Audience::Aside { members } => {
+                let mut turn_participants: Vec<&str> = members
+                    .iter()
+                    .map(String::as_str)
+                    .chain(std::iter::once(turn.speaker.as_str()))
+                    .collect();
+                turn_participants.sort_unstable();
+                turn_participants.dedup();
+                if turn_participants == participants {
+                    open = true;
+                }
+            }
+            Audience::Desk => {
+                if open && participants.contains(&turn.speaker.as_str()) {
+                    open = false;
+                }
+            }
+        }
+    }
+    open
 }
 
 /// Render one conversation as the sequence-and-author lines it projects to.
