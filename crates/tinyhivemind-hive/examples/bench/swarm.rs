@@ -395,7 +395,7 @@ impl Board<'_> {
     ) -> Result<(), String> {
         let seat = seat_of(members, &incoming.target_id)?;
         let content = {
-            let visible: Vec<&SessionMessage> = self.host.journals[desk].iter().collect();
+            let visible = self.host.journals[desk].clone();
             members[seat].answer(incoming, &visible)?
         };
         let sequence = self.commit(members, desk, &incoming.target_id, &content);
