@@ -74,6 +74,10 @@ See [`example-retry-policy.md`](example-retry-policy.md) for a complete sample.
   - [`approval-testing.md`](approval-testing.md) — the full one-test-per-
     failure-path list, split out to keep the spec itself under the per-file
     line budget.
+- [`private-asides.md`](private-asides.md) — draft: an audience on a stored row
+  and a viewer on a query, so two agents on one desk can compare notes without
+  the desk reading them; what a non-member sees instead, and what the exchange
+  owes the room when it ends.
 
 ## Decisions these specifications rest on
 

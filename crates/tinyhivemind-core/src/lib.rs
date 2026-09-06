@@ -101,6 +101,7 @@
 //! # Ok::<(), tinyhivemind_core::error::Error>(())
 //! ```
 
+pub mod aside;
 pub mod chat;
 pub mod desk;
 pub mod dispatch;

@@ -846,7 +846,7 @@ impl SimAgent {
     }
 
     /// Produce the body of one turn, seeing exactly what the turn authorized.
-    fn compose(&mut self, turn: &HiveTurn, visible: &[&SessionMessage]) -> String {
+    fn compose(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> String {
         let view = View::fold(visible, self.quorum);
 
         // Real participants do not speak the grammar on every turn. Modelling
@@ -1090,7 +1090,7 @@ struct View {
 }
 
 impl View {
-    fn fold(visible: &[&SessionMessage], quorum: QuorumPolicy) -> Self {
+    fn fold(visible: &[SessionMessage], quorum: QuorumPolicy) -> Self {
         let mut traces: Vec<Trace> = visible
             .iter()
             .flat_map(|message| resolve(&message.content, None, &message.author, message.sequence))
@@ -1414,7 +1414,7 @@ impl crate::run::Participant for SimAgent {
         &self.id
     }
 
-    fn speak(&mut self, turn: &HiveTurn, visible: &[&SessionMessage]) -> Result<String, String> {
+    fn speak(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Result<String, String> {
         Ok(self.compose(turn, visible))
     }
 

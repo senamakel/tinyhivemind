@@ -11,11 +11,12 @@ pub use types::{
 };
 
 use crate::{
-    Conversation, Result, SessionLog, SessionQuery,
+    Conversation, Result, SessionLog, SessionMessage, SessionQuery,
     pins::{PIN_LIMIT, read_pinboard},
     project_session, read_thread_index,
     threads::THREAD_INDEX_LIMIT,
 };
+use tinyhivemind_core::aside::AsidePolicy;
 use tinyhivemind_core::{
     chat::is_general_chat,
     desk::DeskSet,
@@ -78,6 +79,10 @@ impl TeamBriefing {
             desk_name: conversation.desk_name.clone(),
             teammates,
             brevity: BrevityPolicy::DEFAULT,
+            // Snapshots say who is here, never what a host permits. A caller
+            // that enables asides sets this afterwards, and the conservative
+            // default is what a caller that does not gets.
+            asides: AsidePolicy::DEFAULT,
         })
     }
 
@@ -141,10 +146,25 @@ impl TeamBriefing {
         text.push_str(
             "- @everyone, desk, and person mentions provide context only and never fan out agent turns.\n",
         );
+        if self.asides.enabled {
+            // Stated as something to act on rather than as a disclaimer. An
+            // agent that is not told its view may be narrower than a peer's
+            // reads silence as disagreement rather than as absence, and never
+            // thinks to ask — which is the documented failure of collective
+            // reasoning under distributed information.
+            text.push_str(
+                "- Some rows show only that an aside happened, with who wrote it, to whom, and where it settled; you cannot read those, and a peer may know something you do not. If one matters, ask its author here in the desk.\n",
+            );
+        }
         text.push_str(&self.brevity.rule_text());
         text.push_str(
             "\n- Pin what the room must not lose with `!pin` on its own line; `!unpin ^N` takes one back off.",
         );
+        if self.asides.enabled {
+            text.push_str(
+                "\n- Say something to named peers alone with `!aside @peer` on its own line, then what you need from them; `!surface` then what the room needs to know ends it. An aside counts for nothing until you surface it.",
+            );
+        }
         text
     }
 }
@@ -237,12 +257,28 @@ pub async fn initialize_session(
     mut briefing: TeamBriefing,
 ) -> Result<SessionInitialization> {
     let history = project_session(log, query).await?;
-    briefing.brevity.window = query.window;
+    briefing.brevity.window = stated_window(query.window, &history);
     Ok(SessionInitialization {
         briefing,
         context: SessionContext::default(),
         history,
     })
+}
+
+/// The window to state, which is what the viewer actually received.
+///
+/// Every scan bound in this crate counts *raw rows inspected*, and collapsing
+/// a run of elided rows into one stub happens after the window is filled, so a
+/// viewer with asides in view receives fewer messages than the query asked
+/// for. Stating the nominal number would promise a budget this turn does not
+/// have. Only a projection that actually elided something is restated, so a
+/// young desk still reports the window it will grow into rather than its
+/// current length.
+fn stated_window(requested: usize, history: &[SessionMessage]) -> usize {
+    if history.iter().any(|message| message.elided.is_some()) {
+        return history.len().min(requested);
+    }
+    requested
 }
 
 /// Initialize a session with a thread index, the pinboard, and host notes.
@@ -269,9 +305,17 @@ pub async fn initialize_session_with_context(
     notes: Vec<BriefingNote>,
 ) -> Result<SessionInitialization> {
     let history = project_session(log, query).await?;
-    let threads = read_thread_index(log, &query.conversation, THREAD_INDEX_LIMIT).await?;
-    let pins = read_pinboard(log, &query.conversation, PIN_LIMIT, query.before).await?;
-    briefing.brevity.window = query.window;
+    let threads =
+        read_thread_index(log, &query.conversation, &query.viewer, THREAD_INDEX_LIMIT).await?;
+    let pins = read_pinboard(
+        log,
+        &query.conversation,
+        &query.viewer,
+        PIN_LIMIT,
+        query.before,
+    )
+    .await?;
+    briefing.brevity.window = stated_window(query.window, &history);
     Ok(SessionInitialization {
         briefing,
         context: SessionContext {

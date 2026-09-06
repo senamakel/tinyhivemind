@@ -159,7 +159,7 @@ impl AgentPrompt {
     }
 
     /// Render an attributed transcript the way every prompt here shows one.
-    pub(crate) fn render(visible: &[&SessionMessage]) -> String {
+    pub(crate) fn render(visible: &[SessionMessage]) -> String {
         visible
             .iter()
             .map(|message| {
@@ -176,7 +176,7 @@ impl AgentPrompt {
     }
 
     /// Render exactly what this turn is allowed to see.
-    pub(crate) fn prompt(&self, turn: &HiveTurn, visible: &[&SessionMessage]) -> String {
+    pub(crate) fn prompt(&self, turn: &HiveTurn, visible: &[SessionMessage]) -> String {
         self.prompt_with(turn, visible, "")
     }
 
@@ -191,7 +191,7 @@ impl AgentPrompt {
     pub(crate) fn prompt_with(
         &self,
         turn: &HiveTurn,
-        visible: &[&SessionMessage],
+        visible: &[SessionMessage],
         extra: &str,
     ) -> String {
         let transcript = Self::render(visible);
@@ -232,7 +232,7 @@ impl AgentPrompt {
     /// renders nothing.
     ///
     /// [`Trace`]: tinyhivemind_hive::trace::Trace
-    fn earned_directory(visible: &[&SessionMessage]) -> String {
+    fn earned_directory(visible: &[SessionMessage]) -> String {
         let traces: Vec<_> = visible
             .iter()
             .flat_map(|message| resolve(&message.content, None, &message.author, message.sequence))
@@ -256,7 +256,7 @@ impl AgentPrompt {
     /// that one more supporter would settle it. Both are cheap to repair, and
     /// repairing them is the host's job: the standings are folded here with
     /// [`standings`], the same function the episode uses.
-    fn floor(&self, visible: &[&SessionMessage]) -> String {
+    fn floor(&self, visible: &[SessionMessage]) -> String {
         let traces: Vec<_> = visible
             .iter()
             .flat_map(|message| resolve(&message.content, None, &message.author, message.sequence))
@@ -311,7 +311,7 @@ impl AgentPrompt {
     /// `!question`. The protocol's `repetition_cap` damps a restated *support*
     /// and cannot see this, so the participant is shown what it already said
     /// and told not to say it again.
-    fn last_line(&self, visible: &[&SessionMessage]) -> String {
+    fn last_line(&self, visible: &[SessionMessage]) -> String {
         let own = visible
             .iter()
             .rev()
@@ -393,7 +393,7 @@ impl LiveAgent {
     }
 
     /// Render exactly what this turn is allowed to see.
-    pub(crate) fn prompt(&self, turn: &HiveTurn, visible: &[&SessionMessage]) -> String {
+    pub(crate) fn prompt(&self, turn: &HiveTurn, visible: &[SessionMessage]) -> String {
         self.prompt.prompt(turn, visible)
     }
 
@@ -401,7 +401,7 @@ impl LiveAgent {
     pub(crate) fn prompt_with(
         &self,
         turn: &HiveTurn,
-        visible: &[&SessionMessage],
+        visible: &[SessionMessage],
         extra: &str,
     ) -> String {
         self.prompt.prompt_with(turn, visible, extra)
@@ -486,7 +486,7 @@ impl Participant for LiveAgent {
         self.prompt.id()
     }
 
-    fn speak(&mut self, turn: &HiveTurn, visible: &[&SessionMessage]) -> Result<String, String> {
+    fn speak(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Result<String, String> {
         self.line(&self.prompt(turn, visible))
     }
 }
@@ -686,7 +686,7 @@ impl SwarmMember for LiveDeskAgent {
     fn speak(
         &mut self,
         turn: &tinyhivemind_hive::HiveTurn,
-        visible: &[&SessionMessage],
+        visible: &[SessionMessage],
     ) -> Result<String, String> {
         // The federation's own move is offered alongside the ordinary ones,
         // and the agent decides. The harness never writes a mention on an
@@ -699,7 +699,7 @@ impl SwarmMember for LiveDeskAgent {
     fn answer(
         &mut self,
         incoming: &Referral,
-        visible: &[&SessionMessage],
+        visible: &[SessionMessage],
     ) -> Result<String, String> {
         let transcript = AgentPrompt::render(visible);
         let asked = match incoming.kind {

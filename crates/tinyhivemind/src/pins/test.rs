@@ -5,6 +5,8 @@
 use super::*;
 use crate::{SessionFuture, SessionPage, SourceError};
 use std::{collections::VecDeque, io, sync::Mutex};
+use tinyhivemind_core::aside::Audience;
+use tinyhivemind_core::aside::Viewer;
 
 #[derive(Debug)]
 struct FakeLog {
@@ -68,6 +70,7 @@ fn row(sequence: u64, chat: Option<&str>, parent: Option<u64>, content: &str) ->
         parent: parent.map(Sequence),
         author: agent("alice"),
         content: content.to_owned(),
+        audience: Audience::Desk,
     }
 }
 
@@ -157,7 +160,7 @@ fn folds_a_pin_with_its_excerpt() {
         row(1, None, None, "The rate limiter resets at midnight UTC."),
         row(2, None, None, "!pin ^1 #limits worth keeping"),
     ];
-    let board = fold_pins(&rows, PIN_LIMIT);
+    let board = fold_pins(&rows, &Viewer::Operator, PIN_LIMIT);
     assert_eq!(board.len(), 1);
     assert_eq!(board[0].sequence, Sequence(1));
     assert_eq!(board[0].pinned_at, Sequence(2));
@@ -170,7 +173,7 @@ fn folds_a_pin_with_its_excerpt() {
 #[test]
 fn leaves_no_excerpt_when_the_pinned_row_is_outside_the_slice() {
     let rows = [row(9, None, None, "!pin ^1")];
-    let board = fold_pins(&rows, PIN_LIMIT);
+    let board = fold_pins(&rows, &Viewer::Operator, PIN_LIMIT);
     assert_eq!(board[0].sequence, Sequence(1));
     assert!(board[0].excerpt.is_none());
 }
@@ -178,7 +181,11 @@ fn leaves_no_excerpt_when_the_pinned_row_is_outside_the_slice() {
 #[test]
 fn leaves_no_excerpt_for_a_blank_pinned_row() {
     let rows = [row(1, None, None, "   "), row(2, None, None, "!pin ^1")];
-    assert!(fold_pins(&rows, PIN_LIMIT)[0].excerpt.is_none());
+    assert!(
+        fold_pins(&rows, &Viewer::Operator, PIN_LIMIT)[0]
+            .excerpt
+            .is_none()
+    );
 }
 
 #[test]
@@ -188,7 +195,7 @@ fn a_later_pin_updates_the_one_already_on_the_board() {
         row(2, None, None, "!pin ^1 #early first reason"),
         row(3, None, None, "!pin ^1 #late better reason"),
     ];
-    let board = fold_pins(&rows, PIN_LIMIT);
+    let board = fold_pins(&rows, &Viewer::Operator, PIN_LIMIT);
     assert_eq!(board.len(), 1);
     assert_eq!(board[0].label.as_deref(), Some("late"));
     assert_eq!(board[0].note.as_deref(), Some("better reason"));
@@ -202,7 +209,7 @@ fn an_unpin_takes_a_message_back_off() {
         row(2, None, None, "!pin ^1"),
         row(3, None, None, "!unpin ^1"),
     ];
-    assert!(fold_pins(&rows, PIN_LIMIT).is_empty());
+    assert!(fold_pins(&rows, &Viewer::Operator, PIN_LIMIT).is_empty());
 }
 
 #[test]
@@ -210,7 +217,7 @@ fn orders_the_board_most_recently_pinned_first_and_drops_the_oldest_over_the_lim
     let rows: Vec<LogMessage> = (1..=5)
         .map(|sequence| row(sequence, None, None, &format!("!pin ^{sequence}")))
         .collect();
-    let board = fold_pins(&rows, 3);
+    let board = fold_pins(&rows, &Viewer::Operator, 3);
     let pinned: Vec<Sequence> = board.iter().map(|pin| pin.sequence).collect();
     assert_eq!(pinned, vec![Sequence(5), Sequence(4), Sequence(3)]);
 }
@@ -218,14 +225,14 @@ fn orders_the_board_most_recently_pinned_first_and_drops_the_oldest_over_the_lim
 #[test]
 fn folds_nothing_at_a_zero_limit() {
     let rows = [row(2, None, None, "!pin ^1")];
-    assert!(fold_pins(&rows, 0).is_empty());
+    assert!(fold_pins(&rows, &Viewer::Operator, 0).is_empty());
 }
 
 #[test]
 fn truncates_a_long_excerpt_on_a_character_boundary() {
     let long = "é".repeat(PIN_EXCERPT_CHARS + 40);
     let rows = [row(1, None, None, &long), row(2, None, None, "!pin ^1")];
-    let excerpt = fold_pins(&rows, PIN_LIMIT)[0]
+    let excerpt = fold_pins(&rows, &Viewer::Operator, PIN_LIMIT)[0]
         .excerpt
         .clone()
         .expect("excerpt");
@@ -244,9 +251,15 @@ async fn reads_a_desk_board_including_thread_interiors() {
         ],
         next_before: None,
     }]);
-    let board = read_pinboard(&log, &conversation(None), PIN_LIMIT, None)
-        .await
-        .expect("reads");
+    let board = read_pinboard(
+        &log,
+        &conversation(None),
+        &Viewer::Operator,
+        PIN_LIMIT,
+        None,
+    )
+    .await
+    .expect("reads");
     assert_eq!(board.len(), 1);
     assert_eq!(board[0].sequence, Sequence(3));
     assert_eq!(board[0].excerpt.as_deref(), Some("buried insight"));
@@ -263,9 +276,15 @@ async fn reads_a_thread_board_from_that_thread_alone() {
         ],
         next_before: None,
     }]);
-    let board = read_pinboard(&log, &conversation(Some(2)), PIN_LIMIT, None)
-        .await
-        .expect("reads");
+    let board = read_pinboard(
+        &log,
+        &conversation(Some(2)),
+        &Viewer::Operator,
+        PIN_LIMIT,
+        None,
+    )
+    .await
+    .expect("reads");
     assert_eq!(board.len(), 1);
     assert_eq!(board[0].sequence, Sequence(3));
 }
@@ -277,9 +296,15 @@ async fn honors_the_query_bound_when_reading_the_board() {
         next_before: None,
     }]);
     let bound = Sequence(5);
-    read_pinboard(&log, &conversation(None), PIN_LIMIT, Some(bound))
-        .await
-        .expect("reads");
+    read_pinboard(
+        &log,
+        &conversation(None),
+        &Viewer::Operator,
+        PIN_LIMIT,
+        Some(bound),
+    )
+    .await
+    .expect("reads");
     assert_eq!(log.first_call_before(), Some(bound));
 }
 
@@ -293,7 +318,7 @@ fn preserves_directive_order_within_one_message() {
         row(3, None, None, "third"),
         row(6, None, None, "!pin ^3\n!pin ^5"),
     ];
-    let pins = fold_pins(&rows, 1);
+    let pins = fold_pins(&rows, &Viewer::Operator, 1);
     assert_eq!(pins.len(), 1);
     assert_eq!(pins[0].sequence, Sequence(5));
 }
@@ -302,7 +327,7 @@ fn preserves_directive_order_within_one_message() {
 async fn reads_nothing_at_a_zero_limit_and_reports_a_read_failure() {
     let log = FakeLog::new(vec![SessionPage::default()]);
     assert!(
-        read_pinboard(&log, &conversation(None), 0, None)
+        read_pinboard(&log, &conversation(None), &Viewer::Operator, 0, None)
             .await
             .expect("reads")
             .is_empty()
@@ -310,9 +335,15 @@ async fn reads_nothing_at_a_zero_limit_and_reports_a_read_failure() {
     assert_eq!(log.call_count(), 0);
 
     let failing = FakeLog::failing();
-    let error = read_pinboard(&failing, &conversation(None), PIN_LIMIT, None)
-        .await
-        .expect_err("read fails");
+    let error = read_pinboard(
+        &failing,
+        &conversation(None),
+        &Viewer::Operator,
+        PIN_LIMIT,
+        None,
+    )
+    .await
+    .expect_err("read fails");
     assert!(matches!(error, crate::Error::Read { .. }));
 }
 
@@ -323,7 +354,7 @@ fn renders_a_board_as_one_briefing_note() {
         row(2, None, None, "!pin ^1 #limits worth keeping"),
         row(3, None, None, "!pin ^9"),
     ];
-    let note = pin_note(&fold_pins(&rows, PIN_LIMIT)).expect("note");
+    let note = pin_note(&fold_pins(&rows, &Viewer::Operator, PIN_LIMIT)).expect("note");
     assert_eq!(note.heading, "Pinned in this conversation");
     assert_eq!(note.lines[0], "[9]");
     assert_eq!(
@@ -372,5 +403,117 @@ fn pins_the_wire_form_of_a_pin_and_a_directive() {
             "label": null,
             "note": null
         })
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Private asides
+// ---------------------------------------------------------------------------
+
+fn aside_row(sequence: u64, id: &str, members: &[&str], content: &str) -> LogMessage {
+    LogMessage {
+        sequence: Sequence(sequence),
+        chat_id: Some("engineering".into()),
+        parent: None,
+        author: agent(id),
+        content: content.into(),
+        audience: Audience::Aside {
+            members: members.iter().map(|member| (*member).to_owned()).collect(),
+        },
+    }
+}
+
+fn desk_row(sequence: u64, id: &str, content: &str) -> LogMessage {
+    LogMessage {
+        author: agent(id),
+        ..row(sequence, Some("engineering"), None, content)
+    }
+}
+
+fn viewer(id: &str) -> Viewer {
+    Viewer::Agent { id: id.into() }
+}
+
+#[test]
+fn a_non_member_never_receives_an_excerpt_of_an_aside() {
+    // The shortest path from a private message to somebody else's system
+    // prompt: pin it, and let `pin_note` render 120 verbatim characters.
+    let rows = [
+        aside_row(
+            1,
+            "planner",
+            &["auditor"],
+            "The credentials rotate on Friday.",
+        ),
+        desk_row(2, "auditor", "!pin ^1 #creds"),
+    ];
+
+    let board = fold_pins(&rows, &viewer("archivist"), PIN_LIMIT);
+    assert!(
+        board.is_empty(),
+        "a pin the reader cannot open is not a working set entry"
+    );
+
+    let note = pin_note(&board);
+    assert!(note.is_none());
+}
+
+#[test]
+fn a_member_pins_inside_its_own_aside_and_reads_the_excerpt() {
+    // The other half of the same rule, and the one that makes the mechanism
+    // usable: an agent that cannot re-find what it said privately once the
+    // window has moved past it is worse off than if it had never said it.
+    let rows = [
+        aside_row(
+            1,
+            "planner",
+            &["auditor"],
+            "The credentials rotate on Friday.",
+        ),
+        aside_row(2, "auditor", &["planner"], "!pin ^1 #creds"),
+    ];
+    for id in ["planner", "auditor"] {
+        let board = fold_pins(&rows, &viewer(id), PIN_LIMIT);
+        assert_eq!(board.len(), 1, "{id} is in this aside");
+        assert_eq!(board[0].sequence, Sequence(1));
+        assert_eq!(
+            board[0].excerpt.as_deref(),
+            Some("The credentials rotate on Friday."),
+        );
+    }
+}
+
+#[test]
+fn a_marker_in_an_unreadable_row_never_touches_the_board() {
+    // The directive was never visible to this viewer, so it never happened to
+    // its board. Reading it anyway would let an aside silently rearrange what
+    // a non-member is told to keep.
+    let rows = [
+        desk_row(1, "planner", "The rate limiter resets at midnight."),
+        aside_row(2, "auditor", &["planner"], "!unpin ^1"),
+        desk_row(3, "archivist", "!pin ^1 #limits"),
+    ];
+    let outsider = fold_pins(&rows, &viewer("scribe"), PIN_LIMIT);
+    assert_eq!(outsider.len(), 1);
+    assert_eq!(outsider[0].sequence, Sequence(1));
+
+    // A member of the aside saw the unpin, so for it the pin came off and the
+    // later `!pin` put it back.
+    let member = fold_pins(&rows, &viewer("planner"), PIN_LIMIT);
+    assert_eq!(member.len(), 1);
+}
+
+#[test]
+fn a_desk_pin_is_unaffected_by_an_aside_beside_it() {
+    let rows = [
+        desk_row(1, "planner", "The rate limiter resets at midnight."),
+        aside_row(2, "planner", &["auditor"], "and privately, something else"),
+        desk_row(3, "auditor", "!pin ^1 #limits"),
+    ];
+    let board = fold_pins(&rows, &viewer("archivist"), PIN_LIMIT);
+    assert_eq!(board.len(), 1);
+    assert_eq!(
+        board[0].excerpt.as_deref(),
+        Some("The rate limiter resets at midnight."),
     );
 }

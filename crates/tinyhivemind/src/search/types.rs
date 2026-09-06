@@ -2,6 +2,7 @@
 
 use crate::{Conversation, Sequence, SessionAuthor, ThreadLine};
 use serde::{Deserialize, Serialize};
+use tinyhivemind_core::aside::Viewer;
 use tinyhivemind_core::select::MatchKind;
 
 /// What a search matches rows against.
@@ -61,6 +62,12 @@ pub struct SearchQuery {
     /// projection is bounded so a turn stays readable, and the search exists
     /// precisely to reach the reply buried three deep in an old thread.
     pub scope: Option<Conversation>,
+    /// Who the search is being run for.
+    ///
+    /// A whole-log search with no scope reads every desk in the log and
+    /// returns verbatim excerpts, so this is the widest reach any read path
+    /// has and the one an audience has to be checked on first.
+    pub viewer: Viewer,
     /// Keep only rows written by this agent or person id, when set.
     pub author_id: Option<String>,
     /// Exclusive upper sequence bound, often the triggering message.
@@ -71,11 +78,17 @@ pub struct SearchQuery {
 
 impl SearchQuery {
     /// A whole-log search for a picker query, with the default limit.
+    ///
+    /// The viewer is a constructor argument rather than a builder step with a
+    /// default, because every default would be a fail-open one: a search
+    /// assembled without saying who is searching is a search over every desk
+    /// in the log with no audience check.
     #[must_use]
-    pub fn new(query: &str) -> Self {
+    pub fn new(query: &str, viewer: Viewer) -> Self {
         Self {
             pattern: SearchPattern::parse(query),
             scope: None,
+            viewer,
             author_id: None,
             before: None,
             limit: super::SEARCH_LIMIT,

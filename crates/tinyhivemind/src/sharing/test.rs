@@ -11,6 +11,8 @@ use std::{
     io,
     sync::{Arc, Mutex},
 };
+use tinyhivemind_core::aside::Audience;
+use tinyhivemind_core::aside::Viewer;
 
 #[derive(Debug)]
 struct FakeLog {
@@ -75,6 +77,7 @@ fn raw(sequence: u64, chat: Option<&str>, parent: Option<u64>, content: &str) ->
             label: format!("Agent {sequence}"),
         },
         content: content.into(),
+        audience: Audience::Desk,
     }
 }
 
@@ -99,6 +102,7 @@ async fn plan(log: &FakeLog, state: &SharingState, before: u64) -> Result<Sharin
             current_conversation: &current,
             state,
             before: Sequence(before),
+            viewer: &Viewer::Operator,
         },
     )
     .await
@@ -143,13 +147,15 @@ fn sharing_values_pin_deterministic_wire_shapes() {
             sequence: Sequence(11),
             author: SessionAuthor::Operator,
             content: "new".into(),
+            audience: Audience::Desk,
+            elided: None,
         }],
         next_state: state.clone(),
     };
     assert_eq!(
         serde_json::to_value(&delta).expect("serializes"),
         serde_json::json!({
-            "messages":[{"sequence":11,"author":{"type":"operator"},"content":"new"}],
+            "messages":[{"sequence":11,"author":{"type":"operator"},"content":"new","audience":{"kind":"desk"},"elided":null}],
             "next_state":{
                 "conversation":{"desk_id":"engineering","desk_name":"Engineering","thread_root":null},
                 "watermark":10,
@@ -162,7 +168,7 @@ fn sharing_values_pin_deterministic_wire_shapes() {
         serde_json::to_value(&delta_plan).expect("serializes"),
         serde_json::json!({
             "type":"delta",
-            "messages":[{"sequence":11,"author":{"type":"operator"},"content":"new"}],
+            "messages":[{"sequence":11,"author":{"type":"operator"},"content":"new","audience":{"kind":"desk"},"elided":null}],
             "next_state":{
                 "conversation":{"desk_id":"engineering","desk_name":"Engineering","thread_root":null},
                 "watermark":10,
@@ -298,6 +304,7 @@ async fn changed_current_or_stored_conversation_reinitializes_without_reading() 
             current_conversation: &current,
             state: &state,
             before: Sequence(11),
+            viewer: &Viewer::Operator,
         },
     )
     .await
@@ -436,6 +443,7 @@ async fn general_aliases_share_one_delta() {
             current_conversation: &current,
             state: &state,
             before: Sequence(12),
+            viewer: &Viewer::Operator,
         },
     )
     .await
@@ -463,6 +471,7 @@ async fn channels_and_exact_threads_never_mix() {
             current_conversation: &thread,
             state: &state,
             before: Sequence(15),
+            viewer: &Viewer::Operator,
         },
     )
     .await
@@ -657,4 +666,167 @@ async fn simulated_compare_and_swap_commits_only_the_winning_next_state() {
     assert!(!won);
     assert_eq!(guard.watermark, Sequence(10));
     assert!(guard.present_above_watermark.contains(&Sequence(20)));
+}
+
+// ---------------------------------------------------------------------------
+// Private asides
+// ---------------------------------------------------------------------------
+
+fn said(sequence: u64, id: &str, content: &str) -> LogMessage {
+    LogMessage {
+        author: crate::SessionAuthor::Agent {
+            id: id.into(),
+            label: id.into(),
+        },
+        ..raw(sequence, Some("engineering"), None, content)
+    }
+}
+
+fn aside_row(sequence: u64, id: &str, members: &[&str], content: &str) -> LogMessage {
+    LogMessage {
+        audience: Audience::Aside {
+            members: members.iter().map(|member| (*member).to_owned()).collect(),
+        },
+        ..said(sequence, id, content)
+    }
+}
+
+async fn plan_for(
+    log: &FakeLog,
+    state: &SharingState,
+    before: u64,
+    viewer: &Viewer,
+) -> SharingPlan {
+    let desired = engineering();
+    let current = engineering();
+    prepare_delta(
+        log,
+        &SharingQuery {
+            desired_conversation: &desired,
+            current_conversation: &current,
+            state,
+            before: Sequence(before),
+            viewer,
+        },
+    )
+    .await
+    .expect("prepares")
+}
+
+fn tick_rows() -> Vec<LogMessage> {
+    vec![
+        said(13, "archivist", "in the open"),
+        aside_row(12, "auditor", &["planner"], "and privately, in reply"),
+        aside_row(11, "planner", &["auditor"], "privately"),
+        // At the watermark, so the backward walk crosses it and the delta is
+        // a delta rather than a request to re-seed.
+        said(10, "planner", "already delivered"),
+    ]
+}
+
+#[tokio::test]
+async fn a_delta_applies_the_same_audience_rule_as_the_projection() {
+    let log = FakeLog::new(vec![page(tick_rows(), None)]);
+    let plan = plan_for(
+        &log,
+        &state(10),
+        14,
+        &Viewer::Agent {
+            id: "archivist".into(),
+        },
+    )
+    .await;
+    let delta = delta(plan);
+    // Two rows: one stub standing for the pair, and the desk row.
+    assert_eq!(delta.messages.len(), 2);
+    assert_eq!(delta.messages[0].readable(), None);
+    assert_eq!(delta.messages[0].sequence, Sequence(11));
+    assert_eq!(
+        delta.messages[0].elided.as_ref().expect("a stub").messages,
+        2,
+    );
+    assert_eq!(delta.messages[1].readable(), Some("in the open"));
+}
+
+#[tokio::test]
+async fn a_member_receives_its_own_aside_in_a_delta() {
+    let log = FakeLog::new(vec![page(tick_rows(), None)]);
+    let plan = plan_for(
+        &log,
+        &state(10),
+        14,
+        &Viewer::Agent {
+            id: "auditor".into(),
+        },
+    )
+    .await;
+    let delta = delta(plan);
+    assert_eq!(delta.messages.len(), 3);
+    assert!(delta.messages.iter().all(|m| m.elided.is_none()));
+}
+
+#[tokio::test]
+async fn a_reseed_never_hands_a_member_less_than_the_delta_did() {
+    // The incremental path and the projection have to agree, or an agent that
+    // re-seeds sees a different transcript from one that stayed incremental
+    // and nothing heals the difference.
+    for id in ["planner", "archivist"] {
+        let viewer = Viewer::Agent { id: id.into() };
+
+        let log = FakeLog::new(vec![page(tick_rows(), None)]);
+        let incremental = delta(plan_for(&log, &state(10), 14, &viewer).await).messages;
+
+        let log = FakeLog::new(vec![page(tick_rows(), None)]);
+        let reseeded = crate::project_session(
+            &log,
+            &crate::SessionQuery {
+                conversation: engineering(),
+                before: Some(Sequence(14)),
+                window: 30,
+                viewer: viewer.clone(),
+            },
+        )
+        .await
+        .expect("projects");
+
+        // A re-seed projects the whole window and a delta only what is above
+        // the watermark, so the comparison is over the rows they share.
+        assert_eq!(
+            incremental
+                .iter()
+                .map(|m| (m.sequence, m.readable().map(str::to_owned)))
+                .collect::<Vec<_>>(),
+            reseeded
+                .iter()
+                .filter(|m| m.sequence > Sequence(10))
+                .map(|m| (m.sequence, m.readable().map(str::to_owned)))
+                .collect::<Vec<_>>(),
+            "{id} must read the same rows either way",
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_delta_over_rows_with_no_aside_is_the_same_for_every_viewer() {
+    let rows = vec![
+        said(12, "planner", "two"),
+        said(11, "planner", "one"),
+        said(10, "planner", "already delivered"),
+    ];
+    let baseline = {
+        let log = FakeLog::new(vec![page(rows.clone(), None)]);
+        delta(plan_for(&log, &state(10), 13, &Viewer::Operator).await).messages
+    };
+    for viewer in [
+        Viewer::Agent {
+            id: "anyone".into(),
+        },
+        Viewer::Person { id: "ada".into() },
+    ] {
+        let log = FakeLog::new(vec![page(rows.clone(), None)]);
+        assert_eq!(
+            delta(plan_for(&log, &state(10), 13, &viewer).await).messages,
+            baseline
+        );
+    }
 }

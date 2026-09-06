@@ -29,6 +29,7 @@
 //!         description: None,
 //!     }],
 //!     brevity: Default::default(),
+//!     asides: Default::default(),
 //! };
 //! assert!(briefing.system_text().contains("@bob"));
 //! ```
@@ -85,9 +86,9 @@ pub use search::{
     search_messages, search_threads,
 };
 pub use session::{
-    Conversation, LogMessage, PAGE_SIZE, SCAN_LIMIT, SESSION_WINDOW, Sequence, SessionAuthor,
-    SessionFuture, SessionLog, SessionMessage, SessionPage, SessionQuery, SourceError,
-    project_session,
+    Conversation, Elision, LogMessage, PAGE_SIZE, SCAN_LIMIT, SESSION_WINDOW, Sequence,
+    SessionAuthor, SessionFuture, SessionLog, SessionMessage, SessionPage, SessionQuery,
+    SourceError, project_as, project_session,
 };
 pub use sharing::{
     PRESENT_SET_LIMIT, ReinitializeReason, SessionDelta, SharingPlan, SharingQuery, SharingState,

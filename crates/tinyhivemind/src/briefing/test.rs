@@ -7,6 +7,9 @@ use crate::{
     LogMessage, Sequence, SessionAuthor, SessionFuture, SessionPage, SessionQuery, SourceError,
 };
 use std::io;
+use tinyhivemind_core::aside::AsidePolicy;
+use tinyhivemind_core::aside::Audience;
+use tinyhivemind_core::aside::Viewer;
 use tinyhivemind_core::{
     desk::{Desk, DeskMember, DeskOrder, ResponderMode},
     dispatch::MentionDispatchPolicy,
@@ -86,6 +89,7 @@ fn briefing_records_pin_their_wire_shape() {
         desk_name: "Engineering".into(),
         teammates: vec![teammate],
         brevity: BrevityPolicy::DEFAULT,
+        asides: AsidePolicy::DEFAULT,
     };
     let briefing_json = serde_json::json!({
         "viewer_id": "alice",
@@ -97,7 +101,14 @@ fn briefing_records_pin_their_wire_shape() {
             "role": null,
             "description": "Reviews changes"
         }],
-        "brevity": { "message_chars": 600, "window": 30 }
+        "brevity": { "message_chars": 600, "window": 30 },
+        "asides": {
+            "enabled": false,
+            "max_members": 0,
+            "max_messages": 0,
+            "must_surface": false,
+            "require_thread": false
+        }
     });
     assert_eq!(
         serde_json::to_value(&briefing).expect("briefing serializes"),
@@ -122,6 +133,7 @@ fn initialization_pins_its_wire_shape() {
             description: Some("Reviews changes".into()),
         }],
         brevity: BrevityPolicy::DEFAULT,
+        asides: AsidePolicy::DEFAULT,
     };
     let initialization = SessionInitialization {
         briefing,
@@ -143,6 +155,8 @@ fn initialization_pins_its_wire_shape() {
             sequence: Sequence(4),
             author: SessionAuthor::Operator,
             content: "hello".into(),
+            audience: Audience::Desk,
+            elided: None,
         }],
     };
     let initialization_json = serde_json::json!({
@@ -156,7 +170,14 @@ fn initialization_pins_its_wire_shape() {
                 "role": null,
                 "description": "Reviews changes"
             }],
-            "brevity": { "message_chars": 600, "window": 30 }
+            "brevity": { "message_chars": 600, "window": 30 },
+            "asides": {
+                "enabled": false,
+                "max_members": 0,
+                "max_messages": 0,
+                "must_surface": false,
+                "require_thread": false
+            }
         },
         "context": {
             "threads": [{
@@ -175,7 +196,9 @@ fn initialization_pins_its_wire_shape() {
         "history": [{
             "sequence": 4,
             "author": {"type":"operator"},
-            "content": "hello"
+            "content": "hello",
+            "audience": {"kind": "desk"},
+            "elided": null
         }]
     });
     assert_eq!(
@@ -210,6 +233,13 @@ fn briefing_wire_records_require_every_field() {
     assert!(
         serde_json::from_value::<SessionInitialization>(serde_json::json!({
             "briefing": {
+                "asides": {
+                    "enabled": false,
+                    "max_members": 0,
+                    "max_messages": 0,
+                    "must_surface": false,
+                    "require_thread": false
+                },
                 "viewer_id": "alice",
                 "desk_id": "engineering",
                 "desk_name": "Engineering",
@@ -312,6 +342,7 @@ fn briefed_viewer() -> TeamBriefing {
             description: Some("Checks safety".into()),
         }],
         brevity: BrevityPolicy::DEFAULT,
+        asides: AsidePolicy::DEFAULT,
     }
 }
 
@@ -422,6 +453,7 @@ async fn initialization_keeps_briefing_separate_from_history() {
         desk_name: "Engineering".into(),
         teammates: Vec::new(),
         brevity: BrevityPolicy::DEFAULT,
+        asides: AsidePolicy::DEFAULT,
     };
     let row = LogMessage {
         sequence: Sequence(4),
@@ -429,11 +461,13 @@ async fn initialization_keeps_briefing_separate_from_history() {
         parent: None,
         author: SessionAuthor::Operator,
         content: "hello".into(),
+        audience: Audience::Desk,
     };
     let query = SessionQuery {
         conversation: named_conversation(),
         before: None,
         window: 1,
+        viewer: Viewer::Operator,
     };
     let initialized = initialize_session(
         &OnePage(SessionPage {
@@ -468,6 +502,7 @@ fn desk_row(sequence: u64, parent: Option<u64>, content: &str) -> LogMessage {
         parent: parent.map(Sequence),
         author: SessionAuthor::Operator,
         content: content.into(),
+        audience: Audience::Desk,
     }
 }
 
@@ -478,6 +513,7 @@ fn viewer_briefing() -> TeamBriefing {
         desk_name: "Engineering".into(),
         teammates: Vec::new(),
         brevity: BrevityPolicy::DEFAULT,
+        asides: AsidePolicy::DEFAULT,
     }
 }
 
@@ -495,6 +531,7 @@ async fn context_carries_the_thread_index_and_host_notes_beside_history() {
         conversation: named_conversation(),
         before: None,
         window: 10,
+        viewer: Viewer::Operator,
     };
     let note = BriefingNote {
         heading: "Work raised in this conversation".into(),
@@ -536,6 +573,7 @@ async fn context_skips_the_index_inside_a_thread_and_propagates_read_failures() 
         conversation: named_conversation(),
         before: None,
         window: 10,
+        viewer: Viewer::Operator,
     };
     query.conversation.thread_root = Some(Sequence(1));
     let initialized = initialize_session_with_context(&log, &query, viewer_briefing(), Vec::new())
@@ -667,11 +705,13 @@ async fn initialization_propagates_projection_errors() {
         desk_name: "Engineering".into(),
         teammates: Vec::new(),
         brevity: BrevityPolicy::DEFAULT,
+        asides: AsidePolicy::DEFAULT,
     };
     let query = SessionQuery {
         conversation: named_conversation(),
         before: None,
         window: 1,
+        viewer: Viewer::Operator,
     };
     assert!(matches!(
         initialize_session(&FailingLog, &query, briefing).await,
@@ -694,6 +734,150 @@ fn snapshot_constructor_does_not_require_people_or_host_role_types() {
     assert_eq!(briefing.teammates[0].id, "bob");
 }
 
+// ---------------------------------------------------------------------------
+// Private asides
+// ---------------------------------------------------------------------------
+
+fn briefing_with(asides: AsidePolicy) -> TeamBriefing {
+    TeamBriefing {
+        asides,
+        ..viewer_briefing()
+    }
+}
+
+fn permissive() -> AsidePolicy {
+    AsidePolicy {
+        enabled: true,
+        max_members: 2,
+        max_messages: 4,
+        must_surface: true,
+        require_thread: false,
+    }
+}
+
+#[test]
+fn the_aside_grammar_is_taught_only_where_it_can_be_used() {
+    // A grammar is a fixed cost paid in every agent's prompt on every turn, so
+    // teaching a move nobody may make spends that budget for nothing.
+    let off = briefing_with(AsidePolicy::DEFAULT).system_text();
+    assert!(!off.contains("!aside"));
+    assert!(!off.contains("!surface"));
+
+    let on = briefing_with(permissive()).system_text();
+    assert!(on.contains("!aside @peer"));
+    assert!(on.contains("!surface"));
+    // The rest of the grammar is unchanged either way.
+    assert!(off.contains("!pin"));
+    assert!(on.contains("!pin"));
+}
+
+#[test]
+fn an_enabled_desk_tells_an_agent_its_view_may_be_partial() {
+    // Stated as an instruction rather than a disclaimer: an agent that is not
+    // told reads silence as disagreement rather than as absence.
+    let text = briefing_with(permissive()).system_text();
+    assert!(text.contains("Some rows show only that an aside happened"));
+    assert!(text.contains("ask its author here in the desk"));
+    assert!(
+        !briefing_with(AsidePolicy::DEFAULT)
+            .system_text()
+            .contains("aside happened")
+    );
+}
+
+#[tokio::test]
+async fn the_briefing_states_the_window_a_viewer_actually_received() {
+    let rows = vec![
+        desk_row(1, None, "in the open"),
+        LogMessage {
+            audience: Audience::Aside {
+                members: vec!["bob".into()],
+            },
+            author: SessionAuthor::Agent {
+                id: "carol".into(),
+                label: "Carol".into(),
+            },
+            ..desk_row(2, None, "privately")
+        },
+        LogMessage {
+            audience: Audience::Aside {
+                members: vec!["bob".into()],
+            },
+            author: SessionAuthor::Agent {
+                id: "carol".into(),
+                label: "Carol".into(),
+            },
+            ..desk_row(3, None, "privately again")
+        },
+    ];
+
+    // A viewer outside the aside receives two rows for a window of thirty,
+    // because collapsing happens after the window is filled. Promising thirty
+    // would be promising a budget this turn does not have.
+    let log = OnePage(SessionPage {
+        messages: rows.clone().into_iter().rev().collect(),
+        next_before: None,
+    });
+    let narrowed = initialize_session(
+        &log,
+        &SessionQuery {
+            conversation: named_conversation(),
+            before: None,
+            window: 30,
+            viewer: Viewer::Agent { id: "alice".into() },
+        },
+        briefing_with(permissive()),
+    )
+    .await
+    .expect("initializes");
+    assert_eq!(narrowed.history.len(), 2);
+    assert_eq!(narrowed.briefing.brevity.window, 2);
+    assert!(narrowed.briefing.system_text().contains("about 2 messages"));
+
+    // A member elides nothing, so it is told the window it actually has.
+    let log = OnePage(SessionPage {
+        messages: rows.into_iter().rev().collect(),
+        next_before: None,
+    });
+    let full = initialize_session(
+        &log,
+        &SessionQuery {
+            conversation: named_conversation(),
+            before: None,
+            window: 30,
+            viewer: Viewer::Agent { id: "bob".into() },
+        },
+        briefing_with(permissive()),
+    )
+    .await
+    .expect("initializes");
+    assert_eq!(full.briefing.brevity.window, 30);
+}
+
+#[tokio::test]
+async fn a_young_desk_still_states_the_window_it_will_grow_into() {
+    // Only a projection that actually elided something is restated. A desk
+    // with three messages and no aside is not told its budget is three.
+    let log = OnePage(SessionPage {
+        messages: vec![desk_row(1, None, "hello")],
+        next_before: None,
+    });
+    let initialized = initialize_session(
+        &log,
+        &SessionQuery {
+            conversation: named_conversation(),
+            before: None,
+            window: 30,
+            viewer: Viewer::Operator,
+        },
+        briefing_with(permissive()),
+    )
+    .await
+    .expect("initializes");
+    assert_eq!(initialized.history.len(), 1);
+    assert_eq!(initialized.briefing.brevity.window, 30);
+}
+
 #[test]
 fn system_text_withholds_dispatch_when_no_run_context_is_supplied() {
     let briefing = TeamBriefing {
@@ -702,6 +886,7 @@ fn system_text_withholds_dispatch_when_no_run_context_is_supplied() {
         desk_name: "Engineering".into(),
         teammates: Vec::new(),
         brevity: BrevityPolicy::DEFAULT,
+        asides: AsidePolicy::DEFAULT,
     };
     assert!(
         !briefing.system_text().contains("bounded child turn"),
@@ -717,6 +902,7 @@ fn an_at_cap_run_is_not_told_it_may_dispatch() {
         desk_name: "Engineering".into(),
         teammates: Vec::new(),
         brevity: BrevityPolicy::DEFAULT,
+        asides: AsidePolicy::DEFAULT,
     };
     let at_cap = MentionDispatchContext {
         policy: MentionDispatchPolicy {
@@ -742,6 +928,7 @@ fn a_run_under_a_disabled_policy_is_not_told_it_may_dispatch() {
         desk_name: "Engineering".into(),
         teammates: Vec::new(),
         brevity: BrevityPolicy::DEFAULT,
+        asides: AsidePolicy::DEFAULT,
     };
     let disabled = MentionDispatchContext {
         policy: MentionDispatchPolicy {

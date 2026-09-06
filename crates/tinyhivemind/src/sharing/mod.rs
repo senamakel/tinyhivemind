@@ -119,6 +119,8 @@ pub async fn prepare_delta(
                     sequence: raw.sequence,
                     author: raw.author.clone(),
                     content: raw.content.clone(),
+                    audience: raw.audience.clone(),
+                    elided: None,
                 });
             }
         }
@@ -140,6 +142,11 @@ pub async fn prepare_delta(
     }
 
     messages.reverse();
+    // Narrowed for this viewer, and collapsed within this delta only: a run of
+    // aside rows split across two ticks cannot merge, because the earlier half
+    // is already in the agent's context and this crate holds no memory of
+    // having sent it.
+    let messages = crate::session::project_as(&messages, query.viewer);
     let mut next_state = query.state.clone();
     next_state.watermark = query.before;
     next_state

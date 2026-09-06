@@ -7,6 +7,7 @@
 
 #![allow(dead_code)]
 
+use tinyhivemind::aside::Audience;
 use tinyhivemind::{Conversation, Sequence, SessionAuthor, SessionMessage};
 use tinyhivemind_hive::{
     EpisodePolicy, EpisodeState, HiveStep, HiveTurn,
@@ -22,7 +23,7 @@ pub(crate) trait HiveAgent {
     fn id(&self) -> &str;
 
     /// Produce the body of one turn, given exactly what this turn may see.
-    fn speak(&mut self, turn: &HiveTurn, visible: &[&SessionMessage]) -> Result<String, String>;
+    fn speak(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Result<String, String>;
 }
 
 /// Why an episode stopped.
@@ -118,6 +119,8 @@ impl HiveHarness {
             sequence,
             author,
             content: content.into(),
+            audience: Audience::Desk,
+            elided: None,
         });
         sequence
     }

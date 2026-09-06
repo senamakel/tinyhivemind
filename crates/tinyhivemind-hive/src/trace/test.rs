@@ -3,6 +3,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::*;
+use tinyhivemind::aside::Audience;
 use tinyhivemind_core::{
     desk::DeskSet,
     mention::{self, MentionAuthor},
@@ -21,6 +22,8 @@ fn said(sequence: u64, author: SessionAuthor, content: &str) -> SessionMessage {
         sequence: Sequence(sequence),
         author,
         content: content.into(),
+        audience: Audience::Desk,
+        elided: None,
     }
 }
 

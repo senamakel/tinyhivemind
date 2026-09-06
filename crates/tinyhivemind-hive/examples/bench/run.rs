@@ -19,6 +19,7 @@ use tinyhivemind_hive::{
 
 use crate::metrics::spearman_milli;
 use crate::sim::{Room, SimAgent};
+use tinyhivemind_hive::aside::Audience;
 
 /// Anything that can fill one authorized turn.
 ///
@@ -34,7 +35,7 @@ pub(crate) trait Participant {
     ///
     /// Returns a host-side failure, such as an agent process that did not
     /// answer.
-    fn speak(&mut self, turn: &HiveTurn, visible: &[&SessionMessage]) -> Result<String, String>;
+    fn speak(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Result<String, String>;
 
     /// What one of this participant's turns costs, for the vote arm's charge
     /// and a deliberation's own `cost_units` total. A live agent costs the
@@ -228,6 +229,8 @@ impl Host {
             sequence,
             author,
             content,
+            audience: Audience::Desk,
+            elided: None,
         });
         sequence
     }
