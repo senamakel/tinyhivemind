@@ -7,7 +7,7 @@ mod types;
 
 pub use types::{
     DispatchConversation, DispatchKey, MentionDispatchDecision, MentionDispatchInput,
-    MentionDispatchPolicy, MentionTurnRequest, NoDispatchReason,
+    MentionDispatchPolicy, MentionTurnRequest, NO_AVAILABLE_TARGET, NoDispatchReason,
 };
 
 use crate::{error::Result, mention::MentionTarget, roster::Roster};
