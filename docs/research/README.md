@@ -34,7 +34,11 @@ what actually happened when it was run goes in
   two agents on one desk hold different transcripts: the Cognition/Anthropic
   disagreement about sharing context, hidden profiles, the conformity that full
   visibility buys, the auditability a private channel owes, and the four ways a
-  divergent view fails a reader with a sliding window. The reading behind P16.
+  divergent view fails a reader with a sliding window. The reading behind P17.
+- [`grok-bots/`](grok-bots/README.md) — twelve notes on the open-source Grok
+  Bot ecosystem, read at pinned commits: how each one models a roster, what
+  makes a message start a turn, and how four of them shipped uncontrolled
+  fan-out and then bought a bound.
 
 Each closes with a table mapping the mechanisms it covers to the state this
 workspace already holds, and to the state it does not.

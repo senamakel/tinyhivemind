@@ -43,7 +43,9 @@
 //!
 //! # Modules
 //!
-//! - [`attention`] — the bid each member makes for the floor, and the argmax.
+//! - [`attention`] — the bid each member makes for the floor, and the argmax,
+//!   and the max-min fair split of a character budget across the context
+//!   sources a turn carries.
 //! - [`mod@directory`] — who knows what, folded from grounded deposits and the
 //!   citations they drew.
 //! - [`episode`] — the pure state machine, and the visibility filter.
@@ -130,7 +132,10 @@ pub mod quorum;
 pub mod salience;
 pub mod trace;
 
-pub use attention::{AgentThreshold, Bid, BidReason, bids, floor_holder};
+pub use attention::{
+    AgentThreshold, Bid, BidReason, BudgetPolicy, BudgetRequest, BudgetShare, BudgetVerdict,
+    allocate_chars, bids, floor_holder,
+};
 pub use directory::{Directory, DirectoryEntry, DirectoryPolicy, WEIGHT_CEILING, directory};
 pub use episode::{
     EpisodePolicy, EpisodeState, HiveStep, HiveTurn, Phase, Visibility, project_for, step,

@@ -4,6 +4,11 @@
 
 use super::*;
 use tinyhivemind::aside::Audience;
+use tinyhivemind_core::{
+    desk::DeskSet,
+    mention::{self, MentionAuthor},
+    roster::Roster,
+};
 
 fn agent(id: &str) -> SessionAuthor {
     SessionAuthor::Agent {
@@ -201,6 +206,17 @@ fn an_unclosed_fence_masks_to_the_end_of_the_body() {
 }
 
 #[test]
+fn a_marker_inside_a_multi_line_code_span_is_masked() {
+    // An inline span may open on one line and close on a later one, so a
+    // marker at the start of a line between them is quoted code even though
+    // no backtick precedes it on its own line.
+    let body = "run `\n!propose #hidden\n` carefully\n!propose #real";
+    let traces = resolve(body, None, &agent("a"), Sequence(1));
+    assert_eq!(traces.len(), 1);
+    assert_eq!(traces[0].topic, Some(TopicId("real".into())));
+}
+
+#[test]
 fn a_backticked_marker_is_not_line_leading_and_needs_no_masking() {
     assert!(resolve("`!propose #a`", None, &agent("a"), Sequence(1)).is_empty());
 }
@@ -236,6 +252,31 @@ fn an_empty_or_unparsable_qualifier_is_ignored() {
     assert_eq!(trace.target, None);
     assert!(trace.cites.is_empty());
     assert!(!trace.grounded());
+}
+
+#[test]
+fn an_unparsable_target_leaves_the_target_slot_open() {
+    // `>x` names no sequence, so it must not spend the one target slot the
+    // line has -- the reader gets the target the author actually wrote.
+    let trace = only("!object >x >2");
+    assert_eq!(trace.target, Some(Sequence(2)));
+}
+
+#[test]
+fn an_empty_topic_leaves_the_topic_slot_open() {
+    // A bare `#` names nothing, so the topic slot survives it and the real
+    // topic later on the line still binds.
+    let trace = only("!propose # #real");
+    assert_eq!(trace.topic, Some(TopicId("real".into())));
+}
+
+#[test]
+fn punctuation_after_a_topic_binds_into_the_topic_id() {
+    // A topic id runs to whitespace, so the sentence-ending period is part of
+    // the id. `#stage` and `#stage.` are two topics, which is why a marker
+    // line is worth writing without trailing punctuation.
+    let trace = only("!propose #stage.");
+    assert_eq!(trace.topic, Some(TopicId("stage.".into())));
 }
 
 #[test]
@@ -428,4 +469,23 @@ fn a_refutation_is_grounded_by_construction() {
     assert!(trace.grounded());
     assert_eq!(trace.cites, [Sequence(4), Sequence(9)]);
     assert_eq!(trace.topic.as_ref().map(TopicId::as_str), Some("stage"));
+}
+
+#[test]
+fn a_fence_masks_the_same_span_for_traces_as_it_does_for_mentions() {
+    // Both crates scan the same authored body, so they must agree on which
+    // spans of it are code. An info string is the sharp case: a fence opens
+    // with ```rust, but a *closing* fence carries nothing after its run, so a
+    // ```rust line inside an open block is content. Read as a closer instead,
+    // the trace scanner would resume parsing a line early and count a vote the
+    // mention scanner had already ruled out as code.
+    let body = "```\n!propose #hidden @everyone\n```rust\n!propose #real @everyone\n```\n";
+
+    let roster = Roster::new(&[], &[], &[]);
+    let desks = DeskSet::new(&[], &[], &[], &[], &[]);
+    let mentions = mention::resolve(body, None, &MentionAuthor::Other, &roster, &desks);
+    let traces = resolve(body, None, &agent("a"), Sequence(1));
+
+    assert!(mentions.is_empty(), "the mention scanner unmasked {body:?}");
+    assert!(traces.is_empty(), "the trace scanner unmasked {body:?}");
 }

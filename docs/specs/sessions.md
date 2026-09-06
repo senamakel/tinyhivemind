@@ -70,12 +70,81 @@ unset; hosts may construct richer validated records directly.
 
 `TeamBriefing::system_text` deterministically identifies the viewer and desk,
 lists teammate `@id` handles with optional metadata, and states that peer
-messages remain attributed and are not the viewer's replies. It also states
-that a direct agent mention may start at most one bounded child turn only when
-host policy enables mention dispatch. Everyone, desk, and person mentions are
-context only and never fan out. `initialize_session` returns the briefing and
-projected history as separate values; the briefing is never stored, sequenced,
-or counted against the history window.
+messages remain attributed and are not the viewer's replies. Everyone, desk,
+and person mentions are context only and never fan out.
+`initialize_session` returns the briefing and projected history as separate
+values; the briefing is never stored, sequenced, or counted against the history
+window.
+
+### What the briefing may offer
+
+The mention-dispatch rule — that a direct agent mention may start at most one
+bounded child turn — is stated only to a run that could actually use it. A
+briefing carries a team, not a run: it has no hop and no policy, so
+`system_text` cannot know, and withholds. `system_text_with_dispatch` takes a
+`MentionDispatchContext`, which is the `MentionDispatchPolicy` and the hop the
+host already passes to `mention_dispatch`, and states the rule when and only
+when `MentionDispatchContext::may_dispatch` holds — `policy.enabled` and
+`hop < policy.max_hops`, the same two guards `mention_dispatch` tests before it
+reads a mention. A disabled policy, a zero hop budget, a hop at or past
+`max_hops`, and a caller that supplies no context all render identical text:
+the one without the offer. Nothing else in the briefing changes, and the
+offered sentence is unchanged from the one that was previously unconditional.
+
+Absent information therefore fails closed. This is the withhold rule of
+[`responders.md`](responders.md) applied to the one surface a model reads:
+offering a capability whose next call would refuse it teaches the model the
+capability exists and spends a turn discovering that it does not. The context
+is plain data passed at render time rather than a field on `TeamBriefing`, so
+the briefing's wire form is unchanged and a host that never supplies one keeps
+compiling — it just stops advertising dispatch.
+
+### Why there is no transcript-repair fold
+
+A stored transcript is not automatically a valid prompt. CopilotKit's OpenBot
+learned this in production: an interrupted turn left a message referencing a
+tool call whose result never landed, leaving the pairing the provider requires
+dangling, and because the log is append-only *every later turn in that thread* failed —
+permanent damage grown out of a transient fault. Its answer,
+`sanitizeSeededHistory`, is a read-side repair fold: drop the dangling halves,
+never rewrite an id, return an unchanged message identically. See
+[`../research/grok-bots/copilotkit-openbot.md`](../research/grok-bots/copilotkit-openbot.md).
+
+**Our shape cannot sustain that damage, and this specification deliberately
+adds no repair step for it.** A `SessionMessage` is a sequence, an author, and
+untouched content. Nothing in it names another message, so there is no pairing
+for a projection to cut in half and no reference that can dangle: every
+projected message is independently a valid prompt entry, whatever else was
+dropped around it. Inventing a damage model to repair would mean inventing the
+tool-call structure we do not carry.
+
+The two references the runtime *does* carry are already resolved on the read
+path, which is the same insight arriving in a smaller form:
+
+- `LogMessage::parent` is structural, and it is the one thing that could
+  dangle. `narrow_to_roots_and_first_replies` drops a reply whose root fell
+  outside the scan rather than flattening it into the channel, so an answer is
+  never presented as a statement whose question the reader never saw
+  (`channel_projection_drops_a_reply_whose_root_is_outside_the_scan`).
+- `!pin ^N` and a hive `^cite` name a sequence *inside content*. Both resolve
+  best-effort — a pin outside the scan keeps its sequence and reports no
+  excerpt — and neither can invalidate the message carrying it.
+
+Repair is therefore already fused into the projection rather than bolted beside
+it, and the properties OpenBot's fold had to be careful to preserve are ours by
+construction: sequences and attribution are never rewritten, content bytes are
+returned unchanged, and a message needing nothing is returned identically
+(`skips_trim_empty_content_but_preserves_other_bytes_and_author`). The
+projection also never writes, so nothing here can repair the host's log even in
+principle.
+
+This finding is conditional on the shape, and it is worth restating when the
+shape changes. If `SessionMessage` ever grows a field that names another
+message — a tool-call id, a structured citation, an edit or redaction pointer —
+then the pairing OpenBot lost becomes representable here, and a read-side
+repair fold belongs in this module, written to OpenBot's rules: an ordered rule
+list, ids never rewritten, unchanged messages returned as they were, and the
+host's log never touched.
 
 ## Invariants and constraints
 
@@ -83,8 +152,13 @@ or counted against the history window.
 - The runtime owns no database, file, socket, transport, or model client.
 - The core crate remains synchronous and runtime-free.
 - One source row produces at most one attributed session message.
+- No projected message names another message, so a projection cannot leave a
+  dangling reference and needs no repair pass. A reply whose root fell outside
+  the scan is dropped rather than flattened.
 - Page validation prevents non-advancing walks and duplicate output.
 - Briefing order is deterministic and follows effective desk or roster order.
+- The briefing never offers a capability the run cannot use. Mention dispatch
+  is stated only under a supplied context that reports `may_dispatch`.
 
 ## Acceptance criteria
 
@@ -94,6 +168,9 @@ or counted against the history window.
   blank-content skipping, current-message exclusion, and attribution.
 - Tests cover briefing filtering, order, deterministic text, General behavior,
   initialization separation, and projection error propagation.
+- Tests cover the withheld and offered dispatch renderings: no context, a
+  disabled policy, a zero budget, a hop at and past `max_hops`, and a run
+  inside its budget, whose text is pinned in full.
 - Public payload serde forms, rustdoc examples, workspace contracts, purity,
   rustdoc, and doctests pass.
 

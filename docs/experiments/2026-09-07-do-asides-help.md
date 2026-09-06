@@ -5,7 +5,7 @@
 **Code:** `crates/tinyhivemind-hive/examples/bench` — `--aside-cap`, arms
 `hive+aside`, `hive+ask`, `hive+aside!`
 **Spec:** [`../specs/private-asides.md`](../specs/private-asides.md)
-**Decision:** [ADR 0008](../adr/0008-an-aside-carries-information-never-support.md)
+**Decision:** [ADR 0010](../adr/0010-an-aside-carries-information-never-support.md)
 
 **No. A pairwise check is pure cost, and privacy is never the variable.**
 

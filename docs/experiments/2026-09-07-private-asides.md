@@ -4,7 +4,7 @@
 **Status:** Recorded
 **Code:** `cargo run -p tinyhivemind --example crosstalk -- --api-base <url> --model flash --aside`
 **Spec:** [`../specs/private-asides.md`](../specs/private-asides.md)
-**Decision:** [ADR 0008](../adr/0008-an-aside-carries-information-never-support.md)
+**Decision:** [ADR 0010](../adr/0010-an-aside-carries-information-never-support.md)
 
 Three agents on one desk, `deepseek-v4-flash` behind a local ladder router, with
 `AsidePolicy { enabled: true, max_members: 1, max_messages: 4, must_surface:

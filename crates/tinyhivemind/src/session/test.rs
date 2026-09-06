@@ -1111,6 +1111,25 @@ fn a_non_participants_message_does_not_settle_an_aside() {
 }
 
 #[test]
+fn a_later_private_row_never_settles_an_earlier_aside() {
+    // `auditor` is a participant of the first aside, and later addresses the
+    // viewer directly in a second, separate aside. That second row is
+    // unelided for this viewer — it is inside its audience — but it is still
+    // `Audience::Aside`, not desk-visible, so it must not be mistaken for the
+    // open settlement the first aside owes the room.
+    let rows = vec![
+        aside_row(1, "planner", &["auditor"], "privately"),
+        aside_row(2, "auditor", &["archivist"], "a different private aside"),
+    ];
+    let projected = as_viewer(rows, agent("archivist"));
+    assert_eq!(projected[1].readable(), Some("a different private aside"));
+    assert_eq!(
+        projected[0].elided.as_ref().expect("a stub").settled_at,
+        None,
+    );
+}
+
+#[test]
 fn two_separate_asides_do_not_collapse_into_one() {
     let rows = vec![
         aside_row(1, "planner", &["auditor"], "one"),

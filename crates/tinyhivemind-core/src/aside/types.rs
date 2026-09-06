@@ -116,7 +116,7 @@ impl Viewer {
 pub struct AsidePolicy {
     /// Whether an aside may be opened at all.
     pub enabled: bool,
-    /// Largest addressed audience, excluding the author. Two is a direct
+    /// Largest addressed audience, excluding the author. One is a direct
     /// message; more is a caucus.
     pub max_members: usize,
     /// How many rows one aside may carry before it must settle.

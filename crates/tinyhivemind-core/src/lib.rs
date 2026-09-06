@@ -6,7 +6,7 @@
 //! - **Who is here?** A roster of teammates and the people signed in with them.
 //! - **What is a desk, and who is on it?** A blueprint-declared room merged
 //!   with the operator's runtime additions, retirements and ordering.
-//! - **Who does `@this` mean?** The mention grammar, and the resolution of a
+//! - **Who does a name address?** The mention grammar, and the resolution of a
 //!   name against the roster and the desks.
 //! - **What does one participant see of the shared transcript?** The projection
 //!   of a multi-speaker session into one viewer's turn history.
@@ -46,10 +46,13 @@
 //! - [`dispatch`] — bounded selection of at most one mentioned child turn.
 //! - [`error`] — typed failures from malformed records or unresolved desks.
 //! - [`find`] — name searches over a roster snapshot and a desk snapshot.
+//! - [`masking`] — the one code scanner every authored grammar shares: which
+//!   spans of a body are fenced or inline code, and so carry no grammar.
 //! - [`mention`] — authored mention parsing and pure routing choices.
 //! - [`referral`] — bounded selection of one child turn that may cross a desk,
 //!   and the one answer that comes back.
-//! - [`roster`] — borrowed agent and person identity snapshots.
+//! - [`roster`] — borrowed agent and person identity snapshots, and the
+//!   three states an agent can be in: active, retired, or tombstoned.
 //! - [`responder`] — deterministic selection of one agent for one message.
 //! - [`select`] — the one ranking used by every picker in this workspace.
 //!
@@ -104,6 +107,7 @@ pub mod desk;
 pub mod dispatch;
 pub mod error;
 pub mod find;
+pub mod masking;
 pub mod mention;
 pub mod referral;
 pub mod responder;

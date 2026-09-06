@@ -17,10 +17,10 @@
 //!   identically for every reader. To make an aside count, a member spends a
 //!   desk-visible turn saying so in the open.
 //!
-//! See [`docs/specs/private-asides.md`][spec] and [ADR 0008][adr].
+//! See [`docs/specs/private-asides.md`][spec] and [ADR 0010][adr].
 //!
 //! [spec]: https://github.com/tinyhumansai/tinyhivemind/blob/main/docs/specs/private-asides.md
-//! [adr]: https://github.com/tinyhumansai/tinyhivemind/blob/main/docs/adr/0008-an-aside-carries-information-never-support.md
+//! [adr]: https://github.com/tinyhumansai/tinyhivemind/blob/main/docs/adr/0010-an-aside-carries-information-never-support.md
 
 #[cfg(test)]
 mod test;

@@ -72,7 +72,9 @@ use tinyhivemind::{
     project_session,
 };
 use tinyhivemind_core::aside::{AsideDecision, AsideInput, AsidePolicy, Audience, Viewer, aside};
-use tinyhivemind_core::mention::{MentionAuthor, resolve as resolve_mentions};
+use tinyhivemind_core::mention::{
+    Mention, MentionAuthor, MentionTarget, resolve as resolve_mentions,
+};
 
 /// The desk this harness seats, and what each seat is for.
 ///
@@ -475,7 +477,9 @@ async fn run_chain(
                 conversation: floor.clone(),
                 before: None,
                 window: options.window,
-                viewer: Viewer::Operator,
+                viewer: Viewer::Agent {
+                    id: seat.id.clone(),
+                },
             },
         )
         .await
@@ -621,8 +625,8 @@ fn address(
             conversation: DispatchConversation::from(floor),
             author_id: author_id.to_owned(),
             mentions: mentions.to_vec(),
-            spent: spent_in_aside(turns, author_id),
-            unsettled: false,
+            spent: spent_in_aside(turns),
+            unsettled: unsettled_aside(turns, author_id, mentions),
         },
         roster,
         desks,
@@ -637,17 +641,98 @@ fn address(
     })
 }
 
-/// How many rows this speaker has already spent inside an open aside.
+/// How many rows the currently open aside has already spent.
 ///
 /// Folded from the turns the run has taken rather than stored, because this
-/// harness holds no state the journal does not already carry.
-fn spent_in_aside(turns: &[Turn], speaker: &str) -> usize {
+/// harness holds no state the journal does not already carry. Every row in
+/// the run of consecutive non-desk turns counts, not only the ones this
+/// speaker wrote: two peers alternating inside the same aside share one
+/// budget.
+fn spent_in_aside(turns: &[Turn]) -> usize {
     turns
         .iter()
         .rev()
         .take_while(|turn| !turn.audience.is_desk())
-        .filter(|turn| turn.speaker == speaker)
         .count()
+}
+
+/// Whether a *different* prior aside among the same participants has not yet
+/// surfaced.
+///
+/// `mentions` is the current line's addressed targets, resolved the same way
+/// [`aside`] resolves them: quiet mentions and the author itself are dropped
+/// before the set is compared. Replying inside the aside already in progress
+/// never counts, no matter how unsettled an earlier one was — otherwise the
+/// very message the policy is meant to allow would refuse itself, and every
+/// demonstrated aside would top out at one row. Walking forward through the
+/// turns already taken, an aside opens the run when its own participant
+/// set — author plus addressed members — matches this line's, and closes it
+/// the first time one of those participants speaks on the desk afterwards.
+/// What is left open at the end, once the current one is excluded, is what
+/// `aside` must refuse to add to.
+fn unsettled_aside(turns: &[Turn], author_id: &str, mentions: &[Mention]) -> bool {
+    let mut participants: Vec<&str> = mentions
+        .iter()
+        .filter(|mention| !mention.quiet)
+        .filter_map(|mention| match &mention.target {
+            MentionTarget::Agent { id } if id != author_id => Some(id.as_str()),
+            _ => None,
+        })
+        .collect();
+    if participants.is_empty() {
+        return false;
+    }
+    participants.push(author_id);
+    participants.sort_unstable();
+    participants.dedup();
+
+    // Replying inside the aside already in progress is not opening another
+    // one — `spent_in_aside`'s own budget is what ends that run, at
+    // `max_messages`. Only starting a *different* aside while an earlier one
+    // among these exact participants has not surfaced should be refused, so a
+    // line whose immediately preceding turn already carries this same
+    // participant set is a continuation, not a candidate to check here.
+    if let Some(Turn {
+        audience: Audience::Aside { members },
+        speaker,
+        ..
+    }) = turns.last()
+    {
+        let mut current: Vec<&str> = members
+            .iter()
+            .map(String::as_str)
+            .chain(std::iter::once(speaker.as_str()))
+            .collect();
+        current.sort_unstable();
+        current.dedup();
+        if current == participants {
+            return false;
+        }
+    }
+
+    let mut open = false;
+    for turn in turns {
+        match &turn.audience {
+            Audience::Aside { members } => {
+                let mut turn_participants: Vec<&str> = members
+                    .iter()
+                    .map(String::as_str)
+                    .chain(std::iter::once(turn.speaker.as_str()))
+                    .collect();
+                turn_participants.sort_unstable();
+                turn_participants.dedup();
+                if turn_participants == participants {
+                    open = true;
+                }
+            }
+            Audience::Desk => {
+                if open && participants.contains(&turn.speaker.as_str()) {
+                    open = false;
+                }
+            }
+        }
+    }
+    open
 }
 
 /// Render one conversation as the sequence-and-author lines it projects to.
@@ -997,7 +1082,11 @@ impl Report {
             );
 
             // The rows are the same rows for everybody, and a member reads
-            // what a non-member cannot.
+            // what a non-member cannot. Every claim below is bound to the
+            // exact row `private.first()` names — a later aside's stub, or a
+            // later aside's member, must not be able to satisfy a claim meant
+            // for the first one.
+            let line_prefix = private.first().map(|turn| format!("[{}", turn.sequence));
             let member_lines = private
                 .first()
                 .and_then(|turn| {
@@ -1008,15 +1097,27 @@ impl Report {
                 })
                 .map(|(_, lines)| lines.clone())
                 .unwrap_or_default();
-            let outsider = self.views.iter().find(|(who, lines)| {
-                who.starts_with('@') && lines.iter().any(|line| line.contains("· aside,"))
+            let outsider = line_prefix.as_deref().and_then(|prefix| {
+                self.views.iter().find_map(|(who, lines)| {
+                    if !who.starts_with('@') {
+                        return None;
+                    }
+                    lines
+                        .iter()
+                        .find(|line| line.starts_with(prefix) && line.contains("· aside,"))
+                        .map(|line| (who.clone(), line.clone()))
+                })
             });
             claim(
                 outsider.is_some(),
                 "a non-member was handed a stub instead of the content",
             );
             claim(
-                !member_lines.iter().any(|line| line.contains("· aside,")),
+                line_prefix.as_deref().is_some_and(|prefix| {
+                    !member_lines
+                        .iter()
+                        .any(|line| line.starts_with(prefix) && line.contains("· aside,"))
+                }),
                 "the addressed member was handed the content in full",
             );
             let person = self
@@ -1030,10 +1131,8 @@ impl Report {
                 "a person read every row in full, so nothing here is unauditable",
             );
             claim(
-                outsider.is_some_and(|(_, lines)| {
-                    lines
-                        .iter()
-                        .any(|line| line.contains("settled at [") || line.contains("not settled"))
+                outsider.is_some_and(|(_, line)| {
+                    line.contains("settled at [") || line.contains("not settled")
                 }),
                 "the stub says where the aside settled, or that it has not",
             );

@@ -22,11 +22,27 @@ fn root_exports_runtime_records_and_constants() {
         sequence: Sequence(4),
         author: SessionAuthor::Operator,
         content: "hello".into(),
-        audience: Audience::Desk,
-        elided: None,
+        audience: Audience::Aside {
+            members: vec!["linus".into()],
+        },
+        elided: Some(tinyhivemind::Elision {
+            through: Sequence(4),
+            messages: 1,
+            settled_at: None,
+        }),
     };
     assert_eq!(conversation.thread_root, Some(Sequence(3)));
     assert_eq!(message.sequence, Sequence(4));
+    assert_eq!(
+        message.audience,
+        Audience::Aside {
+            members: vec!["linus".into()]
+        }
+    );
+    assert_eq!(
+        message.elided.as_ref().map(|elision| elision.messages),
+        Some(1)
+    );
     assert_eq!((SESSION_WINDOW, PAGE_SIZE, SCAN_LIMIT), (30, 512, 2048));
 }
 
@@ -100,6 +116,7 @@ fn root_exports_search_records_and_constants() {
             source: "^ship".into()
         }
     );
+    assert_eq!(query.viewer, Viewer::Operator);
     assert_eq!(query.limit, SEARCH_LIMIT);
     assert_eq!((SEARCH_LIMIT, SEARCH_SCAN, EXCERPT_CHARS), (10, 2048, 96));
 
@@ -113,6 +130,92 @@ fn root_exports_search_records_and_constants() {
         kind: tinyhivemind::select::MatchKind::Exact,
     };
     assert_eq!(hit.sequence, Sequence(4));
+}
+
+#[tokio::test]
+async fn the_search_viewer_argument_narrows_what_is_matched() {
+    use std::{pin::Pin, sync::Mutex};
+    use tinyhivemind::{LogMessage, SearchQuery, search_messages};
+
+    struct FixedLog(Mutex<Vec<LogMessage>>);
+
+    impl tinyhivemind::SessionLog for FixedLog {
+        fn read_before(
+            &self,
+            _before: Option<Sequence>,
+            _limit: usize,
+        ) -> tinyhivemind::SessionFuture<'_> {
+            let messages = std::mem::take(&mut *self.0.lock().expect("log lock is not poisoned"));
+            Box::pin(async move {
+                Ok(tinyhivemind::SessionPage {
+                    messages,
+                    next_before: None,
+                })
+            }) as Pin<Box<_>>
+        }
+    }
+
+    let row = LogMessage {
+        sequence: Sequence(1),
+        chat_id: None,
+        parent: None,
+        author: SessionAuthor::Agent {
+            id: "ada".into(),
+            label: "Ada".into(),
+        },
+        content: "we should ship the migration tonight".into(),
+        audience: Audience::Aside {
+            members: vec!["linus".into()],
+        },
+    };
+    let log = FixedLog(Mutex::new(vec![row.clone()]));
+
+    let outsider_hits = search_messages(&log, &SearchQuery::new("ship", Viewer::Operator))
+        .await
+        .expect("outsider search succeeds");
+    // The row was already consumed by the outsider search above, so reseed it
+    // for the member search — the point under test is what each viewer's own
+    // call returns, not a shared cursor.
+    *log.0.lock().expect("log lock is not poisoned") = vec![row];
+    let member_hits = search_messages(
+        &log,
+        &SearchQuery::new("ship", Viewer::Agent { id: "linus".into() }),
+    )
+    .await
+    .expect("member search succeeds");
+
+    assert!(
+        !outsider_hits.is_empty(),
+        "the operator viewer reads every audience"
+    );
+    assert!(
+        !member_hits.is_empty(),
+        "an addressed member reads its own aside"
+    );
+
+    *log.0.lock().expect("log lock is not poisoned") = vec![LogMessage {
+        sequence: Sequence(1),
+        chat_id: None,
+        parent: None,
+        author: SessionAuthor::Agent {
+            id: "ada".into(),
+            label: "Ada".into(),
+        },
+        content: "we should ship the migration tonight".into(),
+        audience: Audience::Aside {
+            members: vec!["linus".into()],
+        },
+    }];
+    let excluded_hits = search_messages(
+        &log,
+        &SearchQuery::new("ship", Viewer::Agent { id: "grace".into() }),
+    )
+    .await
+    .expect("outsider agent search succeeds");
+    assert!(
+        excluded_hits.is_empty(),
+        "an agent outside the aside's audience must not match its content"
+    );
 }
 
 #[test]
@@ -132,9 +235,14 @@ fn root_exports_the_pin_fold_and_its_briefing_note() {
             sequence: Sequence(2),
             chat_id: None,
             parent: None,
-            author: SessionAuthor::Operator,
+            author: SessionAuthor::Agent {
+                id: "ada".into(),
+                label: "Ada".into(),
+            },
             content: "!pin ^1 #limits keep this".into(),
-            audience: Audience::Desk,
+            audience: Audience::Aside {
+                members: vec!["linus".into()],
+            },
         },
     ];
     let board = fold_pins(&rows, &Viewer::Operator, PIN_LIMIT);
@@ -148,6 +256,19 @@ fn root_exports_the_pin_fold_and_its_briefing_note() {
         read_directives("!unpin ^1", &SessionAuthor::Operator, Sequence(3))[0].action,
         PinAction::Unpin
     );
+
+    // The `!pin` marker is inside an aside addressed to `linus`, not to the
+    // desk: an outsider's board never sees a directive it could not read, and
+    // an addressed member's does — proving the `Viewer` argument is not
+    // ignored.
+    let outsider_board = fold_pins(&rows, &Viewer::Agent { id: "grace".into() }, PIN_LIMIT);
+    assert!(
+        outsider_board.is_empty(),
+        "an outsider's aside directive never touches the pin board"
+    );
+    let member_board = fold_pins(&rows, &Viewer::Agent { id: "linus".into() }, PIN_LIMIT);
+    assert_eq!(member_board[0].sequence, Sequence(1));
+    assert_eq!(member_board[0].label.as_deref(), Some("limits"));
 }
 
 #[test]

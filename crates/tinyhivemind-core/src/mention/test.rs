@@ -481,3 +481,76 @@ fn expands_context_without_fanout_deduplicates_and_excludes_responder() {
         .is_empty()
     );
 }
+
+#[test]
+fn a_tombstoned_agent_is_never_an_alias_a_responder_or_part_of_everyone() {
+    let members = [member("alice", None), member("bob", Some("Bob"))];
+    let tombstoned = [String::from("bob")];
+    let roster = Roster::new(&members, &[], &[]).with_tombstoned(&tombstoned);
+    let desk_records = [desk("eng", "Engineering", &["alice", "bob"])];
+    let desks = DeskSet::new(&desk_records, &[], &[], &[], &[]).with_tombstoned(&tombstoned);
+
+    // Neither the id nor the display name of a tombstoned agent parses.
+    let found = resolve(
+        "@bob @Bob @alice",
+        None,
+        &MentionAuthor::Other,
+        &roster,
+        &desks,
+    );
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].target, target_agent("alice"));
+
+    // It cannot be picked as a responder even when a mention names it.
+    let mentions = [mention(target_agent("bob"), "@bob", 0)];
+    assert_eq!(direct_responder(&mentions, &roster), None);
+
+    // And it is absent from every expansion that would carry it into a turn.
+    let everyone = [mention(MentionTarget::Everyone, "@everyone", 0)];
+    assert_eq!(
+        mentioned_members(&everyone, None, None, &roster, &desks),
+        vec!["alice"]
+    );
+    assert_eq!(
+        mentioned_members(&everyone, Some("eng"), None, &roster, &desks),
+        vec!["alice"]
+    );
+    let desk_mention = [mention(
+        MentionTarget::Desk { id: "eng".into() },
+        "@#eng",
+        0,
+    )];
+    assert_eq!(
+        mentioned_members(&desk_mention, None, None, &roster, &desks),
+        vec!["alice"]
+    );
+}
+
+#[test]
+fn refuses_unknown_retired_and_tombstoned_mentions_identically() {
+    let members = [
+        member("retired", None),
+        member("tombstoned", None),
+        member("here", None),
+    ];
+    let retired = [String::from("retired")];
+    let tombstoned = [String::from("tombstoned")];
+    let roster = Roster::new(&members, &[], &retired).with_tombstoned(&tombstoned);
+    let desks = DeskSet::new(&[], &[], &[], &[], &[]);
+
+    // Extraction: none of the three names produces a mention at all, so the
+    // author cannot tell a deleted teammate from one who never existed.
+    let body = "@retired @tombstoned @never_existed";
+    assert!(resolve(body, None, &MentionAuthor::Other, &roster, &desks).is_empty());
+
+    // Revalidation: a supplied reference to any of the three is retained as
+    // quiet context, with no reason distinguishing which state refused it.
+    let supplied = vec![
+        mention(target_agent("retired"), "@retired", 0),
+        mention(target_agent("tombstoned"), "@tombstoned", 9),
+        mention(target_agent("never_existed"), "@never_existed", 21),
+    ];
+    let found = resolve(body, Some(supplied), &MentionAuthor::Other, &roster, &desks);
+    assert_eq!(found.len(), 3);
+    assert!(found.iter().all(|mention| mention.quiet));
+}

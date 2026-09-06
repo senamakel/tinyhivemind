@@ -2,12 +2,12 @@
 
 Companion to [`long-context.md`](long-context.md), which asks what one agent
 should do about a window smaller than its transcript. This one asks the
-question P16 answers: what happens when two agents on the same desk hold
+question P17 answers: what happens when two agents on the same desk hold
 *different* transcripts, and what does a system owe them so that the difference
 does not quietly become an error?
 
 It is the reading behind private asides. The decision itself is
-[ADR 0008](../adr/0008-an-aside-carries-information-never-support.md); the
+[ADR 0010](../adr/0010-an-aside-carries-information-never-support.md); the
 behavior is [`../specs/private-asides.md`](../specs/private-asides.md).
 
 ## The two camps, and why both are right
@@ -55,7 +55,7 @@ with citations and that one shared window does not scale. A single log that is
 never condensed, read through per-reader projections that are never authoritative,
 gives each of them the thing they were defending.
 
-The consequence for P16 is a boundary rather than a licence. An aside may
+The consequence for P17 is a boundary rather than a licence. An aside may
 withhold **deliberation**; it may not withhold **decision**. Cognition's failure
 mode requires parallel writers, and there are none here — `HiveStep::Speak`
 carries exactly one turn and there is one floor.
@@ -77,7 +77,7 @@ expressed", and converge early on the evidence everyone already shares. The
 failure survives cooperative prompting, debate framing, explicit instructions
 about asymmetry, deeper communication rounds, and larger groups.
 
-Read against P16 this cuts both ways, and the second way is the important one.
+Read against P17 this cuts both ways, and the second way is the important one.
 It is a warning: adding privacy to a system that already fails to pool
 information can make the pooling worse. It is also a specification: what the
 agents lacked was a *signal* that an asymmetry existed. A design that hides the
@@ -86,7 +86,7 @@ prompted the question.
 
 **Building the environment is not the same as succeeding in it.**
 "SOTOPIA-TOM", [arXiv:2605.02307](https://arxiv.org/abs/2605.02307), constructs
-close to what P16 describes — 160 scenarios, three to five agents, partitioned
+close to what P17 describes — 160 scenarios, three to five agents, partitioned
 private knowledge, both public broadcast and private direct messages, and
 channel-dependent sharing policies — and scores information management along
 four axes: sharing what is useful, seeking what is missing, coordinating, and
@@ -131,7 +131,7 @@ number in the harness. [ADR
 
 `Visibility::Blind` is therefore not an exotic knob. It is this repository's
 existing, measured admission that showing everyone everything is a choice with a
-cost, and P16 is the same admission generalised from *per-turn and time-based* to
+cost, and P17 is the same admission generalised from *per-turn and time-based* to
 *per-message and addressee-based*.
 
 ## What a private channel costs on the other side
@@ -158,7 +158,7 @@ addressed, and auditable, and only its text is private.
 ## How teams actually handle context in practice
 
 The engineering practice has converged on four moves. Each maps onto something
-this workspace either already has or gains in P16.
+this workspace either already has or gains in P17.
 
 **Isolation is explicit, and filtering is API surface.** The [OpenAI Agents SDK
 handoff documentation](https://openai.github.io/openai-agents-python/handoffs/)
@@ -194,7 +194,7 @@ refuses the same shape in miniature and says why.
 
 Everything above is about a system. The four failures below are about a *reader*
 — a language model with a sliding window and no reliable memory — and they are
-what actually drove the shape of P16.
+what actually drove the shape of P17.
 
 1. **A non-member forgets there was a hole.** A marker for an unreadable exchange
    sits in the window; the window slides; the exchange has now never happened.
@@ -239,7 +239,7 @@ what actually drove the shape of P16.
   and reordering and never under omission.
 - **No claim that privacy improves decisions.** Nothing above measures that. The
   topology and conformity results are about visibility in general and the
-  hidden-profile results point the other way. P16 bounds a cost and makes an
+  hidden-profile results point the other way. P17 bounds a cost and makes an
   exchange auditable; whether a room decides better with asides than without is
   a benchmark question, and the arm that would answer it is allowed to lose.
 

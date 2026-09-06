@@ -1,4 +1,4 @@
-# 8. An aside carries information rather than support, and a redaction is a row rather than an absence
+# 10. An aside carries information rather than support, and a redaction is a row rather than an absence
 
 - **Status:** Proposed
 - **Date:** 2026-09-07
@@ -106,11 +106,12 @@ the shared record.
 
 ## Consequences
 
-- Hosts get a wire migration. `audience` and `viewer` are required keys, written
-  even when null, following the convention `refutation_cap` established: a
-  payload from before the field fails to decode rather than silently acquiring a
-  permissive default. The cost is one field per row, and it is the deliberate
-  outcome for a policy-bearing field.
+- Hosts get a wire migration. `audience` is a required, non-null tagged object
+  on every stored row, and `viewer` is a required, non-null tagged object on the
+  query rather than on each row — following the convention `refutation_cap`
+  established: a payload from before the field fails to decode rather than
+  silently acquiring a permissive default. The cost is one field per row for
+  `audience`, and it is the deliberate outcome for a policy-bearing field.
 - An audience is immutable once appended. Widening one could never be redelivered
   incrementally, because a sharing watermark advances past filtered rows
   unconditionally, so a widened row would be below the watermark forever.

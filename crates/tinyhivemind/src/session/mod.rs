@@ -247,6 +247,7 @@ fn settle(messages: &mut [SessionMessage]) {
             .iter()
             .find(|later| {
                 later.elided.is_none()
+                    && later.audience.is_desk()
                     && author_agent_id(&later.author).is_some_and(|id| inside.contains(id))
             })
             .map(|later| later.sequence);

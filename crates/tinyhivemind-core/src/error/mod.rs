@@ -106,9 +106,14 @@ pub enum Error {
         agent_id: String,
     },
     /// A reached ladder fallback names no active agent.
+    ///
+    /// One variant covers an unknown id, a retired one, and a tombstoned one.
+    /// Splitting them would let a caller learn which ids the roster holds by
+    /// reading which refusal came back, and the ladder has nothing to do
+    /// differently in any of the three cases.
     #[error("no active responder `{agent_id}`")]
     NoActiveResponder {
-        /// The inactive or unknown fallback id.
+        /// The unknown or unavailable fallback id, as the caller supplied it.
         agent_id: String,
     },
 }
