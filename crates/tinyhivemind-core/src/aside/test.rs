@@ -283,13 +283,14 @@ fn refuses_a_second_aside_while_the_first_has_not_surfaced() {
 
 #[test]
 fn general_has_no_membership_list_so_every_active_agent_is_present() {
-    let mut request = input(vec![mention("dave", 0)]);
+    // `dave` sits on no desk, so on `eng` neither of these would resolve.
+    let mut request = input(vec![mention("alice", 0)]);
     request.conversation.desk_id = crate::chat::GENERAL_DESK.into();
     request.author_id = "dave".into();
     assert_eq!(
         audience_of(policy(), &request),
         Audience::Aside {
-            members: vec!["dave".into()],
+            members: vec!["alice".into()],
         },
     );
 }
