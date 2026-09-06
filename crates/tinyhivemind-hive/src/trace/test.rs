@@ -241,6 +241,31 @@ fn an_empty_or_unparsable_qualifier_is_ignored() {
 }
 
 #[test]
+fn an_unparsable_target_leaves_the_target_slot_open() {
+    // `>x` names no sequence, so it must not spend the one target slot the
+    // line has -- the reader gets the target the author actually wrote.
+    let trace = only("!object >x >2");
+    assert_eq!(trace.target, Some(Sequence(2)));
+}
+
+#[test]
+fn an_empty_topic_leaves_the_topic_slot_open() {
+    // A bare `#` names nothing, so the topic slot survives it and the real
+    // topic later on the line still binds.
+    let trace = only("!propose # #real");
+    assert_eq!(trace.topic, Some(TopicId("real".into())));
+}
+
+#[test]
+fn punctuation_after_a_topic_binds_into_the_topic_id() {
+    // A topic id runs to whitespace, so the sentence-ending period is part of
+    // the id. `#stage` and `#stage.` are two topics, which is why a marker
+    // line is worth writing without trailing punctuation.
+    let trace = only("!propose #stage.");
+    assert_eq!(trace.topic, Some(TopicId("stage.".into())));
+}
+
+#[test]
 fn a_trace_without_citations_is_not_grounded() {
     assert!(!only("!support #a").grounded());
 }
