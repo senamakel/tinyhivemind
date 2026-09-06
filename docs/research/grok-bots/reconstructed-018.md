@@ -230,13 +230,12 @@ to a member jumps ahead of that member's pending group slot. A generation
 counter guards against a late settlement clobbering a newer run (line 259).
 
 There is a watchdog: after `RUN_WATCHDOG_DEFAULT_MS = 120_000` with a user-lane
-item waiting, `onWatchdogFired` interrupts the wedged run; after a 30-second
-grace, `escapeWedgedRun` force-resolves the stuck promise, parks it in a
-`zombies` set, and pumps the next task rather than deadlocking.
-`TurnRuntime.runTurn` (`turn-runtime.ts:327`) short-circuits a stale epoch as
-`"superseded"` (line 367), and `ensureUserReply` (line 534) re-invokes the
-runner up to `MAX_REPLY_NUDGES = 3` times if the model owed a delivery and
-produced none, each nudge re-checking the epoch.
+item waiting, the wedged run is interrupted; after a 30-second grace,
+`escapeWedgedRun` force-resolves the stuck promise, parks it in a `zombies` set
+and pumps the next task rather than deadlocking. `TurnRuntime.runTurn`
+(`turn-runtime.ts:327`) short-circuits a stale epoch as `"superseded"`
+(line 367), and `ensureUserReply` (line 534) re-invokes the runner up to
+`MAX_REPLY_NUDGES = 3` times if the model owed a delivery and produced none.
 
 ### Agent-to-agent messaging
 
@@ -247,16 +246,14 @@ remote-room target; text clamped at 8,000 characters. Delivery is asynchronous �
 appended to `pendingAgentInbound` and drained by `reviveForAgentInbound`
 (line 149) onto the recipient's `"agent"` lane.
 
-**There is no hop bound, TTL, or cycle detector between distinct agents.** A→B→A
+**There is no hop bound, TTL or cycle detector between distinct agents.** A→B→A
 ping-pong is prevented only by prompt text: "Respond only when you actually have
 something to say or were asked something — if there is nothing to add, just
 stop, so two agents never ping-pong acknowledgements"
 (`agent-messaging.ts:76`). Contrast the group path, whose bounds *are*
-code-enforced. The `loop-detection` package
-(`source/packages/agent/loop-detection/`) does not help here: it detects
-*textual* self-repetition within a single generation (repeated lines, repeated
-periods, box-drawing runs) and aborts with `AgentLoopError` — it is not a
-recursion guard.
+code-enforced. `source/packages/agent/loop-detection/` does not help: it detects
+*textual* self-repetition within one generation and aborts with
+`AgentLoopError`; it is not a recursion guard.
 
 ## The coordinator/host split, and what counts as a port
 
@@ -350,21 +347,18 @@ pinned to a `resourcePath`, which is how a grant survives across tool calls
 touching the same file or terminal folder.
 
 Whether a stored approval covers a new request *is* a pure predicate —
-`localToolApprovalCovers` (`source/shared/local-tool-permission-machinery.ts:83`),
-four lines: same action and target, or the same normalised resource path. The
-same predicate is reused by the out-of-process local-exec daemon
+`localToolApprovalCovers` (`shared/local-tool-permission-machinery.ts:83`), four
+lines: same action and target, or the same normalised resource path. It is
+reused by the out-of-process local-exec daemon
 (`host/local-exec/local-exec-daemon.ts:59`) — one decision function, two
-processes, no duplicated policy. `authorize` itself (line 47) is not pure: it
-consults the setting, the approval cache, remembered refusals, and an epoch.
-
-That epoch is the mechanism worth stealing. A refusal is remembered against the
-*direction epoch* in which it happened (`refusalFor`, line 64); when the user
-gives new direction the epoch advances and stale refusals stop applying.
-Widening the standing permission to `"always"` records `alwaysGrantedAtEpoch`
-per agent so a tool call minted *before* the grant does not silently benefit
-from it (`predatesStandingGrant`, line 65; `noteStandingPermission`, line 67).
-Memory is explicitly bounded — 64 settled ids, 512 refused actions per agent,
-256 forgotten agents, a 10,000-character target cap (lines 13-17).
+processes. `authorize` itself (line 47) is not pure: it consults the setting,
+the cache, remembered refusals and an epoch. That epoch is the mechanism worth
+stealing: a refusal is remembered against the *direction epoch* in which it
+happened (`refusalFor`, line 64), and when the user gives new direction the
+epoch advances and stale refusals stop applying. Widening the setting to
+`"always"` records `alwaysGrantedAtEpoch` per agent so a tool call minted
+*before* the grant does not silently benefit from it (lines 65, 67). Memory is
+bounded: 64 settled ids, 512 refused actions per agent, 256 forgotten agents.
 
 **Model B — auto-review.** `SandAutoReviewController`
 (`source/host/runner/sand-auto-review.ts:108`) is a per-agent queue of pending
@@ -394,14 +388,13 @@ response-threshold rule with the decision already lifted out of IO.
 Tools are **not** registered one-per-server into the model's tool list. Two
 meta-tools are minted per turn: a discovery tool `GetMcpTools`
 (`packages/agent/tools/mcp/get-mcp-tools.ts`) and one generic dispatcher
-`call_mcp_tool` (`createCallMcpTool`, `packages/agent/tools/mcp/mcp.ts:438`)
-taking `{server, tool, arguments}`. The routing table is
-`session.serverDescriptors`, keyed by `serverIdentifier` (line 461), with
-`McpServerDoesNotExistError` / `McpExecToolNotFoundError` on a miss. The same
-grouping appears host-side in `createSandMcpStateExecutor`
-(`host/ports/mcp-state-executor.ts:7`), which buckets
-`SandMcpTool{providerIdentifier, name, toolName, description?, inputSchema?}`
-by `providerIdentifier` into `McpStateServer` protobufs.
+`call_mcp_tool` (`packages/agent/tools/mcp/mcp.ts:438`) taking
+`{server, tool, arguments}`. The routing table is `session.serverDescriptors`,
+keyed by `serverIdentifier` (line 461), with `McpServerDoesNotExistError` on a
+miss. The same grouping appears host-side in `createSandMcpStateExecutor`
+(`host/ports/mcp-state-executor.ts:7`), bucketing
+`SandMcpTool{providerIdentifier, name, toolName, description?, inputSchema?}` by
+`providerIdentifier`.
 
 Execution never happens in-process: it goes through `mcpExecutorResource`
 (`packages/agent-exec/mcp.ts:149`), a serialised RPC resource pointing at either
@@ -414,10 +407,10 @@ Codex and OpenRouter get a direct tool-calling loop (`provider-session.ts:153`,
 ### Sandboxing
 
 A "box" is a separate execution environment running a small Connect daemon
-(`source/box-exec-daemon/server.ts:9`) exposing `ExecService`/`ControlService`:
-shell spawn, background shell, read/write, ping, `UpdateEnvironmentVariables`,
-`LoadMcpServers`. The isolation boundary is process/container plus an
-authenticated network hop (`BoxEndpoint{host, port, authToken, headers}`,
+(`source/box-exec-daemon/server.ts:9`) exposing `ExecService`/`ControlService` —
+shell spawn, read/write, ping, `UpdateEnvironmentVariables`, `LoadMcpServers`.
+The isolation boundary is process/container plus an authenticated network hop
+(`BoxEndpoint{host, port, authToken, headers}`,
 `host/box/loopback-sand-box.ts:20`), not a permission check. Three connectors implement the same `SandRemoteHostConnector` interface
 (`electron-main/box/box-host-connector.ts:38`) and are interchangeable to the
 host: loopback (host inside the same container, port 1337), brokered/remote
@@ -489,17 +482,14 @@ Ordered by how directly it maps onto `tinyhivemind`:
 Very little, and the drift is more about *layering* than about *existence*. All
 four added features are real, IO-performing implementations, not stubs.
 
-- **"an inference router"** — the word oversells the mechanism. It is a
-  four-valued enum in a settings file with a `switch`; there is no routing
-  policy, no fallback, no per-agent or per-task selection. Read as "a provider
-  switch", the claim is exact.
+- **"an inference router"** — the word oversells it. It is a four-valued enum in
+  a settings file with a `switch`: no routing policy, no fallback, no per-agent
+  or per-task selection. Read as "a provider switch", the claim is exact.
 - **"Grok Bot plugin/MCP tools across the routed providers"** — true, but via
   two unlike paths (an HTTP MCP bridge for Claude Code, a direct tool loop for
   Codex and OpenRouter). The phrasing implies one mechanism.
-- **"local usage tracking"** — accurate, and the README is more careful than it
-  needed to be: it says "request and token totals" and disclaims billing
-  authority, which matches the code exactly, including the discarded
-  `total_cost_usd`.
+- **"local usage tracking"** — accurate, and more careful than it needed to be:
+  "request and token totals", with billing authority disclaimed.
 - **"an optional local Docker sandbox"** — accurate line for line.
 - The genuine overclaim is architectural, and the repository makes it in its own
   vocabulary rather than in the README: `source/host/ports/` is not a port
