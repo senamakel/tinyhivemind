@@ -365,6 +365,33 @@ CEL, or any embedded expression evaluator, is rejected on four grounds.
    compiles it down, and passes the result — which is the same snapshot-not-
    callback boundary every other type here crosses.
 
+### Rendering a denial
+
+`DenyReason` is the operator's record. The sentence an acting agent reads is
+the library's, not the host's, and is bound by
+[ADR 0009](../adr/0009-a-refusal-renders-what-the-caller-already-holds.md),
+which settles the question this spec previously left open — whether the host
+should collapse a reason before rendering it to a model, and which reasons must
+collapse.
+
+The rule is that a denial renders a sentence of its own only when what it
+discloses is something the caller already holds: the policy it was gated under,
+the shape of the request it sent, or its own identity. A denial that turns on
+whether a *named other* exists or resolves renders one shared sentence, so a
+caller cannot learn a roster by reading which refusal came back. Applying it to
+the enumeration above: `Disabled`, `MalformedRequest`, `UnclassifiedAction`,
+`PolicyDenied`, `RememberedRefusal`, `NoRule` and `UnknownActor` may be worded
+apart — a caller cannot vary its own actor id, so that variant is no more
+probeable than `NoDispatchReason::SourceInactive` — while `UnresolvableApprover`
+and `NoApprover` turn on a named approver and share one sentence.
+
+ADR 0009 also fixes the mechanics: `Display` carries the agent's sentence and
+`Debug` the operator's variant, because the safe rendering has to be the one
+`{}` reaches for; the classification is per variant, by its most disclosing
+path; and it is pinned by a wildcard-free `match` in a test, so a variant added
+later does not compile until its author has classified it. This module supplies
+that table and those tests when it lands.
+
 ## Invariants and constraints
 
 - **Approval decides, never enacts.** No decision variant performs, schedules,
@@ -400,6 +427,9 @@ CEL, or any embedded expression evaluator, is rejected on four grounds.
   in the fixture set, asserted rather than documented.
 - Wire forms of `ApprovalDecision`, `ScopeKey`, `StandingGrant` and
   `ApprovalPolicy` are pinned, including `ScopeKey::render()`'s NUL joining.
+- Every `DenyReason` variant is classified against ADR 0009 by a wildcard-free
+  `match`, and the reasons that turn on a named approver render one identical
+  sentence.
 
 ## Testing
 
@@ -457,8 +487,7 @@ Shape:
   the same host-owned counter. A host drawing them from two counters gets a
   fence that compares numbers with no relationship, and the library cannot
   detect it.
-- **Should a `Deny` reason ever reach the acting agent?** OpenBot returns the
-  same sentence for "does not exist" and "you may not see it" so a bot cannot
-  enumerate the roster by reading refusals. `DenyReason` is for the operator's
-  log; whether the host should collapse it before rendering to a model is a
-  host question this spec raises but does not settle.
+Nothing about how a refusal reaches the acting agent is open any more. It was,
+and it is settled by
+[ADR 0009](../adr/0009-a-refusal-renders-what-the-caller-already-holds.md); see
+[Rendering a denial](#rendering-a-denial).
