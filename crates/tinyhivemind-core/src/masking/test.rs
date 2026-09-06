@@ -310,7 +310,7 @@ fn a_crlf_body_is_masked_the_same_as_a_lf_one() {
     // A carriage return is part of the line ending, not content, so it
     // neither disqualifies a closing fence nor hides a blank line.
     let fenced = "```rust\r\n@alice\r\n```\r\n";
-    assert_eq!(super::fenced_ranges(fenced), vec![(0, fenced.len())]);
+    assert_eq!(fenced_ranges(fenced), vec![(0, fenced.len())]);
 
     let indented = "prose\r\n\r\n    !pin ^1\r\n";
     let block = "prose\r\n\r\n".len();
