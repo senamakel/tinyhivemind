@@ -52,6 +52,21 @@ impl Journal {
         author: SessionAuthor,
         content: &str,
     ) -> Sequence {
+        self.append_to(conversation, author, content, Audience::Desk)
+    }
+
+    /// Append one row addressed to `audience`.
+    ///
+    /// The audience is stamped by the host, from the decision the library's
+    /// `aside` fold returned. Nothing downstream can widen it: it is fixed for
+    /// the life of the row.
+    pub(crate) fn append_to(
+        &self,
+        conversation: &Conversation,
+        author: SessionAuthor,
+        content: &str,
+        audience: Audience,
+    ) -> Sequence {
         let mut rows = self.rows.lock().unwrap_or_else(PoisonError::into_inner);
         let sequence = Sequence(
             u64::try_from(rows.len())
@@ -64,7 +79,7 @@ impl Journal {
             parent: conversation.thread_root,
             author,
             content: content.to_owned(),
-            audience: Audience::Desk,
+            audience,
         });
         sequence
     }
