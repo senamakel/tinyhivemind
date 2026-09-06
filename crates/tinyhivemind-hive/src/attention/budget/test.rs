@@ -65,3 +65,16 @@ fn redistributes_what_a_small_source_does_not_need() {
     assert_eq!(shares[0].verdict, BudgetVerdict::Whole);
     assert_eq!(shares[1].omitted, 525);
 }
+
+#[test]
+fn drops_a_source_cut_below_the_useful_floor_and_marks_what_it_omitted() {
+    let requests = [
+        BudgetRequest::new("threads", 1_000),
+        BudgetRequest::new("pins", 100),
+    ];
+    let shares = allocate_chars(&requests, &tight(250, 200));
+    assert_eq!(granted(&shares), [("threads", 0), ("pins", 100)]);
+    assert_eq!(shares[0].verdict, BudgetVerdict::Dropped);
+    assert_eq!(shares[0].omitted, 1_000);
+    assert_eq!(shares[1].verdict, BudgetVerdict::Whole);
+}
