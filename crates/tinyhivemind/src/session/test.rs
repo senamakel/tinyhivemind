@@ -1261,9 +1261,15 @@ fn two_closed_threads_between_the_same_pair_stay_two_stubs() {
     let projected = as_viewer(rows, agent("archivist"));
     assert_eq!(projected.len(), 2);
     assert_eq!(projected[0].sequence, Sequence(1));
-    assert_eq!(projected[0].elided.as_ref().expect("a stub").through, Sequence(2));
+    assert_eq!(
+        projected[0].elided.as_ref().expect("a stub").through,
+        Sequence(2)
+    );
     assert_eq!(projected[1].sequence, Sequence(3));
-    assert_eq!(projected[1].elided.as_ref().expect("a stub").through, Sequence(4));
+    assert_eq!(
+        projected[1].elided.as_ref().expect("a stub").through,
+        Sequence(4)
+    );
 }
 
 #[test]
@@ -1309,7 +1315,11 @@ fn a_settlement_narrowing_dropped_still_settles_the_stub() {
     );
     // And the settlement itself is genuinely absent from this projection,
     // which is what makes the assertion above non-trivial.
-    assert!(!projected.iter().any(|message| message.sequence == Sequence(3)));
+    assert!(
+        !projected
+            .iter()
+            .any(|message| message.sequence == Sequence(3))
+    );
 }
 
 #[test]

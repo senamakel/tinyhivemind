@@ -233,7 +233,9 @@ pub(crate) struct Settlement {
 
 impl Settlement {
     /// Every desk-visible, agent-authored row in a slice, in sequence order.
-    fn over<'a>(rows: impl Iterator<Item = (&'a Sequence, &'a Audience, &'a SessionAuthor)>) -> Vec<Self> {
+    fn over<'a>(
+        rows: impl Iterator<Item = (&'a Sequence, &'a Audience, &'a SessionAuthor)>,
+    ) -> Vec<Self> {
         rows.filter(|(_, audience, _)| audience.is_desk())
             .map(|(sequence, _, author)| Self {
                 sequence: *sequence,
@@ -332,10 +334,7 @@ fn settle(messages: &mut [SessionMessage], settlements: &[Settlement]) {
 
 type Projection = (Vec<(SessionMessage, Option<Sequence>)>, Vec<Settlement>);
 
-async fn project_thread(
-    log: &(dyn SessionLog + '_),
-    query: &SessionQuery,
-) -> Result<Projection> {
+async fn project_thread(log: &(dyn SessionLog + '_), query: &SessionQuery) -> Result<Projection> {
     let mut cursor = query.before;
     let mut scanned = 0_usize;
     let mut seen = Vec::new();
@@ -422,10 +421,7 @@ struct Candidate {
     audience: Audience,
 }
 
-async fn project_channel(
-    log: &(dyn SessionLog + '_),
-    query: &SessionQuery,
-) -> Result<Projection> {
+async fn project_channel(log: &(dyn SessionLog + '_), query: &SessionQuery) -> Result<Projection> {
     let mut cursor = query.before;
     let mut scanned = 0_usize;
     let mut seen = Vec::new();

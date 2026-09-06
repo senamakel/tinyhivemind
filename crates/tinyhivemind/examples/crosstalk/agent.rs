@@ -360,10 +360,7 @@ pub(crate) fn http_turn(
     // Escaped for curl's config grammar, where a double-quoted value takes
     // backslash escapes. The body carries JSON, so its quotes and any
     // backslashes have to survive the trip.
-    let body = body
-        .to_string()
-        .replace('\\', "\\\\")
-        .replace('"', "\\\"");
+    let body = body.to_string().replace('\\', "\\\\").replace('"', "\\\"");
 
     let mut child = Command::new("curl")
         .args(["--config", "-"])
