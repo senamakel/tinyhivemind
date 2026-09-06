@@ -132,3 +132,32 @@ fn active_lookup_excludes_only_exact_retired_ids() {
         vec!["Alice"]
     );
 }
+
+#[test]
+fn a_member_stays_attributable_after_it_stops_being_active() {
+    let members = [
+        RosterMember {
+            id: "alice".into(),
+            name: Some("Alice".into()),
+        },
+        RosterMember {
+            id: "bob".into(),
+            name: Some("Bob".into()),
+        },
+    ];
+    let retired = [String::from("bob")];
+    let roster = Roster::new(&members, &[], &retired);
+
+    assert!(roster.active_member("bob").is_none());
+    assert_eq!(
+        roster.registered_member("bob").and_then(|m| m.name.clone()),
+        Some("Bob".into())
+    );
+    assert_eq!(
+        roster
+            .registered_member("alice")
+            .map(|member| member.id.as_str()),
+        Some("alice")
+    );
+    assert!(roster.registered_member("ghost").is_none());
+}
