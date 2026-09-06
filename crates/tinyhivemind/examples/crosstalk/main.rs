@@ -561,8 +561,12 @@ async fn run(options: &Options) -> Result<Report, String> {
         })
         .collect();
 
-    let journal = Arc::new(Journal::default());
-    let queue = Queue::new(Arc::clone(&journal), true, &ids);
+    let room = Room {
+        seats,
+        ids: ids.clone(),
+        journal: Arc::clone(&journal),
+        queue: Queue::new(Arc::clone(&journal), true, &ids),
+    };
 
     let channel = Conversation {
         desk_id: DESK_ID.to_owned(),
