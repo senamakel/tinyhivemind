@@ -16,6 +16,7 @@ use crate::{
     project_session, read_thread_index,
     threads::THREAD_INDEX_LIMIT,
 };
+use tinyhivemind_core::aside::AsidePolicy;
 use tinyhivemind_core::{
     chat::is_general_chat,
     desk::DeskSet,
