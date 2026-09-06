@@ -371,11 +371,21 @@ fn a_viewer_reports_how_it_reads() {
 #[test]
 fn the_default_policy_authorizes_nothing() {
     assert_eq!(AsidePolicy::default(), AsidePolicy::DEFAULT);
-    assert!(!AsidePolicy::DEFAULT.enabled);
-    assert_eq!(AsidePolicy::DEFAULT.max_members, 0);
-    assert_eq!(AsidePolicy::DEFAULT.max_messages, 0);
-    assert!(!AsidePolicy::DEFAULT.must_surface);
-    assert!(!AsidePolicy::DEFAULT.require_thread);
+    assert_eq!(
+        AsidePolicy::DEFAULT,
+        AsidePolicy {
+            enabled: false,
+            max_members: 0,
+            max_messages: 0,
+            must_surface: false,
+            require_thread: false,
+        },
+    );
+    // And it actually refuses, rather than merely reading as if it would.
+    assert_eq!(
+        refused(AsidePolicy::DEFAULT, &input(vec![mention("bob", 0)])),
+        NoAsideReason::Disabled,
+    );
 }
 
 #[test]
