@@ -1044,19 +1044,24 @@ fn surfacing_the_same_support_in_the_open_does_count() {
         run(&room, &state(), &transcript, &policy),
         HiveStep::Converged { .. } | HiveStep::Speak { .. },
     ));
-    let standings = crate::quorum::standings(
-        &crate::trace::read(&transcript),
-        Sequence(4),
-        &policy.quorum,
-    )
-    .expect("stands");
-    let stage = standings
+    // The private line contributed nothing, so the standing is exactly what it
+    // would have been had the aside never been written.
+    let without: Vec<SessionMessage> = transcript
         .iter()
-        .find(|standing| standing.topic.as_str() == "stage")
-        .expect("the staged option");
-    // One supporter, not two: the private line contributed nothing and the
-    // open one contributed once.
-    assert_eq!(stage.supporters.len(), 1);
+        .filter(|message| message.audience.is_desk())
+        .cloned()
+        .collect();
+    let supporters = |slice: &[SessionMessage]| {
+        crate::quorum::standings(&crate::trace::read(slice), Sequence(4), &policy.quorum)
+            .expect("stands")
+            .into_iter()
+            .find(|standing| standing.topic.as_str() == "stage")
+            .expect("the staged option")
+            .supporters
+    };
+    assert_eq!(supporters(&transcript), supporters(&without));
+    // And `scout` is there because of its open line, not its private one.
+    assert!(supporters(&transcript).contains(&"scout".to_owned()));
 }
 
 #[test]
@@ -1075,7 +1080,12 @@ fn every_participant_counts_the_same_medium() {
         .iter()
         .find(|standing| standing.topic.as_str() == "stage")
         .expect("the staged option");
-    assert_eq!(stage.supporters, vec!["scout".to_owned()]);
+    // `planner` for proposing and `scout` for supporting in the open. `critic`
+    // supported privately and is absent, for every reader alike.
+    assert_eq!(
+        stage.supporters,
+        vec!["planner".to_owned(), "scout".to_owned()],
+    );
 }
 
 #[test]
