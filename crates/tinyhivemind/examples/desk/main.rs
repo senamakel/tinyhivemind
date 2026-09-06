@@ -309,7 +309,11 @@ async fn main() -> Result<(), BoxError> {
     let mut next_seat = 0_usize;
     let mut tokens = 0_u64;
     while turns < options.max_turns {
-        let job = queue.pending.lock().unwrap_or_else(PoisonError::into_inner).pop_front();
+        let job = queue
+            .pending
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .pop_front();
         let job = match job {
             Some(job) => job,
             None => {
@@ -400,14 +404,13 @@ async fn main() -> Result<(), BoxError> {
             shared.insert(seat.id.clone(), delta.next_state);
             (delta.messages, None, true)
         } else {
-                let session = initialize_session(&transcript, &query, briefing).await?;
-                shared.insert(
-                    seat.id.clone(),
-                    initialized_state(conversation.clone(), sequence),
-                );
-                let text = session.briefing.system_text();
-                (session.history, Some(text), false)
-            }
+            let session = initialize_session(&transcript, &query, briefing).await?;
+            shared.insert(
+                seat.id.clone(),
+                initialized_state(conversation.clone(), sequence),
+            );
+            let text = session.briefing.system_text();
+            (session.history, Some(text), false)
         };
         let recalled = store
             .as_ref()
@@ -591,7 +594,11 @@ fn compose_prompt(
             SessionAuthor::System { kind, .. } => format!("system/{kind}"),
         };
         use std::fmt::Write as _;
-        let _ = write!(prompt, "\n[{}] {who}: {}\n", message.sequence.0, message.content);
+        let _ = write!(
+            prompt,
+            "\n[{}] {who}: {}\n",
+            message.sequence.0, message.content
+        );
     }
     prompt.push_str("\n\n## This turn\n");
     prompt.push_str("You were addressed by this message:\n\n");

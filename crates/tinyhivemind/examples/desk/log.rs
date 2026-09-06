@@ -79,12 +79,18 @@ impl JsonlLog {
 
     /// How many rows the transcript holds.
     pub(crate) fn len(&self) -> usize {
-        self.rows.lock().unwrap_or_else(PoisonError::into_inner).len()
+        self.rows
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .len()
     }
 
     /// Every row, oldest first, for the folds an aside policy needs.
     pub(crate) fn rows(&self) -> Vec<LogMessage> {
-        self.rows.lock().unwrap_or_else(PoisonError::into_inner).clone()
+        self.rows
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 }
 
