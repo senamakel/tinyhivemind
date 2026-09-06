@@ -691,7 +691,12 @@ fn aside_row(sequence: u64, id: &str, members: &[&str], content: &str) -> LogMes
     }
 }
 
-async fn plan_for(log: &FakeLog, state: &SharingState, before: u64, viewer: &Viewer) -> SharingPlan {
+async fn plan_for(
+    log: &FakeLog,
+    state: &SharingState,
+    before: u64,
+    viewer: &Viewer,
+) -> SharingPlan {
     let desired = engineering();
     let current = engineering();
     prepare_delta(
@@ -722,9 +727,14 @@ fn tick_rows() -> Vec<LogMessage> {
 #[tokio::test]
 async fn a_delta_applies_the_same_audience_rule_as_the_projection() {
     let log = FakeLog::new(vec![page(tick_rows(), None)]);
-    let plan = plan_for(&log, &state(10), 14, &Viewer::Agent {
-        id: "archivist".into(),
-    })
+    let plan = plan_for(
+        &log,
+        &state(10),
+        14,
+        &Viewer::Agent {
+            id: "archivist".into(),
+        },
+    )
     .await;
     let delta = delta(plan);
     // Two rows: one stub standing for the pair, and the desk row.
@@ -732,11 +742,7 @@ async fn a_delta_applies_the_same_audience_rule_as_the_projection() {
     assert_eq!(delta.messages[0].readable(), None);
     assert_eq!(delta.messages[0].sequence, Sequence(11));
     assert_eq!(
-        delta.messages[0]
-            .elided
-            .as_ref()
-            .expect("a stub")
-            .messages,
+        delta.messages[0].elided.as_ref().expect("a stub").messages,
         2,
     );
     assert_eq!(delta.messages[1].readable(), Some("in the open"));
@@ -745,9 +751,14 @@ async fn a_delta_applies_the_same_audience_rule_as_the_projection() {
 #[tokio::test]
 async fn a_member_receives_its_own_aside_in_a_delta() {
     let log = FakeLog::new(vec![page(tick_rows(), None)]);
-    let plan = plan_for(&log, &state(10), 14, &Viewer::Agent {
-        id: "auditor".into(),
-    })
+    let plan = plan_for(
+        &log,
+        &state(10),
+        14,
+        &Viewer::Agent {
+            id: "auditor".into(),
+        },
+    )
     .await;
     let delta = delta(plan);
     assert_eq!(delta.messages.len(), 3);

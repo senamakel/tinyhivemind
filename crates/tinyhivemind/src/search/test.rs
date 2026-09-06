@@ -493,7 +493,12 @@ fn a_whole_log_search_never_quotes_an_aside_the_seeker_is_outside() {
     // which makes this the widest reach any read path has.
     let rows = vec![
         message(1, Some("engineering"), None, "nothing to see"),
-        aside_message(2, "planner", &["auditor"], "the credentials rotate on Friday"),
+        aside_message(
+            2,
+            "planner",
+            &["auditor"],
+            "the credentials rotate on Friday",
+        ),
     ];
     let hits = hits_for(rows, seeker("archivist"), "credentials");
     assert!(hits.is_empty());

@@ -746,9 +746,11 @@ fn an_enabled_desk_tells_an_agent_its_view_may_be_partial() {
     let text = briefing_with(permissive()).system_text();
     assert!(text.contains("Some rows show only that an aside happened"));
     assert!(text.contains("ask its author here in the desk"));
-    assert!(!briefing_with(AsidePolicy::DEFAULT)
-        .system_text()
-        .contains("aside happened"));
+    assert!(
+        !briefing_with(AsidePolicy::DEFAULT)
+            .system_text()
+            .contains("aside happened")
+    );
 }
 
 #[tokio::test]
@@ -790,9 +792,7 @@ async fn the_briefing_states_the_window_a_viewer_actually_received() {
             conversation: named_conversation(),
             before: None,
             window: 30,
-            viewer: Viewer::Agent {
-                id: "alice".into(),
-            },
+            viewer: Viewer::Agent { id: "alice".into() },
         },
         briefing_with(permissive()),
     )

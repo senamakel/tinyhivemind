@@ -965,10 +965,7 @@ fn agent(id: &str) -> Viewer {
 }
 
 fn as_viewer(rows: Vec<LogMessage>, viewer: Viewer) -> Vec<SessionMessage> {
-    let log = FakeLog::new(vec![page(
-        rows.into_iter().rev().collect::<Vec<_>>(),
-        None,
-    )]);
+    let log = FakeLog::new(vec![page(rows.into_iter().rev().collect::<Vec<_>>(), None)]);
     let query = SessionQuery {
         viewer,
         ..query(30)
@@ -995,7 +992,12 @@ fn desk_transcript() -> Vec<LogMessage> {
     vec![
         said(1, "planner", "We should canary at 5%."),
         aside_row(2, "planner", &["auditor"], "Between us: I am not sure."),
-        aside_row(3, "auditor", &["planner"], "Nor am I. The rollback is the risk."),
+        aside_row(
+            3,
+            "auditor",
+            &["planner"],
+            "Nor am I. The rollback is the risk.",
+        ),
         aside_row(4, "planner", &["auditor"], "Agreed. I will say so."),
         said(5, "planner", "The rollback path is the real risk here."),
         said(6, "archivist", "We hit that in March."),
@@ -1007,10 +1009,7 @@ fn a_member_reads_an_aside_in_full() {
     let projected = as_viewer(desk_transcript(), agent("auditor"));
     assert_eq!(projected.len(), 6);
     assert!(projected.iter().all(|message| message.elided.is_none()));
-    assert_eq!(
-        projected[1].readable(),
-        Some("Between us: I am not sure."),
-    );
+    assert_eq!(projected[1].readable(), Some("Between us: I am not sure."),);
 }
 
 #[test]
@@ -1021,12 +1020,7 @@ fn its_author_reads_its_own_aside() {
 
 #[test]
 fn a_person_and_the_operator_read_every_aside_in_full() {
-    for viewer in [
-        Viewer::Operator,
-        Viewer::Person {
-            id: "ada".into(),
-        },
-    ] {
+    for viewer in [Viewer::Operator, Viewer::Person { id: "ada".into() }] {
         let projected = as_viewer(desk_transcript(), viewer.clone());
         assert!(
             projected.iter().all(|message| message.elided.is_none()),

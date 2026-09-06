@@ -428,12 +428,20 @@ fn a_non_member_never_receives_an_excerpt_of_an_aside() {
     // The shortest path from a private message to somebody else's system
     // prompt: pin it, and let `pin_note` render 120 verbatim characters.
     let rows = [
-        aside_row(1, "planner", &["auditor"], "The credentials rotate on Friday."),
+        aside_row(
+            1,
+            "planner",
+            &["auditor"],
+            "The credentials rotate on Friday.",
+        ),
         desk_row(2, "auditor", "!pin ^1 #creds"),
     ];
 
     let board = fold_pins(&rows, &viewer("archivist"), PIN_LIMIT);
-    assert!(board.is_empty(), "a pin the reader cannot open is not a working set entry");
+    assert!(
+        board.is_empty(),
+        "a pin the reader cannot open is not a working set entry"
+    );
 
     let note = pin_note(&board);
     assert!(note.is_none());
@@ -445,7 +453,12 @@ fn a_member_pins_inside_its_own_aside_and_reads_the_excerpt() {
     // usable: an agent that cannot re-find what it said privately once the
     // window has moved past it is worse off than if it had never said it.
     let rows = [
-        aside_row(1, "planner", &["auditor"], "The credentials rotate on Friday."),
+        aside_row(
+            1,
+            "planner",
+            &["auditor"],
+            "The credentials rotate on Friday.",
+        ),
         aside_row(2, "auditor", &["planner"], "!pin ^1 #creds"),
     ];
     for id in ["planner", "auditor"] {
