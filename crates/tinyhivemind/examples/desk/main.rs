@@ -22,7 +22,7 @@ mod memory;
 
 use std::{
     collections::VecDeque,
-    error::Error,
+    error::Error as StdError,
     fs,
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -42,6 +42,9 @@ use tinyhivemind::{
     responder::{ResponderRequest, SelectionPolicy, choose_responder},
     roster::{Person, Roster, RosterMember},
 };
+
+/// The error every host-side call in this example returns.
+type BoxError = Box<dyn StdError + Send + Sync + 'static>;
 
 /// One turn waiting to run.
 #[derive(Clone, Debug)]
@@ -101,7 +104,7 @@ struct Options {
 }
 
 impl Options {
-    fn parse() -> Result<Self, Box<dyn Error>> {
+    fn parse() -> Result<Self, BoxError> {
         let mut options = Self {
             desk: PathBuf::new(),
             task: PathBuf::new(),
@@ -153,7 +156,7 @@ impl Options {
 }
 
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> Result<(), BoxError> {
     let options = Options::parse()?;
     let spec = deskfile::parse(&fs::read_to_string(&options.desk)?)?;
     fs::create_dir_all(&options.workspace)?;
