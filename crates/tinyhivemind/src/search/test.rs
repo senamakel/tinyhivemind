@@ -6,8 +6,7 @@ use super::*;
 use crate::{Sequence, SessionFuture, SessionPage, SourceError};
 use std::{collections::VecDeque, io, sync::Mutex};
 use tinyhivemind_core::select::MatchKind;
-use tinyhivemind_core::aside::Audience;
-use tinyhivemind_core::aside::Viewer;
+use tinyhivemind_core::aside::{Audience, Viewer};
 
 #[derive(Debug)]
 struct FakeLog {
@@ -409,7 +408,7 @@ async fn refuses_an_expression_without_the_feature() {
 
 #[cfg(feature = "regex")]
 mod expressions {
-    use super::{FakeLog, SearchQuery, message, page, search_messages};
+    use super::{FakeLog, SearchQuery, Viewer, message, page, search_messages};
     use crate::{Error, Sequence};
 
     #[tokio::test]
