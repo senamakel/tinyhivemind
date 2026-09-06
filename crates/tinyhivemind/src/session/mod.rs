@@ -330,14 +330,17 @@ fn settle(messages: &mut [SessionMessage], settlements: &[Settlement]) {
     }
 }
 
+type Projection = (Vec<(SessionMessage, Option<Sequence>)>, Vec<Settlement>);
+
 async fn project_thread(
     log: &(dyn SessionLog + '_),
     query: &SessionQuery,
-) -> Result<Vec<SessionMessage>> {
+) -> Result<Projection> {
     let mut cursor = query.before;
     let mut scanned = 0_usize;
     let mut seen = Vec::new();
     let mut projected = Vec::new();
+    let mut seen_rows: Vec<(Sequence, Audience, SessionAuthor)> = Vec::new();
     let mut reached_root = false;
 
     while scanned < SCAN_LIMIT && projected.len() < query.window && !reached_root {
@@ -361,12 +364,20 @@ async fn project_thread(
                 }
                 continue;
             }
-            projected.push(present(
+            seen_rows.push((
                 message.sequence,
-                message.author.clone(),
-                message.content.clone(),
                 message.audience.clone(),
-                &query.viewer,
+                message.author.clone(),
+            ));
+            projected.push((
+                present(
+                    message.sequence,
+                    message.author.clone(),
+                    message.content.clone(),
+                    message.audience.clone(),
+                    &query.viewer,
+                ),
+                query.conversation.thread_root,
             ));
             if is_thread_root {
                 reached_root = true;
