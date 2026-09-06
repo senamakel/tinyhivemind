@@ -9,10 +9,10 @@
 - Licence: **none.** There is no `LICENSE` file; `NOTICE.md` says "no upstream
   source-code license is asserted or granted here". Nothing here may be copied
   into `tinyhivemind` — this is a read-and-learn exercise only.
-- Size: 2,111 files. About 177,000 lines of hand-written TypeScript under
-  `source/` (a further 264,000 lines there are generated protobuf), plus 52,000
-  lines of React/TypeScript under `frontend/`. Eight `node --test` files under
-  `tests/`, all of them packaging/publication regressions plus two router tests.
+- Size: 2,111 files — about 177,000 lines of hand-written TypeScript under
+  `source/` (a further 264,000 there are generated protobuf) plus 52,000 lines
+  under `frontend/`. Eight `node --test` files, all packaging/publication
+  regressions plus two router tests.
 
 It is an unofficial, source-oriented reconstruction of the shipped Grok Bot
 0.18.0 macOS app (Anysphere; upstream bundle id `com.anysphere.sand`, hence the
@@ -91,11 +91,11 @@ with six mutable maps and a debounced flush, despite the name.
 
 Human versus agent is discriminated in only two places, both group-scoped.
 `GroupMessage.speaker` is a tagged union of `{kind:"user", name?}` and
-`{kind:"member", id, name}` (`source/host/groups/group-chat.ts:2`). Cross-user
-rooms are explicit: `RemoteRoomMember = {kind: "agent" | "human", authId,
+`{kind:"member", id, name}` (`source/host/groups/group-chat.ts:2`); cross-user
+rooms are explicit, `RemoteRoomMember = {kind: "agent" | "human", authId,
 agentId, displayName, avatarUrl?}` (`remote-room-store.ts:1`). A local group is
-agents-only — `SandGroupConfig` is `{version, memberIds[], remoteMembers?,
-sharedRoomId?}` (`group-store.ts:1`) — the human implicit as sender.
+agents-only (`SandGroupConfig` is `{version, memberIds[], remoteMembers?,
+sharedRoomId?}`), the human implicit as sender.
 
 Per-agent capability configuration barely exists. The model is a **global**
 setting (`SandStoredSettings.agentDefaultModel`,
