@@ -392,7 +392,10 @@ struct Room<'a> {
 
 impl std::fmt::Debug for Room<'_> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.debug_struct("Room").field("ids", &self.ids).finish()
+        formatter
+            .debug_struct("Room")
+            .field("ids", &self.ids)
+            .finish()
     }
 }
 
@@ -561,11 +564,14 @@ async fn run(options: &Options) -> Result<Report, String> {
         })
         .collect();
 
+    let journal = Arc::new(Journal::default());
     let room = Room {
         seats,
         ids: ids.clone(),
         journal: Arc::clone(&journal),
         queue: Queue::new(Arc::clone(&journal), true, &ids),
+        roster,
+        desks,
     };
 
     let channel = Conversation {
@@ -597,7 +603,7 @@ async fn run(options: &Options) -> Result<Report, String> {
         } else {
             None
         };
-    let decision = route_opening(options, selector_ref, &roster, &desks).await?;
+    let decision = route_opening(options, selector_ref, &room.roster, &room.desks).await?;
 
     // Where the agents talk. Under `--thread` that is a sub-conversation of
     // the desk, rooted at the operator's message: the same members, the same
