@@ -83,11 +83,11 @@ pub async fn project_session(
     if query.window == 0 {
         return Ok(Vec::new());
     }
-    let projected = match query.conversation.thread_root {
+    let (projected, settlements) = match query.conversation.thread_root {
         Some(_) => project_thread(log, query).await?,
         None => project_channel(log, query).await?,
     };
-    Ok(collapse_elisions(projected))
+    Ok(collapse_elisions(projected, &settlements))
 }
 
 /// The agent id a row is attributed to, or `None` for any other author.
@@ -118,24 +118,37 @@ pub(crate) fn admits(message: &LogMessage, viewer: &Viewer) -> bool {
 ///
 /// A row that is already elided is left alone: it cannot be narrowed further,
 /// and re-eliding it would lose the run it stands for.
+///
+/// One difference from [`project_session`], and it is a limitation rather than
+/// a choice: a `SessionMessage` carries no parent, so this cannot tell two
+/// closed threads apart and will merge adjacent runs between the same pair
+/// even when they belong to different threads. A caller that holds the log
+/// should project from it; this exists for one that holds only a transcript.
 #[must_use]
 pub fn project_as(messages: &[SessionMessage], viewer: &Viewer) -> Vec<SessionMessage> {
-    let narrowed = messages
+    let narrowed: Vec<(SessionMessage, Option<Sequence>)> = messages
         .iter()
         .map(|message| {
-            if message.elided.is_some() {
-                return message.clone();
-            }
-            present(
-                message.sequence,
-                message.author.clone(),
-                message.content.clone(),
-                message.audience.clone(),
-                viewer,
-            )
+            let narrowed = if message.elided.is_some() {
+                message.clone()
+            } else {
+                present(
+                    message.sequence,
+                    message.author.clone(),
+                    message.content.clone(),
+                    message.audience.clone(),
+                    viewer,
+                )
+            };
+            (narrowed, None)
         })
         .collect();
-    collapse_elisions(narrowed)
+    let settlements = Settlement::over(
+        messages
+            .iter()
+            .map(|message| (&message.sequence, &message.audience, &message.author)),
+    );
+    collapse_elisions(narrowed, &settlements)
 }
 
 /// Build one projected message, eliding its content when the viewer is not
