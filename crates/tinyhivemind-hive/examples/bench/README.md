@@ -43,12 +43,24 @@ Every arm decides the same rooms from the same private evaluations.
 | `hive+dir` | The tuned policy with `directory: Some(DirectoryPolicy::DEFAULT)` — the folded transactive-memory directory on, so `BidReason::Knows` is reachable. |
 | `hive+defer` | The tuned policy with `defer_cap: Some(N)` and no directory: members may stand aside on a topic that is not theirs, with nothing routing the vacated turn. |
 | `hive+dir+defer` | Both at once, which is the arrangement `docs/specs/expert-delegation.md` describes end to end. |
+| `hive+aside` | The tuned policy with `--aside-cap`: a member that cannot separate its two best options spends a turn asking one peer for its reading, privately. Loses; see [the write-up](../../../../docs/experiments/2026-09-07-do-asides-help.md). |
+| `hive+ask` | The identical exchange in the open — same turns, same words, every member reads it. The control that isolates *privacy* from *asking*. |
+| `hive+aside!` | The private check again, aimed at whoever the transcript shows has grounded the option rather than at whoever spoke first. |
 | `ladder+dir` | The responder ladder again, with a directory the room *earned* over `--history` prior episodes of `hive+` on the same room. The selector's candidates carry that directory's per-agent lines as their `description`, the request names the topic the call turns on, and a router that reads the descriptions picks the heaviest holder of it. Validated through the real `accept_selection`. |
 | `all-reasoning` | Only under `--cost-tiers`, in the cost table: `hive+dir+defer` (the delegating room) against a policy that puts every seat on the expensive tier. |
 
 The six rows above `hive+dir` are the published table; the delegation arms are
 appended rather than interleaved, so `--seed 1 --episodes 5000` still prints
 them byte for byte.
+
+The three aside arms lose too, and the pair of them settles what the loss is
+made of: `hive+aside − hive+ask` spans zero in every configuration, so privacy
+is never the variable, and `hive+aside − hive+` goes to zero once the turn
+budget stops binding. On a hidden profile the loss is 15 points with the budget
+unconstrained, because averaging with a peer inside one correlated desk imports
+the shared bias rather than cancelling noise.
+[`docs/experiments/2026-09-07-do-asides-help.md`](../../../../docs/experiments/2026-09-07-do-asides-help.md)
+carries the numbers and the argument.
 
 `hive+ref` and `hive+ev` lose, reproducibly and by a lot, and the write-up in
 [`docs/experiments/2026-09-01-refutation-and-grounds.md`](../../../../docs/experiments/2026-09-01-refutation-and-grounds.md)
@@ -89,6 +101,15 @@ decoy. A `None` or unreachable `refutation_cap` turns both the mechanism and the
 move off together, so a control arm differs from its treatment in one thing
 rather than in two. It **defers** only under `--defer-cap`, on a topic it knows
 another member owns.
+
+Under `--aside-cap` it also **checks**: a member whose two best options sit
+within half the true-to-decoy gap of each other cannot tell them apart, so it
+spends a turn asking one peer what that peer reads, the peer spends a turn
+answering, and the asker averages the answer into its own view through the same
+`import` the federation uses for a reading that crossed a channel. The exchange
+adds no supporter — an `!aside` line parses to no trace whatever its audience —
+so a member still has to spend a further turn saying what it now thinks before
+the room counts anything.
 
 Under `--blind-evidence` it **deposits first**: its opening turn, while the
 room is blind, states its own reading of the topic it knows best rather than
@@ -415,6 +436,7 @@ rather than a failure of the harness.
 | `--blind-evidence` | a member's first turn, while the room is blind, is a deposit rather than a position (off by default) |
 | `--directory` | fold the directory into the traced episode's own policy, so `--trace` can show a `knows` turn |
 | `--defer-cap N` | turns a member may spend deferring to a topic's expert instead of arguing outside its own specialty (default 1, minimum 1); read by `hive+defer` and `hive+dir+defer` |
+| `--aside-cap N` | pairwise checks one member may open (default 1); `0` makes `hive+aside`, `hive+ask` and `hive+aside!` bit-identical to `hive+` |
 | `--history N` | prior episodes of `hive+` the `ladder+dir` arm earns its directory from (default 3) |
 | `--budget N` `--quorum N` `--window N` | episode policy, overriding the tuned values |
 | `--dominance N` `--repetition N` `--no-blind` | episode policy |

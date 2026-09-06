@@ -45,12 +45,13 @@
 use std::fmt::Write as _;
 
 use tinyhivemind_hive::{
-    HiveTurn, Phase, QuorumPolicy, Sequence, SessionMessage, Visibility,
+    HiveTurn, Phase, QuorumPolicy, Sequence, SessionAuthor, SessionMessage, Visibility,
     quorum::{TopicStanding, standings},
     trace::{TopicId, Trace, TraceKind, resolve},
 };
 
 use crate::rng::{Rng, mix};
+use crate::run::ASIDE_MARKER;
 
 /// Names drawn on, in order, for a room's options.
 pub(crate) const TOPIC_NAMES: [&str; 8] = [
@@ -205,6 +206,23 @@ const GROUNDS_WEIGHT: i32 = 45;
 /// matters once [`SimAgent::blind_evidence`] has ordinary members depositing
 /// readings of their own.
 const RULES_OUT: &str = "rules this one out";
+
+/// How close this member's top two options must be before it is worth a turn
+/// asking one peer what they read.
+///
+/// A member that already separates its two best options by more than this has
+/// nothing a second noisy reading would settle, and spending a turn on the
+/// question would be spending it to learn nothing. Set at half the gap that
+/// separates the genuinely best option from a decoy: inside it the member
+/// genuinely cannot tell, outside it it can.
+const ASIDE_UNCERTAINTY: i32 = (TRUE_QUALITY - DECOY_QUALITY) / 2;
+
+/// What a member writes into the reading it hands a peer.
+///
+/// Parsed back out by the peer, so the two halves of the exchange share one
+/// spelling. The number is this member's own score for the topic, which is
+/// exactly what a second opinion is.
+const ASIDE_READS: &str = "reads";
 
 /// What a specialist's own turn costs, against a lay member's `1`, when a
 /// room is generated with `cost_tiers` set.
@@ -711,6 +729,18 @@ pub(crate) struct SimAgent {
     /// somebody else got there first with. See the module docs: it is a
     /// participant policy, off unless `--blind-evidence` asked for it.
     blind_evidence: bool,
+    /// Turns this member may spend asking one peer for its reading before
+    /// committing to a position. `0` turns the move off, which is what every
+    /// arm before the aside arms passes.
+    aside_cap: u32,
+    /// Checks this member has already opened.
+    asides_spent: u32,
+    /// Whether a check goes to the member the transcript shows has grounded
+    /// the topic, rather than to whoever spoke first.
+    aside_informed: bool,
+    /// Sequences of exchanges this member has already answered or folded in,
+    /// so neither is done twice.
+    handled: Vec<Sequence>,
 }
 
 impl SimAgent {
@@ -760,6 +790,10 @@ impl SimAgent {
             role,
             evals,
             imports: Vec::new(),
+            aside_cap: 0,
+            asides_spent: 0,
+            aside_informed: false,
+            handled: Vec::new(),
             favourite,
             rng: Rng::seeded(mix(seed, 0x000A_11CE ^ index as u64)),
             quorum: QuorumPolicy::DEFAULT,
@@ -805,6 +839,19 @@ impl SimAgent {
         true
     }
 
+    /// Tell the participant how many turns it may spend asking one peer for a
+    /// second reading before committing to a position. `0` turns the move off.
+    ///
+    /// `Room::generate_with` leaves every member at `0`, so an arm that opens
+    /// no check is bit-identical to one built before the move existed — the
+    /// same discipline `set_defer_cap` follows.
+    pub(crate) fn set_aside_cap(&mut self, cap: u32, informed: bool) {
+        self.aside_cap = cap;
+        self.aside_informed = informed;
+        self.asides_spent = 0;
+        self.handled.clear();
+    }
+
     /// Tell the participant which quorum rule the room is running.
     pub(crate) fn set_quorum(&mut self, quorum: QuorumPolicy) {
         self.quorum = quorum;
@@ -845,6 +892,131 @@ impl SimAgent {
         i32::try_from(total / divisor).unwrap_or(*own)
     }
 
+    /// Spend this turn on a pairwise check, if this member wants one.
+    ///
+    /// Three parts, in order: fold in whatever readings this member can now
+    /// read, answer anybody who asked, and otherwise ask. Each of them reads
+    /// the transcript the library authorized this turn to see, so under a
+    /// private exchange a member outside it parses a stub and takes nothing,
+    /// and under a public one every member parses the same line and takes the
+    /// same reading. That difference is the whole of what the aside arms
+    /// measure, and the projection rather than anything here produces it.
+    fn check(&mut self, visible: &[SessionMessage], view: &View) -> Option<String> {
+        if self.aside_cap == 0 {
+            return None;
+        }
+        // A reading is not a position: it changes what this member believes,
+        // and it still has to spend a turn saying so before the room counts
+        // anything.
+        self.absorb(visible);
+
+        // Answering costs this turn, which is what makes one exchange cost
+        // two turns rather than one.
+        if let Some(line) = self.answer_check(visible) {
+            return Some(line);
+        }
+
+        // Two options this member cannot separate. A member that already
+        // knows its own mind spends the turn saying so instead.
+        let line = self.open_check(visible, view)?;
+        self.asides_spent = self.asides_spent.saturating_add(1);
+        Some(line)
+    }
+
+    /// Take in every second reading this member can read and has not yet.
+    ///
+    /// Marked by sequence rather than by content, so a line is folded once
+    /// however many turns it stays in the window.
+    fn absorb(&mut self, visible: &[SessionMessage]) {
+        for message in visible {
+            let Some(body) = message.readable() else {
+                continue;
+            };
+            if self.handled.contains(&message.sequence) || !body.starts_with(ASIDE_MARKER) {
+                continue;
+            }
+            let author = match &message.author {
+                SessionAuthor::Agent { id, .. } => id.as_str(),
+                _ => continue,
+            };
+            if author == self.id {
+                continue;
+            }
+            let Some((topic, reading)) = parse_reading(body) else {
+                continue;
+            };
+            self.handled.push(message.sequence);
+            self.import(&topic, reading);
+        }
+    }
+
+    /// Answer a check addressed to this member, with its own reading.
+    fn answer_check(&mut self, visible: &[SessionMessage]) -> Option<String> {
+        let request = visible.iter().rev().find(|message| {
+            message.readable().is_some_and(|body| {
+                body.starts_with(ASIDE_MARKER)
+                    && body.contains(&format!("@{}", self.id))
+                    && parse_reading(body).is_none()
+            }) && !self.handled.contains(&message.sequence)
+        })?;
+        let from = match &request.author {
+            SessionAuthor::Agent { id, .. } => id.clone(),
+            _ => return None,
+        };
+        let topic = parse_topic(request.readable()?)?;
+        self.handled.push(request.sequence);
+        let reading = self.score(&topic);
+        Some(format!(
+            "{ASIDE_MARKER} @{from} #{topic} My own {ASIDE_READS} {reading}."
+        ))
+    }
+
+    /// Ask one peer what they read, when this member cannot separate its own
+    /// two best options.
+    fn open_check(&mut self, visible: &[SessionMessage], view: &View) -> Option<String> {
+        if self.asides_spent >= self.aside_cap {
+            return None;
+        }
+        let mut ranked: Vec<(&TopicId, i32)> = self
+            .evals
+            .iter()
+            .map(|(topic, _)| (topic, self.score(topic)))
+            .collect();
+        ranked.sort_by_key(|(_, score)| std::cmp::Reverse(*score));
+        let [(best, top), (_, second), ..] = ranked.as_slice() else {
+            return None;
+        };
+        if top.saturating_sub(*second) > ASIDE_UNCERTAINTY {
+            return None;
+        }
+        let topic = (*best).clone();
+
+        // Whoever the room has already heard ground this option, and
+        // otherwise the first peer that has spoken. Asking the member the
+        // transcript shows knows something about the question is the informed
+        // version of the move, and it is what closes the obvious objection to
+        // a negative result — that the check went to the wrong peer.
+        //
+        // Deterministic either way, and drawn from the transcript rather than
+        // the roster, so a member asks somebody the room has actually heard
+        // from rather than a name it was handed.
+        let peer = if self.aside_informed {
+            view.grounded_by(&topic, &self.id)
+        } else {
+            None
+        };
+        let peer = match peer {
+            Some(peer) => peer,
+            None => visible.iter().find_map(|message| match &message.author {
+                SessionAuthor::Agent { id, .. } if *id != self.id => Some(id.clone()),
+                _ => None,
+            })?,
+        };
+        Some(format!(
+            "{ASIDE_MARKER} @{peer} #{topic} What do you make of this one?"
+        ))
+    }
+
     /// Produce the body of one turn, seeing exactly what the turn authorized.
     fn compose(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> String {
         let view = View::fold(visible, self.quorum);
@@ -857,6 +1029,17 @@ impl SimAgent {
                 "Thinking about this; {} still looks strongest to me.",
                 self.favourite
             );
+        }
+
+        // A pairwise check, and the three parts of it. Every one of them reads
+        // the transcript the library authorized this turn to see, so under a
+        // private exchange a member outside it parses a stub and takes
+        // nothing, and under a public one every member parses the same line
+        // and takes the same reading. That difference is the whole of what the
+        // aside arms measure, and it is produced by the projection rather than
+        // by anything here.
+        if let Some(line) = self.check(visible, &view) {
+            return line;
         }
 
         // The evidence-first opening: while nobody can read anybody, say what
@@ -1105,6 +1288,26 @@ impl View {
             standings,
             threshold: usize::try_from(quorum.threshold).unwrap_or(2),
         }
+    }
+
+    /// Who this transcript shows has said something grounded about a topic.
+    ///
+    /// The room's own record of who knows what, read off the traces rather
+    /// than from anything a participant is not entitled to see: a member that
+    /// deposited `!evidence` on a topic, or was cited for it, is the member to
+    /// ask about it. This is the same signal the folded directory is built
+    /// from, taken directly because a participant here needs one name rather
+    /// than a ranking.
+    fn grounded_by(&self, topic: &TopicId, excluding: &str) -> Option<String> {
+        self.traces
+            .iter()
+            .filter(|trace| trace.topic.as_ref() == Some(topic))
+            .filter(|trace| matches!(trace.kind, TraceKind::Evidence))
+            .filter_map(|trace| match &trace.author {
+                SessionAuthor::Agent { id, .. } => Some(id.clone()),
+                _ => None,
+            })
+            .find(|author| author != excluding)
     }
 
     /// The sequence that first proposed a topic, if it is on the floor.
@@ -1421,4 +1624,26 @@ impl crate::run::Participant for SimAgent {
     fn cost_unit(&self) -> u32 {
         self.cost_unit
     }
+}
+
+/// The topic one check names, if it names one.
+fn parse_topic(body: &str) -> Option<TopicId> {
+    let word = body.split_whitespace().find(|word| word.starts_with('#'))?;
+    Some(TopicId::from(word.trim_start_matches('#')))
+}
+
+/// The topic and reading one answered check carries, if it is an answer.
+///
+/// A question carries no number and parses to `None`, which is exactly how the
+/// two halves of an exchange are told apart.
+fn parse_reading(body: &str) -> Option<(TopicId, i32)> {
+    let topic = parse_topic(body)?;
+    let mut words = body.split_whitespace();
+    while let Some(word) = words.next() {
+        if word == ASIDE_READS {
+            let reading = words.next()?.trim_end_matches('.').parse().ok()?;
+            return Some((topic, reading));
+        }
+    }
+    None
 }
