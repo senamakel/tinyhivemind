@@ -16,7 +16,7 @@
 
 ## Architecture overview
 
-```
+```text
 Grok Bot agent (host app)
       │  modelId + parameters (thinking/effort/fast) from model-bindings.json
       ▼
@@ -99,7 +99,7 @@ but two duck-typed contracts are documented and enforced by usage:
 inferred from every `apply<Provider>` function, e.g.
 `tools/provider-maps.cjs:57` `applyGrok(body, maxMode, parameters)`:
 
-```
+```text
 apply<Provider>(body: object, maxMode: boolean, parameters: Array<{id,value}>) -> void | string
   - mutates `body` in place (the outgoing JSON request body)
   - reads `parameters` via `param(parameters, id)` (tools/provider-maps.cjs:36-43)
@@ -116,7 +116,7 @@ route table almost exactly analogous to tinyhivemind's responder ladder
 **B. The `PromptExecutor`/`PromptSession` port** the host expects
 (`box/openai-hop-session.cjs:2-3`, `class HopPromptExecutor` at line 967):
 
-```
+```text
 class HopPromptExecutor {
   constructor(builder, opts: {
     baseUrl, modelId, onRequestId, agentId, provenanceAgentId,

@@ -71,7 +71,7 @@ written down once, in prose, in two places that must agree:
 sequence) and `GROK_BOT_CREWMATE.md:6-17` (the crewmate's mirror of the same
 sequence). The pipeline is linear and stage-gated:
 
-```
+```text
 intake → classify(scout|ship) → [scout: cloud agent → report, stop]
                                → [ship: cloud agent → branch
                                    → adversarial-review subagent

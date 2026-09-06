@@ -10,7 +10,7 @@
 
 Seven roles, six of them in one Grok Bot group chat ("Trading Floor"), one working by DM off the floor:
 
-```
+```text
 you
  |
  v
@@ -54,7 +54,7 @@ There is no expertise weight, no threshold, no numeric budget field anywhere in 
 
 Fixed pipeline, not a market or ad-hoc mention resolution. The routing rule is written down twice, redundantly, as prose: the stage table in `docs/ARCHITECTURE.md:28-36` and the authoritative version in `skills/desk-trade-lifecycle/SKILL.md:11-16`, which names an explicit owner per stage:
 
-```
+```text
 idea -> evidence -> risk sign-off -> user approval -> execution -> reconciliation -> review
  DL       MA/RA        RM              user            ET            ET               TR
 ```

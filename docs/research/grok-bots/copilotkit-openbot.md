@@ -78,7 +78,7 @@ enumerate the roster by reading which refusal came back.
 **Active/inactive** is a fold, not a flag. Three pure predicates in
 `server/src/agents/profile-policy.ts:104-126`:
 
-```
+```text
 canAccessAgent(actor, agent) = deletedAt === null &&
   (visibility === "public" || ownerUserId === actor.id || actor.role === "admin")
 canManageAgent(actor, agent) = !systemOwned && deletedAt === null &&
