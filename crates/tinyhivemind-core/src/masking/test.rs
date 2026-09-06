@@ -215,3 +215,49 @@ fn a_non_breaking_space_line_is_not_a_commonmark_blank_line() {
     let body = "prose\n\u{a0}\n    !pin ^1\n";
     assert_eq!(fenced_ranges(body), Vec::new());
 }
+
+#[test]
+fn an_indented_block_opens_after_a_heading() {
+    // An indented block cannot interrupt a *paragraph*, but a heading is not
+    // one: it closes above the indented line, so the quoted directive below
+    // it is code, exactly as a renderer shows it.
+    let body = "# How to pin\n    !pin ^1\n";
+    let block = "# How to pin\n".len();
+    assert_eq!(fenced_ranges(body), vec![(block, body.len())]);
+}
+
+#[test]
+fn an_indented_block_opens_after_a_thematic_break_or_a_setext_underline() {
+    let broken = "***\n    !pin ^1\n";
+    assert_eq!(fenced_ranges(broken), vec![("***\n".len(), broken.len())]);
+
+    let underlined = "Recipes\n---\n    !pin ^1\n";
+    assert_eq!(
+        fenced_ranges(underlined),
+        vec![("Recipes\n---\n".len(), underlined.len())]
+    );
+}
+
+#[test]
+fn an_indented_block_opens_after_a_fenced_block() {
+    // A fenced block is not a paragraph either, so the indented line after
+    // its closing fence opens a block of its own rather than staying live.
+    let body = "```\nx\n```\n    !pin ^1\n";
+    let after_fence = "```\nx\n```\n".len();
+    assert_eq!(
+        fenced_ranges(body),
+        vec![(0, after_fence), (after_fence, body.len())]
+    );
+}
+
+#[test]
+fn a_line_that_only_looks_like_a_heading_or_a_break_leaves_the_paragraph_open() {
+    // `#hashtag` has no space after its hashes, `===` with nothing above it
+    // underlines nothing, `**` is one marker short of a thematic break, and
+    // a list marker is not a break at all. Each following indented line is
+    // lazy continuation of a live paragraph, so nothing here is masked.
+    assert_eq!(fenced_ranges("#hashtag\n    @alice\n"), Vec::new());
+    assert_eq!(fenced_ranges("===\n    @alice\n"), Vec::new());
+    assert_eq!(fenced_ranges("**\n    @alice\n"), Vec::new());
+    assert_eq!(fenced_ranges("- item\n    @alice\n"), Vec::new());
+}
