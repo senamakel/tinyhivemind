@@ -390,9 +390,8 @@ fn pins_runtime_outcome_wire_forms() {
     );
 }
 
-/// What [ADR 0009] requires of one refusal's rendered sentence.
-///
-/// [ADR 0009]: ../../../../docs/adr/0009-a-refusal-renders-what-the-caller-already-holds.md
+/// What `docs/adr/0009-a-refusal-renders-what-the-caller-already-holds.md`
+/// requires of one refusal's rendered sentence.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Rendering {
     /// The refusal turns on a named other, so it renders the shared sentence.

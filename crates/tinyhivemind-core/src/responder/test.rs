@@ -751,9 +751,8 @@ where
     }
 }
 
-/// What [ADR 0009] requires of one outcome's rendered sentence.
-///
-/// [ADR 0009]: ../../../../docs/adr/0009-a-refusal-renders-what-the-caller-already-holds.md
+/// What `docs/adr/0009-a-refusal-renders-what-the-caller-already-holds.md`
+/// requires of one outcome's rendered sentence.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Rendering {
     /// The outcome turns on a named other, so it shares one sentence with

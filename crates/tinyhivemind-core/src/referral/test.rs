@@ -563,9 +563,8 @@ fn a_tombstoned_target_is_refused_as_plainly_inactive() {
     );
 }
 
-/// What [ADR 0009] requires of one reason's rendered sentence.
-///
-/// [ADR 0009]: ../../../../docs/adr/0009-a-refusal-renders-what-the-caller-already-holds.md
+/// What `docs/adr/0009-a-refusal-renders-what-the-caller-already-holds.md`
+/// requires of one reason's rendered sentence.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Rendering {
     /// The reason turns on a named other, so it renders the shared sentence.

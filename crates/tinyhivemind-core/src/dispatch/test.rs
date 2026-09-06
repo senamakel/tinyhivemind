@@ -446,9 +446,8 @@ fn a_tombstoned_source_cannot_start_a_child_turn() {
     );
 }
 
-/// What [ADR 0009] requires of one reason's rendered sentence.
-///
-/// [ADR 0009]: ../../../../docs/adr/0009-a-refusal-renders-what-the-caller-already-holds.md
+/// What `docs/adr/0009-a-refusal-renders-what-the-caller-already-holds.md`
+/// requires of one reason's rendered sentence.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Rendering {
     /// The reason turns on a named other, so it renders the shared sentence.
