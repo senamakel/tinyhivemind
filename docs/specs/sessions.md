@@ -77,12 +77,62 @@ context only and never fan out. `initialize_session` returns the briefing and
 projected history as separate values; the briefing is never stored, sequenced,
 or counted against the history window.
 
+### Why there is no transcript-repair fold
+
+A stored transcript is not automatically a valid prompt. CopilotKit's OpenBot
+learned this in production: an interrupted turn left a message referencing a
+tool call whose result never landed, the pairing the provider requires dangled,
+and because the log is append-only *every later turn in that thread* failed —
+permanent damage grown out of a transient fault. Its answer,
+`sanitizeSeededHistory`, is a read-side repair fold: drop the dangling halves,
+never rewrite an id, return an unchanged message identically. See
+[`../research/grok-bots/copilotkit-openbot.md`](../research/grok-bots/copilotkit-openbot.md).
+
+**Our shape cannot sustain that damage, and this specification deliberately
+adds no repair step for it.** A `SessionMessage` is a sequence, an author, and
+untouched content. Nothing in it names another message, so there is no pairing
+for a projection to cut in half and no reference that can dangle: every
+projected message is independently a valid prompt entry, whatever else was
+dropped around it. Inventing a damage model to repair would mean inventing the
+tool-call structure we do not carry.
+
+The two references the runtime *does* carry are already resolved on the read
+path, which is the same insight arriving in a smaller form:
+
+- `LogMessage::parent` is structural, and it is the one thing that could
+  dangle. `narrow_to_roots_and_first_replies` drops a reply whose root fell
+  outside the scan rather than flattening it into the channel, so an answer is
+  never presented as a statement whose question the reader never saw
+  (`channel_projection_drops_a_reply_whose_root_is_outside_the_scan`).
+- `!pin ^N` and a hive `^cite` name a sequence *inside content*. Both resolve
+  best-effort — a pin outside the scan keeps its sequence and reports no
+  excerpt — and neither can invalidate the message carrying it.
+
+Repair is therefore already fused into the projection rather than bolted beside
+it, and the properties OpenBot's fold had to be careful to preserve are ours by
+construction: sequences and attribution are never rewritten, content bytes are
+returned unchanged, and a message needing nothing is returned identically
+(`skips_trim_empty_content_but_preserves_other_bytes_and_author`). The
+projection also never writes, so nothing here can repair the host's log even in
+principle.
+
+This finding is conditional on the shape, and it is worth restating when the
+shape changes. If `SessionMessage` ever grows a field that names another
+message — a tool-call id, a structured citation, an edit or redaction pointer —
+then the pairing OpenBot lost becomes representable here, and a read-side
+repair fold belongs in this module, written to OpenBot's rules: an ordered rule
+list, ids never rewritten, unchanged messages returned as they were, and the
+host's log never touched.
+
 ## Invariants and constraints
 
 - The host owns every durable row and cursor.
 - The runtime owns no database, file, socket, transport, or model client.
 - The core crate remains synchronous and runtime-free.
 - One source row produces at most one attributed session message.
+- No projected message names another message, so a projection cannot leave a
+  dangling reference and needs no repair pass. A reply whose root fell outside
+  the scan is dropped rather than flattened.
 - Page validation prevents non-advancing walks and duplicate output.
 - Briefing order is deterministic and follows effective desk or roster order.
 
