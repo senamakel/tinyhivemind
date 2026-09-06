@@ -1,11 +1,10 @@
 //! Which byte ranges of a message body are code, and so carry no grammar.
 //!
-//! Every authored grammar in this workspace — the mention grammar here, the
-//! stigmergic trace grammar in `tinyhivemind-hive`, the pin directives in
-//! `tinyhivemind` — reads the *same* message body. If each carried its own
-//! scanner they could disagree about which span of a body is code, and a
-//! marker one grammar treats as quoted documentation the next would treat as
-//! a live instruction. This module is the single scanner they share.
+//! The mention grammar here and the stigmergic trace grammar in
+//! `tinyhivemind-hive` read the *same* message body. While each carried its
+//! own scanner they could disagree about which span of that body is code, and
+//! a marker one grammar read as quoted documentation the other read as a live
+//! instruction. This module is the one scanner they share.
 //!
 //! # Two levels of masking, and why
 //!
