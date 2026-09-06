@@ -68,11 +68,11 @@ surfaces per agent, and reassembled on demand.
 The closest thing to a schema is `AgentMetadata`
 (`source/packages/agent-kv/agent-store.ts:40`), zod-validated at line 76 and
 stored hex-encoded under the key `"metadata"` in the agent's SQLite `kv` table:
-`agentId`, `latestRootBlobId`, `name`, `mode` (`"default"|"plan"|"debug"|"search"`),
-`isRunEverything`, `approvalMode` (`"allowlist"|"unrestricted"|"auto-review"`),
-`createdAt`, `lastUsedModel`, `lastDebugServerPort`, `currentPlanUri`,
-`subagentInfo` (`parentAgentId`, `rootParentAgentId`, `toolCallId`, `typeName`),
-`blobEncryptionKey`.
+`agentId`, `latestRootBlobId`, `name`, `mode`
+(`"default"|"plan"|"debug"|"search"`), `isRunEverything`, `approvalMode`
+(`"allowlist"|"unrestricted"|"auto-review"`), `createdAt`, `lastUsedModel`,
+`currentPlanUri`, `subagentInfo` (`parentAgentId`, `rootParentAgentId`,
+`toolCallId`, `typeName`), `blobEncryptionKey`.
 
 Alongside it, in the same directory: `profile.json` (`SandAgentProfile` —
 `name`, `description`, `title`, `avatarShape`, `avatarColor`;
@@ -100,14 +100,13 @@ around it is stateful: `RosterProjection`
 (`transcript/roster-projection.ts:25`) is an `EventEmitter` with six mutable
 maps and a debounced flush, despite the name.
 
-Human versus agent is only discriminated in two places, and only for group
-contexts. `GroupMessage.speaker` is a tagged union of
-`{kind:"user", name?}` and `{kind:"member", id, name}`
-(`source/host/groups/group-chat.ts:2`). Cross-user rooms are explicit:
-`RemoteRoomMember = {kind: "agent" | "human", authId, agentId, displayName,
-avatarUrl?}` (`source/host/groups/remote-room-store.ts:1`). A local group is
+Human versus agent is discriminated in only two places, both group-scoped.
+`GroupMessage.speaker` is a tagged union of `{kind:"user", name?}` and
+`{kind:"member", id, name}` (`source/host/groups/group-chat.ts:2`). Cross-user
+rooms are explicit: `RemoteRoomMember = {kind: "agent" | "human", authId,
+agentId, displayName, avatarUrl?}` (`remote-room-store.ts:1`). A local group is
 agents-only — `SandGroupConfig` is `{version, memberIds[], remoteMembers?,
-sharedRoomId?}` (`group-store.ts:1`) — with the human implicit as the sender.
+sharedRoomId?}` (`group-store.ts:1`) — the human implicit as sender.
 
 Per-agent capability configuration barely exists. The model is a **global**
 setting (`SandStoredSettings.agentDefaultModel`,
@@ -378,11 +377,7 @@ Widening the standing permission to `"always"` records `alwaysGrantedAtEpoch`
 per agent so a tool call minted *before* the grant does not silently benefit
 from it (`predatesStandingGrant`, line 65; `noteStandingPermission`, line 67).
 Memory is explicitly bounded — 64 settled ids, 512 refused actions per agent,
-256 forgotten agents, a 10,000-character target cap (lines 13-17). Resolution
-from the UI goes through `resolveLocalToolPermissionAsk`
-(`local-tool-permission-resolution.ts:9`), which validates the resolution
-string, refuses a mismatched agent, and settles a stale card rather than
-throwing.
+256 forgotten agents, a 10,000-character target cap (lines 13-17).
 
 **Model B — auto-review.** `SandAutoReviewController`
 (`source/host/runner/sand-auto-review.ts:108`) is a per-agent queue of pending
@@ -402,11 +397,11 @@ and it is the gate MCP calls pass through in `enforce` mode.
 `{nowMs, lastViewedAtMs, unreadCount, firesSinceViewedCount, nudgedAtMs,
 snoozedUntilMs, optedOut}` to one of seven verdicts (`opted-out`, `user-active`,
 `snoozed`, `pause`, `awaiting-ack`, `nudge`, `below-thresholds`) against fixed
-thresholds: idle for 3 days, 15 unread, 20 automation fires since last viewed, a
+thresholds: 3 days idle, 15 unread, 20 automation fires since last viewed, a
 3-day pause delay, a 30-day snooze (lines 2-6). The impure half
-(`automation-spend-guard-runtime.ts:82`) reads the unread state, posts a card,
-and disables automations. Despite the name it measures runs-while-unread, not
-money — a response-threshold rule with the decision already lifted out of IO.
+(`automation-spend-guard-runtime.ts:82`) reads state, posts a card and disables
+automations. Despite the name it measures runs-while-unread, not money — a
+response-threshold rule with the decision already lifted out of IO.
 
 ### Tools and MCP
 
@@ -423,13 +418,12 @@ grouping appears host-side in `createSandMcpStateExecutor`
 by `providerIdentifier` into `McpStateServer` protobufs.
 
 Execution never happens in-process: it goes through `mcpExecutorResource`
-(`packages/agent-exec/mcp.ts:149`), a serialised RPC resource that can point at
-the host or at the box daemon, so `call_mcp_tool` dispatches transparently to a
-host-local or box-resident server (`host/extensions/mcp/box-mcp-exec.ts`).
-For the added router, Claude Code gets a real local HTTP MCP bridge
-(`node-agent-coordinator/routed-mcp-bridge.ts:39`) while Codex and OpenRouter
-get a direct tool-calling loop (`provider-session.ts:153`, `230`) proxying back
-to the same dispatch — two mechanisms over one inventory.
+(`packages/agent-exec/mcp.ts:149`), a serialised RPC resource pointing at either
+the host or the box daemon, so `call_mcp_tool` dispatches transparently to a
+host-local or box-resident server. For the added router, Claude Code gets a real
+local HTTP MCP bridge (`node-agent-coordinator/routed-mcp-bridge.ts:39`) while
+Codex and OpenRouter get a direct tool-calling loop (`provider-session.ts:153`,
+`230`) proxying back to the same dispatch — two mechanisms, one inventory.
 
 ### Sandboxing
 
@@ -451,14 +445,13 @@ health-checked before the coordinator connects.
 
 A *second*, unrelated sandbox covers commands the host runs on the user's own
 machine: `spawnInSandbox` (`packages/shell-exec/sandbox/sandbox.ts:10`) wraps
-the spawn in a macOS Seatbelt profile (`sandbox/macos/seatbelt.ts`) with
-filesystem allow/deny lists and a network deny list from
-`sandbox/hardcoded-policy.ts`, unless the policy is `"insecure_none"`.
-Host-side path checks go through `assertPathOutsideProtectedRoots`
-(`host/box/protected-path-guard.ts`), which tests a candidate both as resolved
-and as `realpath`, so a symlink cannot escape. Agent state is isolated further
-in worker processes (`host/agent-isolation/`), each agent owning its own
-`conversation-blobs.db`.
+the spawn in a macOS Seatbelt profile with filesystem allow/deny lists and a
+network deny list (`sandbox/hardcoded-policy.ts`), unless the policy is
+`"insecure_none"`. Host-side path checks go through
+`assertPathOutsideProtectedRoots` (`host/box/protected-path-guard.ts`), which
+tests a candidate both as resolved and as `realpath`, so a symlink cannot
+escape. Agent state is isolated further in worker processes
+(`host/agent-isolation/`), each agent owning its own `conversation-blobs.db`.
 
 ## Usage and cost tracking
 
@@ -505,10 +498,9 @@ Ordered by how directly it maps onto `tinyhivemind`:
    (`internal/host-extensions.ts:57,113`) — topological sort with named errors.
 9. `parseCoordinatorFrame` (`shared/rpc/coordinator-port.ts:35`) — a
    non-throwing frame parser returning accept/reject.
-10. `upsertAgentSummary` (`shared/agents/agent-summaries.ts:13`),
-    `getLastEntryFromTranscript` / `collectLastAttachmentBatchKinds`
-    (`session/session-projection.ts:10,14`), the paging folds in
-    `agent-db-transcript-pages.ts`, `estimateTokenCount`
+10. Smaller ones: `upsertAgentSummary` (`shared/agents/agent-summaries.ts:13`),
+    `getLastEntryFromTranscript` (`session/session-projection.ts:14`), the
+    paging folds in `agent-db-transcript-pages.ts`, `estimateTokenCount`
     (`agent-summarization/token-estimate.ts:67`), and
     `single-message-loop-detector.ts` (config injected as thunks).
 
