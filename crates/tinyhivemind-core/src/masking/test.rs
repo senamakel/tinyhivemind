@@ -167,6 +167,9 @@ fn an_inline_opener_does_not_pair_across_a_blank_line() {
     // it — pairing across the gap would swallow every mention between them.
     let body = "costs 5` a seat\n\nheads up @alice\n\nand a ` tick";
     assert_eq!(code_ranges(body), Vec::new());
+    // The same, with nothing but the ticks: two unmatched literal ticks in
+    // two paragraphs, not one span across the gap.
+    assert_eq!(code_ranges("`\n\n@alice `"), Vec::new());
 }
 
 #[test]
@@ -195,15 +198,6 @@ fn a_backslash_does_not_escape_a_closing_backtick() {
     // span holding `a\`, so the text after it — including the mention — is
     // live.
     assert_eq!(code_ranges(r"`a\`b` @alice"), vec![(0, 4)]);
-}
-
-#[test]
-fn an_inline_opener_does_not_pair_across_a_blank_line() {
-    // A blank line ends a paragraph, so a stray backtick before one and
-    // another after it are two unmatched, literal ticks in separate
-    // paragraphs, not one span spanning both — `@alice` stays live.
-    let body = "`\n\n@alice `";
-    assert_eq!(code_ranges(body), Vec::new());
 }
 
 #[test]
