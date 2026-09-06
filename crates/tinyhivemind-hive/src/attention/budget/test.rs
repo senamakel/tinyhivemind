@@ -78,3 +78,20 @@ fn drops_a_source_cut_below_the_useful_floor_and_marks_what_it_omitted() {
     assert_eq!(shares[0].omitted, 1_000);
     assert_eq!(shares[1].verdict, BudgetVerdict::Whole);
 }
+
+#[test]
+fn the_greediest_claim_yields_first_and_frees_its_share_for_the_rest() {
+    let requests = [
+        BudgetRequest::new("digest", 1_000),
+        BudgetRequest::new("threads", 600),
+        BudgetRequest::new("pins", 300),
+    ];
+    let shares = allocate_chars(&requests, &tight(500, 200));
+    assert_eq!(
+        granted(&shares),
+        [("digest", 0), ("threads", 250), ("pins", 250)]
+    );
+    assert_eq!(shares[0].verdict, BudgetVerdict::Dropped);
+    assert_eq!(shares[1].verdict, BudgetVerdict::Truncated);
+    assert_eq!(shares[2].verdict, BudgetVerdict::Truncated);
+}
