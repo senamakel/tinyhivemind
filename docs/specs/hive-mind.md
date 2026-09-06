@@ -45,7 +45,7 @@ Coordination is stigmergic: a message deposits a typed trace, and the traces are
 the stimulus for the next turn. No agent addresses another.
 
 ```rust
-pub enum TraceKind { Propose, Support, Object, Evidence, Question, Commit }
+pub enum TraceKind { Propose, Support, Object, Refute, Evidence, Question, Commit, Defer }
 pub struct TopicId(String);
 
 pub struct Trace {
@@ -64,13 +64,30 @@ pub struct Trace {
 rather than a flag so that a decision can be audited back to the messages that
 carried it, the way a reflection in a memory stream cites its source nodes.
 
-`resolve(body, supplied, author, sequence)` mirrors `mention::resolve` exactly:
-either extract traces from authored text, or revalidate an authoritative
-supplied list. Authored spans and UTF-8 byte offsets are preserved, inline and
-fenced code spans are masked, and the grammar is line-leading markers —
-`!propose #id`, `!support #id`, `!object`, `!evidence`, `!question`, `!commit` —
-with an optional trailing `^123` citing a sequence. A body with no marker yields
-no trace; ordinary conversation is not silently coerced into a vote.
+`resolve(body, supplied, author, sequence)` either extracts traces from
+authored text or, given a supplied list, *selects* from what extraction finds.
+The supplied mode is deliberately **narrower** than `mention::resolve`: a
+supplied mention is authoritative about existence and is revalidated against
+live snapshots, whereas parsing a trace is fully determined by the body, so a
+supplied entry can only name which extracted trace to keep, by
+`(offset, kind)`. Anything else it claims — a different topic, target, citation
+or text — is discarded in favour of what the body says, and a repeated offset
+is rejected rather than selecting the same trace twice.
+
+Authored spans and UTF-8 byte offsets are preserved. **Fenced** code blocks are
+masked; inline backticks are not, and need no masking, because a marker
+preceded by a backtick is by definition not line leading. The grammar is
+line-leading markers of the eight kinds above, qualified by `#topic`, `>target`
+and `^cite`. Qualifiers are read wherever they appear after the kind rather
+than in a fixed order, and `^cite` may repeat, so a trace carries a list of
+grounds. `!refute` requires both a `#topic` and a `^cite`, and `!defer`
+requires a `#topic`; either yields no trace at all without them. A body with no
+marker yields no trace; ordinary conversation is not silently coerced into a
+vote.
+
+The full productions, the lexical rules, and the worked-examples table are in
+[`grammar-traces.md`](grammar-traces.md); this specification does not restate
+them.
 
 `read(messages)` folds a projected transcript into traces in sequence order.
 
