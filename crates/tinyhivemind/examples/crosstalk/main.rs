@@ -523,26 +523,10 @@ async fn run_chain(
             &line,
             audience.clone(),
         );
-        let outcome = dispatch_mention(
-            queue,
-            MentionDispatchPolicy {
-                enabled: true,
-                max_hops: options.hops,
-            },
-            &MentionDispatchInput {
-                key: DispatchKey {
-                    trigger_sequence: sequence.0,
-                },
-                conversation: DispatchConversation::from(floor),
-                author_id: seat.id.clone(),
-                content: line.clone(),
-                mentions,
-                hop,
-            },
-            roster,
+        let outcome = hand_off(
+            options, queue, roster, floor, &seat.id, &line, mentions, sequence, hop,
         )
-        .await
-        .map_err(|error| format!("dispatch failed: {error}"))?;
+        .await?;
 
         turns.push(Turn {
             sequence,
@@ -569,6 +553,45 @@ async fn run_chain(
         carried = Some((enqueued.request.source_id, enqueued.request.content));
     }
     Ok((turns, refusals))
+}
+
+/// Offer this committed reply to the mention-dispatch edge.
+///
+/// One call, one decision, at most one child turn. The policy is the host's
+/// and is passed explicitly on every call: the library adds no default and no
+/// smaller ceiling of its own.
+#[allow(clippy::too_many_arguments)]
+async fn hand_off(
+    options: &Options,
+    queue: &Queue,
+    roster: &tinyhivemind_core::roster::Roster<'_>,
+    floor: &Conversation,
+    author_id: &str,
+    line: &str,
+    mentions: Vec<tinyhivemind_core::mention::Mention>,
+    sequence: Sequence,
+    hop: u32,
+) -> Result<MentionDispatchOutcome, String> {
+    dispatch_mention(
+        queue,
+        MentionDispatchPolicy {
+            enabled: true,
+            max_hops: options.hops,
+        },
+        &MentionDispatchInput {
+            key: DispatchKey {
+                trigger_sequence: sequence.0,
+            },
+            conversation: DispatchConversation::from(floor),
+            author_id: author_id.to_owned(),
+            content: line.to_owned(),
+            mentions,
+            hop,
+        },
+        roster,
+    )
+    .await
+    .map_err(|error| format!("dispatch failed: {error}"))
 }
 
 /// Decide who one authored line is addressed to.
