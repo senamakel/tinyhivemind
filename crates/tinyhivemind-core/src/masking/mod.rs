@@ -45,6 +45,25 @@
 //!   indented continuation line right after live text stays live rather than
 //!   being read as a new block.
 //!
+//! # Inline span rules
+//!
+//! [`code_ranges`] adds `CommonMark`'s [code spans][span-spec] to that:
+//!
+//! - a span opens on a run of backticks and closes on the next run of
+//!   *exactly* the same length, so `` ``a`b`` `` is one span rather than two;
+//! - a backslash escapes the backtick after it, so `` \` `` opens nothing —
+//!   but a backslash inside an open span is content, and does not stop the
+//!   span closing on the backtick it precedes;
+//! - a span is inline content of one block, so pairing stops at the boundary
+//!   the opener's paragraph ends on: a blank line, a fenced or indented code
+//!   block, an ATX heading, a thematic break, or a setext underline. Without
+//!   that stop, one stray backtick early in a message and another far below
+//!   it would silence every mention in between.
+//!
+//! Block boundaries a container introduces — a list item or a blockquote
+//! interrupting a paragraph — are not recognised, for the same reason the
+//! indented-block rule ignores containers.
+//!
 //! The indented-block rule measures from the message's left margin, not from
 //! inside a list or blockquote container the way a full `CommonMark` parser
 //! would, so a body that nests one inside a list can, in principle, be masked
@@ -53,6 +72,7 @@
 //! why that trade is made rather than growing this into a block-level parser.
 //!
 //! [spec]: https://spec.commonmark.org/current/#fenced-code-blocks
+//! [span-spec]: https://spec.commonmark.org/current/#code-spans
 //! [indented-spec]: https://spec.commonmark.org/current/#indented-code-blocks
 
 #[cfg(test)]
