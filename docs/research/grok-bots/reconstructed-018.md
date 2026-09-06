@@ -42,13 +42,12 @@ turns, groups, tools, permissions. The coordinator's control channel
 
 The host is assembled from 35 named extensions
 (`source/host/extensions/extension-ids.generated.ts:1`) started through a tiny
-DI graph in `source/internal/host-extensions.ts`. `defineHostExtension`
-(line 16) takes `{id, dependencies, start}`; `resolveHostExtensionBootOrder`
-(line 57) is a **pure topological sort** raising named errors for a duplicate
-id, a self-dependency, a missing peer and a cycle (path rendered by
-`describeCycle`, line 113). `startHostExtensions` (line 84) is the impure half:
-it walks that order, injects peers' APIs, and unwinds teardowns in reverse on
-failure. The pure/impure split here is the one `tinyhivemind` makes.
+DI graph in `source/internal/host-extensions.ts`. `defineHostExtension` (line 16)
+takes `{id, dependencies, start}`; `resolveHostExtensionBootOrder` (line 57) is
+a **pure topological sort** raising named errors for a duplicate id, a
+self-dependency, a missing peer and a cycle. `startHostExtensions` (line 84) is
+the impure half: it walks that order, injects peers' APIs, and unwinds teardowns
+in reverse on failure — the pure/impure split `tinyhivemind` makes.
 
 The renderer reaches the host over a flat command table:
 `SAND_GATEWAY_COMMANDS` (`source/host/gateway-protocol.ts`) maps **122** string
@@ -350,7 +349,7 @@ bounded: 64 settled ids, 512 refused actions per agent, 256 forgotten agents.
 (`source/host/runner/sand-auto-review.ts:108`) is a per-agent queue of pending
 approvals, each with an `expiresAtMs`, a `userMessageEpoch` and a
 `hostGeneration` fence. `requestApproval` returns a promise settled by
-`resolveApproval` (line 138), by expiry, by cancellation, or by supersession —
+`resolveApproval` (line 138), expiry, cancellation, or supersession —
 `beginUserMessageEpoch()` expires every pending approval when the user
 redirects. Modes resolve per surface (`hostShell`, `boxShell`, `mcp`, `computer`,
 `cloudAgent`, `subagentLaunch`) to `off`/`shadow`/`enforce` (line 12), and
@@ -398,9 +397,9 @@ The isolation boundary is process/container plus an authenticated network hop
 `host/box/loopback-sand-box.ts:20`), not a permission check. Three connectors implement the same `SandRemoteHostConnector` interface
 (`electron-main/box/box-host-connector.ts:38`) and are interchangeable to the
 host: loopback (host inside the same container, port 1337), brokered/remote
-(`GrokBotService.ensureSandBox` returns a gateway URL and token, with backoff on
+(`GrokBotService.ensureSandBox` returns a gateway URL and token, backoff on
 `SAND_BOX_BLOCKED`), and local Docker (`local-docker-host-connector.ts`) —
-`docker run` of a pinned public image as `grok-bot-local-vm`, gateway on
+`docker run` of a pinned image as `grok-bot-local-vm`, gateway on
 `127.0.0.1:1340`, a locally generated bearer token, read-only credential mounts,
 health-checked before the coordinator connects.
 
