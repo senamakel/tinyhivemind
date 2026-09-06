@@ -240,8 +240,16 @@ pub async fn initialize_session_with_context(
     notes: Vec<BriefingNote>,
 ) -> Result<SessionInitialization> {
     let history = project_session(log, query).await?;
-    let threads = read_thread_index(log, &query.conversation, THREAD_INDEX_LIMIT).await?;
-    let pins = read_pinboard(log, &query.conversation, PIN_LIMIT, query.before).await?;
+    let threads =
+        read_thread_index(log, &query.conversation, &query.viewer, THREAD_INDEX_LIMIT).await?;
+    let pins = read_pinboard(
+        log,
+        &query.conversation,
+        &query.viewer,
+        PIN_LIMIT,
+        query.before,
+    )
+    .await?;
     briefing.brevity.window = query.window;
     Ok(SessionInitialization {
         briefing,

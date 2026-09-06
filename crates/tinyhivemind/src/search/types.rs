@@ -61,6 +61,12 @@ pub struct SearchQuery {
     /// projection is bounded so a turn stays readable, and the search exists
     /// precisely to reach the reply buried three deep in an old thread.
     pub scope: Option<Conversation>,
+    /// Who the search is being run for.
+    ///
+    /// A whole-log search with no scope reads every desk in the log and
+    /// returns verbatim excerpts, so this is the widest reach any read path
+    /// has and the one an audience has to be checked on first.
+    pub viewer: Viewer,
     /// Keep only rows written by this agent or person id, when set.
     pub author_id: Option<String>,
     /// Exclusive upper sequence bound, often the triggering message.
