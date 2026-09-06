@@ -86,9 +86,8 @@ pub fn approve(
 ) -> ApprovalDecision
 ```
 
-`refusals` is the host's snapshot of this epoch's remembered refusals, read the
-same way `grants` is: the caller already holds it, and the pure fold cannot
-enforce step 6 of [Evaluation order](#evaluation-order) without it.
+`refusals` is the caller-held snapshot of this epoch's remembered refusals,
+read the same way `grants` is — required to enforce step 6 below.
 
 It returns `ApprovalDecision`, not `Result<ApprovalDecision>`. That is a
 deliberate departure from this crate's rule that fallible public functions
