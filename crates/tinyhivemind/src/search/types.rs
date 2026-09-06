@@ -78,11 +78,17 @@ pub struct SearchQuery {
 
 impl SearchQuery {
     /// A whole-log search for a picker query, with the default limit.
+    ///
+    /// The viewer is a constructor argument rather than a builder step with a
+    /// default, because every default would be a fail-open one: a search
+    /// assembled without saying who is searching is a search over every desk
+    /// in the log with no audience check.
     #[must_use]
-    pub fn new(query: &str) -> Self {
+    pub fn new(query: &str, viewer: Viewer) -> Self {
         Self {
             pattern: SearchPattern::parse(query),
             scope: None,
+            viewer,
             author_id: None,
             before: None,
             limit: super::SEARCH_LIMIT,
