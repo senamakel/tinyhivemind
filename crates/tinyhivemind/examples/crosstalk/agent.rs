@@ -150,8 +150,9 @@ impl Seat {
         visible: &[SessionMessage],
         peers: &[&str],
         ask: &Ask<'_>,
+        asides: bool,
     ) -> Result<String, String> {
-        let system = self.system_prompt(peers);
+        let system = self.system_prompt(peers, asides);
         let user = user_prompt(visible, ask);
         let reply = match &self.backend {
             Backend::Http {
@@ -166,7 +167,7 @@ impl Seat {
         Ok(first_line(&reply))
     }
 
-    fn system_prompt(&self, peers: &[&str]) -> String {
+    fn system_prompt(&self, peers: &[&str], asides: bool) -> String {
         let roster = if peers.is_empty() {
             "You are the only agent on this desk.".to_owned()
         } else {
@@ -208,20 +209,27 @@ conversation stops there. If you have the answer yourself, write it and \
 mention nobody — that also ends the chain, which is correct when the work is \
 done.";
 
+/// What a seat is told about speaking to fewer than the whole desk.
+///
+/// Taught only under `--aside`. A grammar is a fixed cost paid in every
+/// prompt on every turn, so teaching a move nobody may make spends that budget
+/// for nothing — the same rule the library applies to its own briefing.
+const ASIDE_RULES: &str = "\n\nYou may also say something to ONE named peer \
+alone, which the rest of the desk cannot read. Begin the line with `!aside \
+@peer` and then what you need from them. They will see it in full; everybody \
+else sees only that it happened, who wrote it and to whom. It counts for \
+nothing until you say the outcome in the open, so when you are done, write an \
+ordinary line to the desk with what the room needs to know. Rows marked as an \
+aside you cannot read are not missing — a peer knows something you do not, and \
+you may ask them for it here in the desk.";
+
 fn user_prompt(visible: &[SessionMessage], ask: &Ask<'_>) -> String {
     let transcript = if visible.is_empty() {
         "(nothing yet)".to_owned()
     } else {
         visible
             .iter()
-            .map(|message| {
-                format!(
-                    "[{}] {}: {}",
-                    message.sequence,
-                    author_label(&message.author),
-                    message.content,
-                )
-            })
+            .map(render)
             .collect::<Vec<_>>()
             .join("\n")
     };
@@ -232,6 +240,34 @@ fn user_prompt(visible: &[SessionMessage], ask: &Ask<'_>) -> String {
              @{from} addressed you directly with: {content}\n\nYour turn."
         ),
     }
+}
+
+/// One projected row as a seat reads it.
+///
+/// An elided row is rendered as what it is — a stub naming its author, its
+/// addressees, its extent, and where it settled — rather than being dropped.
+/// Dropping it would take from the reader both the citation and the one signal
+/// that a peer knows something it does not.
+fn render(message: &SessionMessage) -> String {
+    let author = author_label(&message.author);
+    let Some(elision) = &message.elided else {
+        return format!("[{}] {author}: {}", message.sequence, message.content);
+    };
+    let to = message
+        .audience
+        .members()
+        .iter()
+        .map(|member| format!("@{member}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let settled = elision.settled_at.map_or_else(
+        || "not settled yet — ask them here if it matters".to_owned(),
+        |sequence| format!("settled at [{sequence}]"),
+    );
+    format!(
+        "[{}-{}] {author} → {to} · aside, {} message(s), {settled}",
+        message.sequence, elision.through, elision.messages,
+    )
 }
 
 /// The label a transcript line is attributed to.
