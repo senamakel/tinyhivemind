@@ -825,6 +825,30 @@ async fn run(options: &Options) -> Result<Report, String> {
 
 impl Report {
     /// Print the run and its claims. Returns whether any claim failed.
+    /// The turn-by-turn record: who spoke, what they were shown, what followed.
+    fn print_transcript(&self) {
+        for turn in &self.turns {
+            let scope = turn
+                .thread_root
+                .map_or_else(|| "channel".to_owned(), |root| format!("thread@{root}"));
+            let addressed = if turn.audience.is_desk() {
+                String::new()
+            } else {
+                format!(" → aside with @{}", turn.audience.members().join(", @"))
+            };
+            println!(
+                "[{}] hop {} @{} ({scope}){addressed}\n     saw: {}\n     said: {}\n     then: {}",
+                turn.sequence,
+                turn.hop,
+                turn.speaker,
+                turn.saw.join(", "),
+                turn.content,
+                describe(&turn.outcome),
+            );
+        }
+        println!();
+    }
+
     fn print(&self) -> bool {
         println!("backend      {}", self.backend);
         println!(
@@ -842,21 +866,6 @@ impl Report {
         println!();
 
         self.print_transcript();
-
-        if !self.views.is_empty() {
-                .thread_root
-                .map_or_else(|| "channel".to_owned(), |root| format!("thread@{root}"));
-            println!(
-                "[{}] hop {} @{} ({scope})\n     saw: {}\n     said: {}\n     then: {}",
-                turn.sequence,
-                turn.hop,
-                turn.speaker,
-                turn.saw.join(", "),
-                turn.content,
-                describe(&turn.outcome),
-            );
-        }
-        println!();
 
         if !self.views.is_empty() {
             println!("What each reader was handed:");
