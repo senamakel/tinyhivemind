@@ -153,17 +153,26 @@ fn backtick_or_tilde_fence_ranges(body: &str) -> Vec<(usize, usize)> {
     ranges
 }
 
-/// A maximal run of lines each indented at least four spaces: `CommonMark`'s
-/// other code block, distinct from a backtick or tilde fence.
+/// A maximal run of lines each indented at least four columns from the left
+/// margin: `CommonMark`'s other code block, distinct from a backtick or
+/// tilde fence.
 ///
 /// A blank line does not end the run — only a later non-blank, under-indented
 /// line or the end of the body does — because `CommonMark` lets an indented
-/// block continue across blank lines. This is a conservative approximation
-/// (it does not track list or blockquote context the way a full parser
-/// would), but it never under-masks a plainly indented example: a fenced pair
-/// quoted at four or more spaces of indentation is `CommonMark` code either
-/// way, so treating its content as masked is never a false positive against
-/// what a Markdown renderer would show.
+/// block continue across blank lines.
+///
+/// This deliberately does not track list or blockquote container context.
+/// `CommonMark` measures an indented block's four columns *inside* its
+/// container — a line under a `- ` list marker only needs indentation past
+/// the marker's own width, not four literal columns from the message's left
+/// margin — so a marker's author quoting an example inside a list at exactly
+/// four raw columns can, in principle, get masking a real renderer would not
+/// give it. Recognizing container context correctly needs a block-level
+/// parser this module is not; the trade this scanner makes is the same one
+/// its two-level design already commits to (see the module docs): stay a
+/// small, dependency-free heuristic over `CommonMark`'s two most common,
+/// unnested constructs rather than grow into a full parser for every corner
+/// of the specification.
 fn indented_block_ranges(body: &str) -> Vec<(usize, usize)> {
     let mut ranges = Vec::new();
     let mut open: Option<usize> = None;
