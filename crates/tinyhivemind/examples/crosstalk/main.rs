@@ -802,37 +802,11 @@ async fn run(options: &Options) -> Result<Report, String> {
         Vec::new()
     };
 
-    // What each reader is handed. This is the evidence for the whole
-    // mechanism: the same rows, the same sequences, different content.
-    let mut views = Vec::new();
-    if options.asides {
-        for id in &ids {
-            views.push((
-                format!("@{id}"),
-                render_view(
-                    &room.journal,
-                    floor.clone(),
-                    options.window,
-                    Viewer::Agent {
-                        id: (*id).to_owned(),
-                    },
-                )
-                .await?,
-            ));
-        }
-        views.push((
-            "Ada (human)".to_owned(),
-            render_view(
-                &room.journal,
-                floor.clone(),
-                options.window,
-                Viewer::Person {
-                    id: OPERATOR_ID.to_owned(),
-                },
-            )
-            .await?,
-        ));
-    }
+    let views = if options.asides {
+        every_view(&room, &floor, options.window).await?
+    } else {
+        Vec::new()
+    };
 
     Ok(Report {
         asides: options.asides,
