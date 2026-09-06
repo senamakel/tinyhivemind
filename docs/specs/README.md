@@ -59,3 +59,7 @@ See [`example-retry-policy.md`](example-retry-policy.md) for a complete sample.
   the host.
 - [`shared-medium-schema.md`](shared-medium-schema.md) — draft: what a projected
   message carries, per-conversation read state, digests, and supersession.
+- [`private-asides.md`](private-asides.md) — draft: an audience on a stored row
+  and a viewer on a query, so two agents on one desk can compare notes without
+  the desk reading them; what a non-member sees instead, and what the exchange
+  owes the room when it ends.
