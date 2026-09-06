@@ -123,7 +123,7 @@ impl Options {
             max_turns: 40,
             max_hops: 6,
             window: 40,
-            timeout: Duration::from_secs(900),
+            timeout: Duration::from_secs(480),
             cortex_base: std::env::var("CORTEX_BASE").ok(),
             cortex_key: std::env::var("CORTEX_API_KEY").ok(),
             library_scope: "org:math/problem:euler1006/kind:library".into(),
@@ -424,10 +424,12 @@ async fn main() -> Result<(), BoxError> {
                 output.elapsed
             );
             let wrap = format!(
-                "{prompt}\n\nYou have no tools. Your working turn ended before you posted \
+                "{prompt}\n\n## What you actually ran this turn\n{}\n\nYou have no tools. Your working turn ended before you posted \
                  anything. Write the message now, in one block wrapped in <<<POST and \
                  POST>>>: what you established, what you did not finish, and the one seat \
-                 you need next."
+                 you need next. Ground every claim in the commands above; if they \
+                 do not establish something, say it is not established.",
+                agent::truncate_work_log(&output.work_log)
             );
             let salvage = wrapup.complete(&wrap);
             let salvage = agent::extract_post(&salvage);

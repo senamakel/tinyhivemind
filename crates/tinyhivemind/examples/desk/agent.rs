@@ -28,6 +28,9 @@ pub(crate) struct TurnOutput {
     pub(crate) timed_out: bool,
     /// The agent CLI's own session id, so this seat can resume its own work.
     pub(crate) session: Option<String>,
+    /// What the seat actually ran and saw, so a wrap-up summarizes evidence
+    /// rather than inventing it.
+    pub(crate) work_log: String,
 }
 
 /// A configured agent CLI: one process per turn.
@@ -179,6 +182,19 @@ fn parse_events(stdout: &str) -> TurnOutput {
                 {
                     turn.tools.push(name.to_string());
                 }
+                let input = event
+                    .pointer("/part/state/input")
+                    .map(serde_json::Value::to_string)
+                    .unwrap_or_default();
+                let result = event
+                    .pointer("/part/state/output")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or_default();
+                turn.work_log.push_str("\n$ ");
+                turn.work_log.push_str(&truncate(&input, 1200));
+                turn.work_log.push_str("\n");
+                turn.work_log.push_str(&truncate(result, 1200));
+                turn.work_log.push('\n');
             }
             Some("step_finish") => {
                 if let Some(total) = event
@@ -193,6 +209,18 @@ fn parse_events(stdout: &str) -> TurnOutput {
     }
     turn.message = extract_post(&text);
     turn
+}
+
+/// Keep the head of a long string, marking what was dropped.
+fn truncate(text: &str, limit: usize) -> String {
+    let mut end = limit.min(text.len());
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    if end == text.len() {
+        return text.to_string();
+    }
+    format!("{}… [{} bytes elided]", &text[..end], text.len() - end)
 }
 
 /// Pull the room message out of a turn's raw text.
@@ -221,4 +249,17 @@ mod test {
     fn falls_back_to_the_whole_text_when_unmarked() {
         assert_eq!(extract_post("  plain answer \n"), "plain answer");
     }
+}
+
+/// Trim a turn's work log to the tail a wrap-up can actually read.
+pub(crate) fn truncate_work_log(log: &str) -> String {
+    const LIMIT: usize = 12_000;
+    if log.len() <= LIMIT {
+        return log.to_string();
+    }
+    let mut start = log.len() - LIMIT;
+    while start < log.len() && !log.is_char_boundary(start) {
+        start += 1;
+    }
+    format!("[earlier steps elided]\n{}", &log[start..])
 }
