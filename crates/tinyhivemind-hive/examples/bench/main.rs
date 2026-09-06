@@ -98,8 +98,8 @@ use crate::federation::Federation;
 use crate::http::{HttpAgent, HttpConfig, HttpDeskAgent, Thinking, Wire};
 use crate::live::{AgentPrompt, Backend, LiveAgent};
 use crate::metrics::{
-    Aggregate, arm_header, arm_row, detail_header, detail_row, json_line, paired_bootstrap,
-    paired_against, paired_diff_line, spearman_milli, wilson,
+    Aggregate, arm_header, arm_row, detail_header, detail_row, json_line, paired_against,
+    paired_bootstrap, paired_diff_line, spearman_milli, wilson,
 };
 use crate::rng::mix;
 use crate::run::{

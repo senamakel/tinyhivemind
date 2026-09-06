@@ -19,9 +19,7 @@ use tinyhivemind_hive::{
 
 use crate::metrics::spearman_milli;
 use crate::sim::{Room, SimAgent};
-use tinyhivemind_hive::aside::{
-    AsideDecision, AsideInput, AsidePolicy, Audience, aside,
-};
+use tinyhivemind_hive::aside::{AsideDecision, AsideInput, AsidePolicy, Audience, aside};
 use tinyhivemind_hive::dispatch::DispatchConversation;
 use tinyhivemind_hive::mention::{MentionAuthor, resolve as resolve_mentions};
 
