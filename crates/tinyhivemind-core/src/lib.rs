@@ -51,7 +51,8 @@
 //! - [`mention`] — authored mention parsing and pure routing choices.
 //! - [`referral`] — bounded selection of one child turn that may cross a desk,
 //!   and the one answer that comes back.
-//! - [`roster`] — borrowed agent and person identity snapshots.
+//! - [`roster`] — borrowed agent and person identity snapshots, and the
+//!   three states an agent can be in: active, retired, or tombstoned.
 //! - [`responder`] — deterministic selection of one agent for one message.
 //! - [`select`] — the one ranking used by every picker in this workspace.
 //!

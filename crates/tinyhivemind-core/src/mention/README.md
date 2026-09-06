@@ -44,6 +44,24 @@ it is not trusted as a routing bypass. Out-of-bounds, non-boundary, code-span,
 and non-mention-shaped records are dropped. Structurally sound stale or
 wrong-current-alias records remain visible as quiet context.
 
+## One refusal, so a resolver is not a roster oracle
+
+An agent that never existed, one that has been retired, one that has been
+tombstoned, and a name two teammates share are all refused the *same way*: an
+extracted mention is simply not produced, and a supplied one is kept as quiet
+context. No outcome and no error tells the four apart.
+
+That is deliberate. A resolver whose refusals differ is a directory: an agent
+that can author a message can read a roster it was never shown by watching
+which names come back differently. The rule is taken from CopilotKit/OpenBot,
+whose handoff resolver returns one sentence for "no such bot" and "not yours to
+see" for exactly this reason — see
+[`../../../../docs/research/grok-bots/copilotkit-openbot.md`](../../../../docs/research/grok-bots/copilotkit-openbot.md).
+
+`Roster::registered_member` is the one lookup that does see a retired or
+tombstoned agent, because attribution of a message already committed has to
+name its author. It is not a routing input and no fold here calls it.
+
 ## Operational constraints
 
 - All offsets are UTF-8 byte offsets into the original body.
