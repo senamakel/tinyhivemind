@@ -3,9 +3,9 @@
 **Status:** Implemented
 **Owner:** tinyhivemind maintainers
 
-This workspace defines two textual grammars, and this is the index to their
-authoritative reference. Both are split out because either one alone runs past
-the 500-line limit this repository keeps on a Markdown file.
+This workspace defines three textual grammars. Two are large enough to need a
+reference of their own, and this is the index to them; either one alone runs
+past the 500-line limit this repository keeps on a Markdown file.
 
 - [`grammar-mentions.md`](grammar-mentions.md) — the `@` grammar of
   `tinyhivemind-core`: openers and closers, the alias table, `@#` desk
@@ -14,6 +14,11 @@ the 500-line limit this repository keeps on a Markdown file.
 - [`grammar-traces.md`](grammar-traces.md) — the `!marker` grammar of
   `tinyhivemind-hive`: the eight kinds, the `#topic`, `>target` and `^cite`
   qualifiers, fence masking, and the two markers that fail closed.
+
+The third is the `!pin` / `!unpin` directive grammar of `tinyhivemind::pins`,
+described in [`recall.md`](recall.md) rather than here: it is eight lines of
+grammar, it is line-leading like a trace, and it shares the trace grammar's
+masking for the same reason.
 
 Both files are derived from the parsers and their unit tests, not from prose.
 Every non-obvious rule cites the test that pins it. Where a rule follows from
@@ -92,12 +97,22 @@ Each was resolved in favour of the parser.
    Citations are neither trailing nor singular — qualifiers are recognised in
    any position after the kind, `^` may repeat, and `>target` is a qualifier
    the same list omits.
-7. **Two different fence scanners.** `mention/mod.rs` implements CommonMark's
-   indent limit, info-string rule and closing-run rules; `trace/mod.rs` toggles
-   on any line starting ` ``` ` or `~~~`. One body can therefore mask
-   differently in the two crates. Nothing claimed they were the same; nothing
-   said they differ either. [`grammar-traces.md`](grammar-traces.md) §2 records
-   it and says where shared code would live if it is ever unified.
+7. **Two different fence scanners — since unified.** The survey found
+   `mention/mod.rs` implementing CommonMark's indent limit, info-string rule
+   and closing-run rules while `trace/mod.rs` toggled on any line beginning
+   ` ``` ` or `~~~`, so one body could mask differently in the two crates. It
+   also missed a third copy, in `crates/tinyhivemind/src/pins/mod.rs`. There is
+   now one scanner — `tinyhivemind_core::masking` — and all three grammars call
+   it, on CommonMark's rules throughout: the mention grammar takes
+   `code_ranges`, and the trace and pin grammars take `fenced_ranges`.
+
+   The one asymmetry left is deliberate, and it is the *level* of masking
+   rather than the fence rules. A mention may sit anywhere in a sentence, so
+   `` `@alice` `` has to be masked as well as a fenced block. A trace marker
+   and a pin directive only count line-leading, and a marker preceded by a
+   backtick is by definition not line-leading, so inline masking would buy them
+   nothing but a second scan.
+   [`grammar-traces.md`](grammar-traces.md) §2 states it from the trace side.
 8. **Case handling differs between mention lookup and `DeskSet::resolve_id`.**
    `@#engineering` resolves to the desk whose id is `Engineering`, while
    `DeskSet::resolve_id("engineering")` fails: alias lookup folds case, desk
