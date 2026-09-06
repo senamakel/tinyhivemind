@@ -323,3 +323,91 @@ async fn index_reports_read_and_validation_failures() {
         Err(Error::EmptyPageCursor { .. })
     ));
 }
+
+// ---------------------------------------------------------------------------
+// Private asides
+// ---------------------------------------------------------------------------
+
+fn aside(row: LogMessage, members: &[&str]) -> LogMessage {
+    LogMessage {
+        audience: Audience::Aside {
+            members: members.iter().map(|member| (*member).to_owned()).collect(),
+        },
+        ..row
+    }
+}
+
+fn reader(id: &str) -> Viewer {
+    Viewer::Agent { id: id.into() }
+}
+
+#[test]
+fn a_root_a_viewer_cannot_read_is_not_indexed() {
+    // `ThreadLine::opening` is verbatim content, so a closed thread cannot
+    // appear in a non-member's index at all. The exchange is not hidden by
+    // that: its root still appears in the desk projection as a stub.
+    let rows = [
+        aside(
+            message(1, Some("engineering"), None, "privately, about the keys"),
+            &["auditor"],
+        ),
+        message(2, Some("engineering"), None, "in the open"),
+    ];
+    let index = fold_thread_index(&rows, &reader("archivist"), THREAD_INDEX_LIMIT);
+    assert_eq!(index.len(), 1);
+    assert_eq!(index[0].root, Sequence(2));
+
+    // Its members do see it.
+    let member = fold_thread_index(&rows, &reader("auditor"), THREAD_INDEX_LIMIT);
+    assert_eq!(member.len(), 2);
+}
+
+#[test]
+fn a_reply_a_viewer_cannot_read_neither_counts_nor_advances_the_thread() {
+    // A reply count and a `latest` sequence describe a message. One that moved
+    // a thread up this index would tell a non-member both that something was
+    // said and roughly when — a leak with no content in it.
+    let rows = [
+        message(1, Some("engineering"), None, "older thread"),
+        message(2, Some("engineering"), Some(1), "a reply everyone sees"),
+        message(3, Some("engineering"), None, "newer thread"),
+        aside(
+            message(4, Some("engineering"), Some(1), "privately"),
+            &["auditor"],
+        ),
+    ];
+
+    let outsider = fold_thread_index(&rows, &reader("archivist"), THREAD_INDEX_LIMIT);
+    let older = outsider
+        .iter()
+        .find(|line| line.root == Sequence(1))
+        .expect("the older thread");
+    assert_eq!(older.replies, 1);
+    assert_eq!(older.latest, Sequence(2));
+    // The newer thread still sorts first, because nothing moved the older one.
+    assert_eq!(outsider[0].root, Sequence(3));
+
+    let member = fold_thread_index(&rows, &reader("auditor"), THREAD_INDEX_LIMIT);
+    let older = member
+        .iter()
+        .find(|line| line.root == Sequence(1))
+        .expect("the older thread");
+    assert_eq!(older.replies, 2);
+    assert_eq!(older.latest, Sequence(4));
+    assert_eq!(member[0].root, Sequence(1));
+}
+
+#[test]
+fn an_index_over_a_desk_with_no_aside_is_the_same_for_every_viewer() {
+    let rows = [
+        message(1, Some("engineering"), None, "one"),
+        message(2, Some("engineering"), Some(1), "two"),
+    ];
+    let baseline = fold_thread_index(&rows, &Viewer::Operator, THREAD_INDEX_LIMIT);
+    for viewer in [reader("anyone"), Viewer::Person { id: "ada".into() }] {
+        assert_eq!(
+            fold_thread_index(&rows, &viewer, THREAD_INDEX_LIMIT),
+            baseline
+        );
+    }
+}
