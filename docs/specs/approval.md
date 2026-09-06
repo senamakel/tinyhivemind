@@ -447,8 +447,12 @@ that table and those tests when it lands.
 - **Order independence.** `approve` is a fold: permuting `grants` or
   duplicating an entry does not change the decision.
 - **No clock, no storage, no host type, no callback, no async, no new
-  dependency.** `now` and `epoch` are arguments. Grants, refusals, audit rows
-  and the answer itself are host-owned; nothing here is a second journal.
+  dependency — in `crates/tinyhivemind-core::approve`.** `now` and `epoch` are
+  arguments. Grants, refusals, audit rows and the answer itself are
+  host-owned; nothing here is a second journal. The `ApprovalGate` port above
+  is necessarily async — it waits on a person — but it lives in
+  `crates/tinyhivemind`, not this crate, which is exactly the pure-fold/waiting
+  split [`AGENTS.md`](../../AGENTS.md) draws between the two crates.
 
 ## Acceptance criteria
 
