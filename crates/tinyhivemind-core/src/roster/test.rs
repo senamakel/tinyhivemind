@@ -207,25 +207,23 @@ fn a_tombstone_holds_even_when_the_host_also_calls_the_member_retired() {
 #[test]
 fn asking_whether_a_member_may_run_cannot_tell_the_unavailable_states_apart() {
     let members = [
-        RosterMember {
-            id: "retired".into(),
-            name: None,
-        },
-        RosterMember {
-            id: "tombstoned".into(),
-            name: None,
-        },
+        member_for_test("active"),
+        member_for_test("retired"),
+        member_for_test("tombstoned"),
     ];
     let retired = [String::from("retired")];
     let tombstoned = [String::from("tombstoned")];
     let roster = Roster::new(&members, &[], &retired).with_tombstoned(&tombstoned);
 
-    // Every runnability answer is the same sentence: an id the roster never
-    // held and an id it deliberately keeps are equally refused.
+    // An id the roster never held, one it retired, and one it tombstoned all
+    // get the same refusal, so no caller can enumerate the roster by asking.
     for id in ["retired", "tombstoned", "never_existed"] {
-        assert!(roster.active_member(id).is_none(), "{id} may not run");
-        assert!(roster.is_retired(id) || id == "never_existed");
+        assert!(roster.active_member(id).is_none(), "{id} must not run");
     }
+
+    // The retirement predicate does not split the two kept states either.
+    assert_eq!(roster.is_retired("retired"), roster.is_retired("tombstoned"));
     assert!(roster.is_retired("tombstoned"));
     assert!(!roster.is_retired("never_existed"));
+    assert!(!roster.is_retired("active"));
 }
