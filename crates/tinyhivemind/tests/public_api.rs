@@ -22,11 +22,24 @@ fn root_exports_runtime_records_and_constants() {
         sequence: Sequence(4),
         author: SessionAuthor::Operator,
         content: "hello".into(),
-        audience: Audience::Desk,
-        elided: None,
+        audience: Audience::Aside {
+            members: vec!["linus".into()],
+        },
+        elided: Some(tinyhivemind::Elision {
+            through: Sequence(4),
+            messages: 1,
+            settled_at: None,
+        }),
     };
     assert_eq!(conversation.thread_root, Some(Sequence(3)));
     assert_eq!(message.sequence, Sequence(4));
+    assert_eq!(
+        message.audience,
+        Audience::Aside {
+            members: vec!["linus".into()]
+        }
+    );
+    assert_eq!(message.elided.as_ref().map(|elision| elision.messages), Some(1));
     assert_eq!((SESSION_WINDOW, PAGE_SIZE, SCAN_LIMIT), (30, 512, 2048));
 }
 
