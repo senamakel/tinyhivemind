@@ -99,6 +99,9 @@ impl<'a> Roster<'a> {
     }
 
     /// Iterate active agents in roster order.
+    ///
+    /// Retired and tombstoned agents are excluded. This is the list `@everyone`
+    /// means, so nothing it omits can be carried into a turn.
     pub fn active_members(&self) -> impl Iterator<Item = &'a RosterMember> + '_ {
         self.members
             .iter()
@@ -106,6 +109,10 @@ impl<'a> Roster<'a> {
     }
 
     /// Find an active agent by its exact id.
+    ///
+    /// This is the **runnability** question, and its answer is one refusal:
+    /// `None` means the id is unknown, retired, or tombstoned, and a caller
+    /// cannot tell which.
     #[must_use]
     pub fn active_member(&self, id: &str) -> Option<&'a RosterMember> {
         self.active_members().find(|member| member.id == id)
@@ -115,8 +122,9 @@ impl<'a> Roster<'a> {
     ///
     /// This is the **attribution** lookup, and it is the only one that sees an
     /// agent the roster no longer runs. A message committed by an agent that
-    /// has since been retired still has to render with its author's name, so
-    /// the record survives the agent's removal from every active answer.
+    /// has since been retired or tombstoned still has to render with its
+    /// author's name, so the record survives the agent's removal from every
+    /// active answer.
     ///
     /// It is deliberately not a routing input. Ask [`Self::active_member`]
     /// whether an agent may run; that question has one answer for an unknown id
@@ -145,13 +153,9 @@ impl<'a> Roster<'a> {
     /// way to read a roster by asking about names.
     #[must_use]
     pub fn is_retired(&self, id: &str) -> bool {
-        self.retired_member_ids.iter().any(|retired| retired == id)
-            || self.is_tombstoned_id(id)
-    }
-
-    fn is_tombstoned_id(&self, id: &str) -> bool {
-        self.tombstoned_member_ids
+        self.retired_member_ids
             .iter()
-            .any(|tombstoned| tombstoned == id)
+            .chain(self.tombstoned_member_ids)
+            .any(|unavailable| unavailable == id)
     }
 }
