@@ -102,6 +102,15 @@ move off together, so a control arm differs from its treatment in one thing
 rather than in two. It **defers** only under `--defer-cap`, on a topic it knows
 another member owns.
 
+Under `--aside-cap` it also **checks**: a member whose two best options sit
+within half the true-to-decoy gap of each other cannot tell them apart, so it
+spends a turn asking one peer what that peer reads, the peer spends a turn
+answering, and the asker averages the answer into its own view through the same
+`import` the federation uses for a reading that crossed a channel. The exchange
+adds no supporter — an `!aside` line parses to no trace whatever its audience —
+so a member still has to spend a further turn saying what it now thinks before
+the room counts anything.
+
 Under `--blind-evidence` it **deposits first**: its opening turn, while the
 room is blind, states its own reading of the topic it knows best rather than
 putting an option on the floor, and once the floor exists it proposes what it
@@ -427,6 +436,7 @@ rather than a failure of the harness.
 | `--blind-evidence` | a member's first turn, while the room is blind, is a deposit rather than a position (off by default) |
 | `--directory` | fold the directory into the traced episode's own policy, so `--trace` can show a `knows` turn |
 | `--defer-cap N` | turns a member may spend deferring to a topic's expert instead of arguing outside its own specialty (default 1, minimum 1); read by `hive+defer` and `hive+dir+defer` |
+| `--aside-cap N` | pairwise checks one member may open (default 1); `0` makes `hive+aside`, `hive+ask` and `hive+aside!` bit-identical to `hive+` |
 | `--history N` | prior episodes of `hive+` the `ladder+dir` arm earns its directory from (default 3) |
 | `--budget N` `--quorum N` `--window N` | episode policy, overriding the tuned values |
 | `--dominance N` `--repetition N` `--no-blind` | episode policy |

@@ -129,11 +129,17 @@ the shared record.
 - The room can close with an aside unsettled. `must_surface` is enforced when the
   next aside is requested, not at the last turn, and making convergence refuse an
   unsettled aside was rejected as too blunt for a first cut.
-- Nothing here claims a room decides better with asides. The topology and
-  conformity results are about visibility in general, and the hidden-profile
-  results point the other way. The mechanism ships off by default, and the arm
-  that would settle it is allowed to lose — the precedent is
-  [`../experiments/2026-09-01-refutation-and-grounds.md`](../experiments/2026-09-01-refutation-and-grounds.md).
+- **A room does not decide better with asides, and now that is measured rather
+  than hedged.** [`../experiments/2026-09-07-do-asides-help.md`](../experiments/2026-09-07-do-asides-help.md)
+  runs the arm against the same rooms without it: −2.5 points at the tuned turn
+  budget, −0.1 once the budget stops binding, and −15.3 on a hidden profile,
+  where averaging with a peer inside one correlated desk imports the shared
+  bias instead of cancelling noise. The matched public control settles the
+  narrower question — `hive+aside − hive+ask` spans zero everywhere, so privacy
+  is worth nothing to the decision either way. This decision therefore rests on
+  auditability and on bounded independence, and on nothing about answer
+  quality; `AsidePolicy::DEFAULT` being off is the finding rather than the
+  caution.
 
 ## Related
 

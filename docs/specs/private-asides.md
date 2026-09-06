@@ -283,10 +283,15 @@ aside, every viewer projects what it projects today.
 - A live run drives a real room through an aside and records what the agents did
   with it — in particular whether a non-member ever acts on a settlement pointer,
   which is the mechanism's whole claim to being more than a partition.
-- The mechanism is allowed to lose. If a benchmarked room with asides pools
-  information worse than one without, the result is written up rather than
-  buried; the precedent is
-  [`../experiments/2026-09-01-refutation-and-grounds.md`](../experiments/2026-09-01-refutation-and-grounds.md).
+- The mechanism is allowed to lose. **It lost**, and the result is
+  [`../experiments/2026-09-07-do-asides-help.md`](../experiments/2026-09-07-do-asides-help.md):
+  a pairwise check costs 2.5 points at the tuned turn budget and nothing at an
+  unconstrained one, loses 15 points on a hidden profile because averaging
+  inside one correlated desk imports the shared bias, and is indistinguishable
+  from the same exchange held in the open — so privacy buys no decision quality
+  at all. That is why `AsidePolicy::DEFAULT` is off, and the spec claims
+  auditability and bounded independence for the mechanism rather than better
+  answers.
 
 ## Open questions
 
