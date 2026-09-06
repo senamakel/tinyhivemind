@@ -656,15 +656,20 @@ fn spent_in_aside(turns: &[Turn]) -> usize {
         .count()
 }
 
-/// Whether a prior aside among the same participants has not yet surfaced.
+/// Whether a *different* prior aside among the same participants has not yet
+/// surfaced.
 ///
 /// `mentions` is the current line's addressed targets, resolved the same way
 /// [`aside`] resolves them: quiet mentions and the author itself are dropped
-/// before the set is compared. Walking forward through the turns already
-/// taken, an aside opens the run when its own participant set — author plus
-/// addressed members — matches this line's, and closes it the first time one
-/// of those participants speaks on the desk afterwards. What is left open at
-/// the end is what `aside` must refuse to add to.
+/// before the set is compared. Replying inside the aside already in progress
+/// never counts, no matter how unsettled an earlier one was — otherwise the
+/// very message the policy is meant to allow would refuse itself, and every
+/// demonstrated aside would top out at one row. Walking forward through the
+/// turns already taken, an aside opens the run when its own participant
+/// set — author plus addressed members — matches this line's, and closes it
+/// the first time one of those participants speaks on the desk afterwards.
+/// What is left open at the end, once the current one is excluded, is what
+/// `aside` must refuse to add to.
 fn unsettled_aside(turns: &[Turn], author_id: &str, mentions: &[Mention]) -> bool {
     let mut participants: Vec<&str> = mentions
         .iter()
