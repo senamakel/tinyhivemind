@@ -34,9 +34,6 @@ fn main() {
     let mut input = String::new();
     std::io::stdin().read_to_string(&mut input).unwrap();
     for line in input.lines() {
-        if line.is_empty() {
-            continue;
-        }
         let body = decode(line);
         println!("{}|{}", fmt(&fenced_ranges(&body)), fmt(&code_ranges(&body)));
     }
