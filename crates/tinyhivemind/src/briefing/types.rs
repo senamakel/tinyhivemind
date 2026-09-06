@@ -12,8 +12,7 @@ use tinyhivemind_core::dispatch::MentionDispatchPolicy;
 /// [`TeamBriefing`] rather than inside it, because a briefing describes a team
 /// and this describes a run — the same team is briefed again at the next hop
 /// with a different answer here.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MentionDispatchContext {
     /// Dispatch policy in force for this run.
     pub policy: MentionDispatchPolicy,

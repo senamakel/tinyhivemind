@@ -757,3 +757,34 @@ fn a_run_under_a_disabled_policy_is_not_told_it_may_dispatch() {
             .contains("bounded child turn")
     );
 }
+
+#[test]
+fn a_dispatch_context_pins_its_wire_shape_and_requires_every_field() {
+    let context = MentionDispatchContext {
+        policy: MentionDispatchPolicy {
+            enabled: true,
+            max_hops: 2,
+        },
+        hop: 1,
+    };
+    let context_json = serde_json::json!({
+        "policy": { "enabled": true, "max_hops": 2 },
+        "hop": 1
+    });
+    assert_eq!(
+        serde_json::to_value(context).expect("context serializes"),
+        context_json
+    );
+    assert_eq!(
+        serde_json::from_value::<MentionDispatchContext>(context_json)
+            .expect("context deserializes"),
+        context
+    );
+    assert!(
+        serde_json::from_value::<MentionDispatchContext>(serde_json::json!({
+            "policy": { "enabled": true, "max_hops": 2 }
+        }))
+        .is_err(),
+        "a missing hop must not decode as hop zero, which is the permissive one"
+    );
+}
