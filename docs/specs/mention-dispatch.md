@@ -98,15 +98,19 @@ Two rules the OpenBot survey produced, and where each stands here.
 
 **A run at the cap is not offered the action.** Refusing at the edge teaches a
 model that the action exists and then wastes a turn on it; withholding it is
-cheaper and clearer. The decision fold already has this shape: `max_hops` is
-tested before any mention is read, so a reply at the cap constructs no
-`MentionTurnRequest` at all and there is nothing to refuse. What does not have
-it is the text the model reads. `TeamBriefing::system_text` states
-unconditionally that "a direct @agent mention may start at most one bounded
-child turn when host policy enables mention dispatch", and the briefing carries
-no hop and no policy, so an agent at the cap is told the capability exists and
-then finds it inert. Narrowing that sentence by the remaining budget is a host
-concern today, and stated here as a known gap rather than a solved one.
+cheaper and clearer. The decision fold has this shape: `max_hops` is tested
+before any mention is read, so a reply at the cap constructs no
+`MentionTurnRequest` at all and there is nothing to refuse.
+
+The text the model reads now has it too, and this is no longer a gap.
+`TeamBriefing::system_text` withholds the dispatch sentence entirely, and
+`system_text_with_dispatch(MentionDispatchContext { policy, hop })` states it
+only when `may_dispatch()` holds — the policy is enabled and the run is inside
+its hop budget, which are exactly the two guards this fold tests before it
+reads a mention. A run that could not dispatch is not told that it can. See
+[`sessions.md`](sessions.md) for the briefing itself and
+[`responders.md`](responders.md) for the same discipline on the selection path,
+where a selector is asked only when its answer can be acted on.
 
 **A decline should be a sentence, not only a type.** The library owns the
 words. Every reason it returns — the seven `NoDispatchReason` variants and the

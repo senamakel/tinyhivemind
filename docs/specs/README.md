@@ -45,8 +45,8 @@ See [`example-retry-policy.md`](example-retry-policy.md) for a complete sample.
   and stateless attributed transcript deltas.
 - [`responders.md`](responders.md) — deterministic one-responder selection and
   the model selector boundary.
-- [`mention-dispatch.md`](mention-dispatch.md) — bounded one-target dispatch and
-  the atomic host enqueue contract.
+- [`mention-dispatch.md`](mention-dispatch.md) — bounded one-target dispatch,
+  the atomic host enqueue contract, and the sentences a refusal comes back in.
 - [`cross-desk-referral.md`](cross-desk-referral.md) — one bounded child turn
   that may run on another channel, and the one answer that comes back.
 - [`hive-mind.md`](hive-mind.md) — bounded group deliberation: traces, salience,
@@ -71,3 +71,17 @@ See [`example-retry-policy.md`](example-retry-policy.md) for a complete sample.
 - [`approval.md`](approval.md) — proposed: a pure gate for a side-effecting
   action — `approve` as a total fold, standing grants as a liveness and
   coverage predicate, and epoch-scoped consent that cannot apply backwards.
+
+## Decisions these specifications rest on
+
+An accepted specification cites the record that settled its contested question
+rather than restating it. Two run across several specifications:
+
+- [ADR 0008](../adr/0008-an-approval-decision-is-total.md) — an approval
+  decision denies rather than fails, so a gate cannot be bypassed by failing.
+- [ADR 0009](../adr/0009-a-refusal-renders-what-the-caller-already-holds.md) —
+  a refusal renders only what the caller already holds. The library owns the
+  words, and every reason that turns on a named other collapses to one shared
+  sentence, so a set of refusals cannot be probed for a roster. It settles what
+  [`mention-dispatch.md`](mention-dispatch.md), [`responders.md`](responders.md)
+  and [`approval.md`](approval.md) each left open.
