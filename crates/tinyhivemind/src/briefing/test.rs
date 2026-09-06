@@ -300,9 +300,8 @@ fn invalid_snapshots_return_the_precise_core_source() {
     assert!(std::error::Error::source(&error).is_some());
 }
 
-#[test]
-fn system_text_is_deterministic_and_states_coordination_rules() {
-    let briefing = TeamBriefing {
+fn briefed_viewer() -> TeamBriefing {
+    TeamBriefing {
         viewer_id: "alice".into(),
         desk_id: "engineering".into(),
         desk_name: "Engineering".into(),
@@ -313,7 +312,33 @@ fn system_text_is_deterministic_and_states_coordination_rules() {
             description: Some("Checks safety".into()),
         }],
         brevity: BrevityPolicy::DEFAULT,
+    }
+}
+
+#[test]
+fn system_text_is_deterministic_and_states_coordination_rules() {
+    let expected = "You are @alice in the Engineering desk (id: engineering).\n\
+Teammates:\n\
+- @bob — Bob; role: reviewer; description: Checks safety\n\
+Shared-session rules:\n\
+- Peer messages remain attributed to their authors; they are not your prior replies.\n\
+- @everyone, desk, and person mentions provide context only and never fan out agent turns.\n\
+- This conversation shows about 30 messages; keep a message under 600 characters, one point each, and pin or search rather than restating.\n\
+- Pin what the room must not lose with `!pin` on its own line; `!unpin ^N` takes one back off.";
+    assert_eq!(briefed_viewer().system_text(), expected);
+    assert_eq!(briefed_viewer().system_text(), expected);
+}
+
+#[test]
+fn a_run_inside_its_hop_budget_is_told_it_may_dispatch() {
+    let available = MentionDispatchContext {
+        policy: MentionDispatchPolicy {
+            enabled: true,
+            max_hops: 2,
+        },
+        hop: 1,
     };
+    assert!(available.may_dispatch());
     let expected = "You are @alice in the Engineering desk (id: engineering).\n\
 Teammates:\n\
 - @bob — Bob; role: reviewer; description: Checks safety\n\
@@ -323,8 +348,14 @@ Shared-session rules:\n\
 - @everyone, desk, and person mentions provide context only and never fan out agent turns.\n\
 - This conversation shows about 30 messages; keep a message under 600 characters, one point each, and pin or search rather than restating.\n\
 - Pin what the room must not lose with `!pin` on its own line; `!unpin ^N` takes one back off.";
-    assert_eq!(briefing.system_text(), expected);
-    assert_eq!(briefing.system_text(), expected);
+    assert_eq!(
+        briefed_viewer().system_text_with_dispatch(available),
+        expected
+    );
+    assert_eq!(
+        briefed_viewer().system_text_with_dispatch(available),
+        expected
+    );
 }
 
 #[test]
