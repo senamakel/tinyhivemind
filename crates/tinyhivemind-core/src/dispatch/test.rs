@@ -445,3 +445,133 @@ fn a_tombstoned_source_cannot_start_a_child_turn() {
         }
     );
 }
+
+/// What [ADR 0009] requires of one reason's rendered sentence.
+///
+/// [ADR 0009]: ../../../../docs/adr/0009-a-refusal-renders-what-the-caller-already-holds.md
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Rendering {
+    /// The reason turns on a named other, so it renders the shared sentence.
+    Shared,
+    /// The reason is about the caller's own request, so it may render its own.
+    Own,
+}
+
+/// Every reason, so a rendering can be asserted over the whole enum.
+const EVERY_REASON: [NoDispatchReason; 7] = [
+    NoDispatchReason::Disabled,
+    NoDispatchReason::HopLimitReached,
+    NoDispatchReason::SourceInactive,
+    NoDispatchReason::NoDirectAgentMention,
+    NoDispatchReason::SelfMention,
+    NoDispatchReason::TargetInactive,
+    NoDispatchReason::HopOverflow,
+];
+
+/// The classification ADR 0009 fixes for each reason.
+///
+/// The match is wildcard-free on purpose: a variant added later does not
+/// compile until whoever adds it has classified it here, and the tests below
+/// then hold its rendering to that classification.
+fn required(reason: NoDispatchReason) -> Rendering {
+    match reason {
+        NoDispatchReason::Disabled
+        | NoDispatchReason::HopLimitReached
+        | NoDispatchReason::SourceInactive
+        | NoDispatchReason::SelfMention
+        | NoDispatchReason::HopOverflow => Rendering::Own,
+        NoDispatchReason::NoDirectAgentMention | NoDispatchReason::TargetInactive => {
+            Rendering::Shared
+        }
+    }
+}
+
+#[test]
+fn every_reason_that_turns_on_a_named_other_renders_the_shared_sentence() {
+    let shared: Vec<NoDispatchReason> = EVERY_REASON
+        .into_iter()
+        .filter(|reason| required(*reason) == Rendering::Shared)
+        .collect();
+    assert!(shared.len() > 1, "collapsing one reason collapses nothing");
+    for reason in shared {
+        assert_eq!(
+            reason.to_string(),
+            NO_AVAILABLE_TARGET,
+            "{reason:?} must not be distinguishable from the other withheld reasons"
+        );
+    }
+}
+
+#[test]
+fn a_request_local_reason_never_borrows_the_shared_sentence() {
+    for reason in EVERY_REASON {
+        if required(reason) == Rendering::Own {
+            assert_ne!(reason.to_string(), NO_AVAILABLE_TARGET, "{reason:?}");
+        }
+    }
+}
+
+#[test]
+fn an_overflowed_hop_is_worded_exactly_as_an_exhausted_budget() {
+    // `HopOverflow` is only reachable after the target has been resolved, so a
+    // sentence of its own would report that the mentioned agent exists.
+    assert_eq!(
+        NoDispatchReason::HopOverflow.to_string(),
+        NoDispatchReason::HopLimitReached.to_string()
+    );
+}
+
+#[test]
+fn every_reason_is_a_lowercase_sentence_without_trailing_punctuation() {
+    for reason in EVERY_REASON {
+        let sentence = reason.to_string();
+        assert!(!sentence.is_empty(), "{reason:?}");
+        assert_eq!(sentence, sentence.to_lowercase(), "{reason:?}");
+        assert!(!sentence.ends_with(['.', '!', '?']), "{reason:?}");
+    }
+}
+
+#[test]
+fn renders_the_settled_sentences() {
+    assert_eq!(
+        NoDispatchReason::Disabled.to_string(),
+        "passing this on to another agent is turned off here"
+    );
+    assert_eq!(
+        NoDispatchReason::HopLimitReached.to_string(),
+        "this has already been passed along as far as it may go"
+    );
+    assert_eq!(
+        NoDispatchReason::SourceInactive.to_string(),
+        "the agent that wrote this is no longer active, so nothing was passed on"
+    );
+    assert_eq!(
+        NoDispatchReason::SelfMention.to_string(),
+        "an agent cannot pass a message on to itself"
+    );
+    assert_eq!(
+        NO_AVAILABLE_TARGET,
+        "there is no available agent to pass this to"
+    );
+}
+
+#[test]
+fn an_unresolved_name_and_an_inactive_target_refuse_in_the_same_words() {
+    let members = members();
+    let retired = vec!["bob".to_owned()];
+    let roster = Roster::new(&members, &[], &retired);
+    let policy = MentionDispatchPolicy {
+        enabled: true,
+        max_hops: 2,
+    };
+    // A name the roster never had resolves to no mention at all.
+    let unresolved = mention_dispatch(policy, &input(Vec::new(), 0), &roster).unwrap();
+    // A name it does have, retired, survives resolution and is refused later.
+    let inactive = mention_dispatch(policy, &input(vec![mention("bob", 0)], 0), &roster).unwrap();
+    let sentence = |decision| match decision {
+        MentionDispatchDecision::None { reason } => reason.to_string(),
+        MentionDispatchDecision::One { .. } => panic!("no child turn was available"),
+    };
+    assert_ne!(unresolved, inactive, "the operator's log still separates them");
+    assert_eq!(sentence(unresolved), sentence(inactive));
+}
