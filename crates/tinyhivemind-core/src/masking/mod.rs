@@ -38,6 +38,42 @@
 #[cfg(test)]
 mod test;
 
+/// Every byte range of `body` that is code: fenced blocks and inline spans.
+///
+/// Ranges are half-open and returned in ascending order. Use this for a
+/// grammar whose markers may appear mid-line; a line-leading grammar wants
+/// [`fenced_ranges`] instead.
+///
+/// ```
+/// use tinyhivemind_core::masking::code_ranges;
+///
+/// assert_eq!(code_ranges("`@alice` @bob"), vec![(0, 8)]);
+/// ```
+#[must_use]
+pub fn code_ranges(body: &str) -> Vec<(usize, usize)> {
+    fenced_ranges(body)
+}
+
+/// Whether the byte at `offset` falls inside one of `ranges`.
+///
+/// `ranges` are half-open, as [`code_ranges`] and [`fenced_ranges`] return
+/// them, so a range's `end` is not masked.
+///
+/// ```
+/// use tinyhivemind_core::masking::{code_ranges, is_masked};
+///
+/// let body = "`@alice` @bob";
+/// let masked = code_ranges(body);
+/// assert!(is_masked(1, &masked));
+/// assert!(!is_masked(9, &masked));
+/// ```
+#[must_use]
+pub fn is_masked(offset: usize, ranges: &[(usize, usize)]) -> bool {
+    ranges
+        .iter()
+        .any(|(start, end)| *start <= offset && offset < *end)
+}
+
 /// The byte ranges of `body` covered by a fenced code block.
 ///
 /// Each range is half-open — `start` is masked, `end` is not — and they are

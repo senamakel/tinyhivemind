@@ -62,3 +62,36 @@ fn an_unterminated_fence_masks_to_the_end_of_the_body() {
     assert_eq!(fenced_ranges("```\n@alice"), vec![(0, 10)]);
     assert_eq!(fenced_ranges("~~~\n@alice"), vec![(0, 10)]);
 }
+
+#[test]
+fn an_inline_span_is_masked_by_code_ranges_but_not_by_fenced_ranges() {
+    // The difference between the two levels, in one body: a line-leading
+    // grammar sees no code here at all, a mid-line grammar sees the span.
+    let body = "`@alice` @bob";
+    assert_eq!(fenced_ranges(body), Vec::new());
+    assert_eq!(code_ranges(body), vec![(0, 8)]);
+}
+
+#[test]
+fn an_unclosed_inline_tick_masks_nothing() {
+    // A lone backtick in prose is punctuation, not the start of a span that
+    // silences the rest of the message.
+    assert_eq!(code_ranges("` text @alice"), Vec::new());
+}
+
+#[test]
+fn a_backtick_inside_a_fenced_block_does_not_open_an_inline_span() {
+    // Otherwise a stray tick inside a block would pair with one after the
+    // close and mask live text between them.
+    let body = "```\n` code\n```\n@alice `";
+    assert_eq!(code_ranges(body), vec![(0, 15)]);
+}
+
+#[test]
+fn a_masked_range_covers_its_start_but_not_its_end() {
+    let ranges = [(2, 5)];
+    assert!(!is_masked(1, &ranges));
+    assert!(is_masked(2, &ranges));
+    assert!(is_masked(4, &ranges));
+    assert!(!is_masked(5, &ranges));
+}
