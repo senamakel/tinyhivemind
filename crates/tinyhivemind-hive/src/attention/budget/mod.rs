@@ -74,7 +74,7 @@ pub use types::{BudgetPolicy, BudgetRequest, BudgetShare, BudgetVerdict};
 /// };
 ///
 /// // A tight budget, four sources, and one of them enormous.
-/// let policy = BudgetPolicy { total_chars: 700, min_useful_chars: 200 };
+/// let policy = BudgetPolicy { total_chars: 700, min_useful_chars: 250 };
 /// let requests = [
 ///     BudgetRequest::new("pins", 50),
 ///     BudgetRequest::new("digest", 4_000),
@@ -93,10 +93,11 @@ pub use types::{BudgetPolicy, BudgetRequest, BudgetShare, BudgetVerdict};
 /// assert_eq!(shares[1].verdict, BudgetVerdict::Dropped);
 /// assert_eq!(shares[1].omitted, 4_000);
 ///
-/// // What is left divides evenly, and nothing survives as an unreadable stub.
-/// assert_eq!(shares[2].granted, 325);
-/// assert_eq!(shares[3].granted, 300);
-/// assert!(shares.iter().map(|share| share.granted).sum::<usize>() <= policy.total_chars);
+/// // What it freed goes to the survivors: the thread index is cut to a length
+/// // still worth reading, and the notes now fit whole.
+/// assert_eq!((shares[2].granted, shares[2].verdict), (350, BudgetVerdict::Truncated));
+/// assert_eq!((shares[3].granted, shares[3].verdict), (300, BudgetVerdict::Whole));
+/// assert_eq!(shares.iter().map(|share| share.granted).sum::<usize>(), 700);
 /// ```
 #[must_use]
 pub fn allocate_chars(requests: &[BudgetRequest], policy: &BudgetPolicy) -> Vec<BudgetShare> {
