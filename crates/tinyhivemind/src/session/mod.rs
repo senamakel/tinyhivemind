@@ -514,6 +514,14 @@ fn narrow_to_roots_and_first_replies(
         .filter(|candidate| candidate.parent.is_none())
         .map(|candidate| candidate.sequence)
         .collect();
+    // A parentless row that something replies to opens a thread of its own;
+    // one that nothing replies to is an ordinary channel message. That is the
+    // difference between two closed threads between the same pair — which must
+    // stay two stubs — and one run of channel asides, which is one.
+    let rooted: BTreeSet<Sequence> = candidates
+        .iter()
+        .filter_map(|candidate| candidate.parent)
+        .collect();
     let mut promoted: BTreeSet<Sequence> = BTreeSet::new();
     let mut projected: Vec<(SessionMessage, Option<Sequence>)> = Vec::new();
 
@@ -526,10 +534,14 @@ fn narrow_to_roots_and_first_replies(
             Some(parent) => roots.contains(&parent) && promoted.insert(parent),
         };
         if keep {
-            // A root's identity is its own sequence; a promoted reply's is the
-            // root it hangs under. Two closed threads between the same pair
-            // therefore stay two stubs rather than merging into one.
-            let thread = candidate.parent.or(Some(candidate.sequence));
+            // A promoted reply's identity is the root it hangs under; a root
+            // that owns a thread is its own; a plain channel row has none, so
+            // a run of them still collapses into one stub.
+            let thread = candidate.parent.or_else(|| {
+                rooted
+                    .contains(&candidate.sequence)
+                    .then_some(candidate.sequence)
+            });
             projected.push((
                 present(
                     candidate.sequence,
