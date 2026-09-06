@@ -112,12 +112,9 @@ Each was resolved in favour of the parser.
    that span has no backtick of its own and would still fire as live grammar
    under `fenced_ranges` alone — `grammar-traces.md`'s "asymmetry that turned
    out not to be one" has the full account. There is no remaining asymmetry:
-   every grammar in this workspace reads the same level.
-
-   A trace marker
-   and a pin directive only count line-leading, and a marker preceded by a
-   backtick is by definition not line-leading, so inline masking would buy them
-   nothing but a second scan.
+   every grammar in this workspace reads the same level, and a same-line
+   backtick still needs no special-casing — `parse_line` already rejects a
+   line that does not start with its marker character.
    [`grammar-traces.md`](grammar-traces.md) §2 states it from the trace side.
 8. **Case handling differs between mention lookup and `DeskSet::resolve_id`.**
    `@#engineering` resolves to the desk whose id is `Engineering`, while
