@@ -126,6 +126,32 @@ fn an_inline_opener_before_a_fenced_block_does_not_pair_across_it() {
 }
 
 #[test]
+fn a_tab_indented_code_block_masks_all_its_lines() {
+    // CommonMark expands a tab to the next multiple of four columns, so one
+    // leading tab is already enough indentation to open the block.
+    let body = "\t```\n\t!pin ^1\n\t```\n";
+    assert_eq!(fenced_ranges(body), vec![(0, body.len())]);
+}
+
+#[test]
+fn an_indented_line_does_not_open_a_block_mid_paragraph() {
+    // An indented code block cannot interrupt a paragraph: a wrapped,
+    // indented continuation line right after live text is lazy continuation
+    // of that paragraph, not code, so `@alice` here must stay live.
+    let body = "some prose\n    @alice\n";
+    assert_eq!(fenced_ranges(body), Vec::new());
+}
+
+#[test]
+fn an_indented_line_opens_a_block_after_a_blank_line() {
+    // The same indentation *does* open a block once a blank line separates
+    // it from the preceding paragraph.
+    let body = "some prose\n\n    @alice\n";
+    let block_start = "some prose\n\n".len();
+    assert_eq!(fenced_ranges(body), vec![(block_start, body.len())]);
+}
+
+#[test]
 fn a_masked_range_covers_its_start_but_not_its_end() {
     let ranges = [(2, 5)];
     assert!(!is_masked(1, &ranges));
