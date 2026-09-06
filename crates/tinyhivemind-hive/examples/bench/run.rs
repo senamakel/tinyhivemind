@@ -220,6 +220,26 @@ impl Host {
             .map_or(Sequence(0), |message| message.sequence)
     }
 
+    fn append_to(
+        &mut self,
+        author: SessionAuthor,
+        content: String,
+        audience: Audience,
+    ) -> Sequence {
+        let next = u64::try_from(self.journal.len())
+            .unwrap_or(u64::MAX)
+            .saturating_add(1);
+        let sequence = Sequence(next);
+        self.journal.push(SessionMessage {
+            sequence,
+            author,
+            content,
+            audience,
+            elided: None,
+        });
+        sequence
+    }
+
     fn append(&mut self, author: SessionAuthor, content: String) -> Sequence {
         let next = u64::try_from(self.journal.len())
             .unwrap_or(u64::MAX)
@@ -242,13 +262,89 @@ impl Host {
 
     /// Append an agent turn.
     fn agent(&mut self, id: &str, content: String) -> Sequence {
-        self.append(
+        self.agent_to(id, content, Audience::Desk)
+    }
+
+    /// Append an agent turn addressed to `audience`.
+    fn agent_to(&mut self, id: &str, content: String, audience: Audience) -> Sequence {
+        self.append_to(
             SessionAuthor::Agent {
                 id: id.to_owned(),
                 label: id.to_owned(),
             },
             content,
+            audience,
         )
+    }
+}
+
+/// Whether a pairwise check between two members is private, and to whom.
+///
+/// The two settings differ in exactly one thing — who may read the content —
+/// and cost exactly the same number of turns. That is what makes them a
+/// matched pair: any difference in the numbers is the price or the value of
+/// *privacy*, and not of asking, of targeting, or of spending two turns.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) enum AsideMode {
+    /// No member opens a check; every arm before this one runs here.
+    #[default]
+    Off,
+    /// The exchange is addressed to one peer, and the desk reads a stub.
+    Private,
+    /// The identical exchange, in the open, where every member reads it.
+    Public,
+}
+
+impl AsideMode {
+    /// Whether a participant may spend a turn on a check at all.
+    pub(crate) const fn opens(self) -> bool {
+        !matches!(self, Self::Off)
+    }
+}
+
+/// The audience one authored line is committed under.
+///
+/// A line that does not ask for a check is desk-visible, as every line in this
+/// harness was before. A line that does is handed to the library's own `aside`
+/// fold rather than to a regular expression here: the harness reads the marker
+/// to know that a decision is wanted, and the library decides who it may
+/// reach. A refusal leaves the row desk-visible, which is the safe direction.
+fn audience_for(
+    mode: AsideMode,
+    host: &Host,
+    speaker: &str,
+    content: &str,
+    policy: AsidePolicy,
+) -> Audience {
+    if mode != AsideMode::Private || !content.trim_start().starts_with(ASIDE_MARKER) {
+        return Audience::Desk;
+    }
+    let roster = host.roster();
+    let desks = host.desks();
+    let mentions = resolve_mentions(
+        content,
+        None,
+        &MentionAuthor::Agent {
+            id: speaker.to_owned(),
+        },
+        &roster,
+        &desks,
+    );
+    let decision = aside(
+        policy,
+        &AsideInput {
+            conversation: DispatchConversation::from(&host.conversation()),
+            author_id: speaker.to_owned(),
+            mentions,
+            spent: 0,
+            unsettled: false,
+        },
+        &roster,
+        &desks,
+    );
+    match decision {
+        Ok(AsideDecision::One { audience }) => audience,
+        Ok(AsideDecision::None { .. }) | Err(_) => Audience::Desk,
     }
 }
 
@@ -398,6 +494,40 @@ pub(crate) fn drive(
     task: &str,
     keep_trace: bool,
 ) -> Result<EpisodeReport, String> {
+    drive_with(member_ids, agents, policy, task, keep_trace, AsideMode::Off)
+}
+
+/// The aside policy every arm that opens a check runs under.
+///
+/// A pair and nothing wider: the whole question is what one member learns from
+/// one peer, and a caucus would confound it with group size. `max_messages` is
+/// generous because the harness bounds the exchange by the turn budget it is
+/// already charged against, and `must_surface` is off because a reading is not
+/// a position — nothing here is being kept from the room's *decision*, which
+/// an aside cannot move either way.
+fn aside_policy(members: usize) -> AsidePolicy {
+    AsidePolicy {
+        enabled: true,
+        max_members: 1,
+        max_messages: members.saturating_mul(2),
+        must_surface: false,
+        require_thread: false,
+    }
+}
+
+/// [`drive`], with pairwise checks enabled.
+///
+/// # Errors
+///
+/// Returns the library's own error text if a snapshot or policy is malformed.
+pub(crate) fn drive_with(
+    member_ids: &[&str],
+    agents: &mut [&mut dyn Participant],
+    policy: &EpisodePolicy,
+    task: &str,
+    keep_trace: bool,
+    aside_mode: AsideMode,
+) -> Result<EpisodeReport, String> {
     let mut host = Host::new(member_ids);
     host.operator(task);
 
@@ -438,9 +568,16 @@ pub(crate) fn drive(
                     ));
                 }
                 tally.record(&turn, &content, agent.cost_unit(), turns);
+                let audience = audience_for(
+                    aside_mode,
+                    &host,
+                    &turn.agent_id,
+                    &content,
+                    aside_policy(member_ids.len()),
+                );
                 // Durably append the turn, then commit the state it returned.
                 // That ordering is what the `next_state` contract requires.
-                host.agent(&turn.agent_id, content);
+                host.agent_to(&turn.agent_id, content, audience);
                 state = turn.next_state;
                 turns = turns.saturating_add(1);
                 continue;
