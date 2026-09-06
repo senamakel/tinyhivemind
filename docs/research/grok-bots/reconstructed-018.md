@@ -84,10 +84,10 @@ the directory name, validated by `assertValidSandAgentId`. Caps are constants â€
 (`source/shared/agents/agents.ts:53`). `buildSummary` returns an anonymous
 object: a roster entry's shape is nowhere declared, only its *input* is
 (`DbExtras`, `session-summaries.ts:8`). The one genuinely pure piece is
-`upsertAgentSummary` (`source/shared/agents/agent-summaries.ts:13`), an
-array-in/array-out fold keyed on `.id`. Everything around it is stateful:
+`upsertAgentSummary` (`shared/agents/agent-summaries.ts:13`), an
+array-in/array-out fold keyed on `.id`; everything around it is stateful, and
 `RosterProjection` (`transcript/roster-projection.ts:25`) is an `EventEmitter`
-with six mutable maps and a debounced flush, despite the name.
+with six mutable maps and a debounced flush despite the name.
 
 Human versus agent is discriminated in only two places, both group-scoped.
 `GroupMessage.speaker` is a tagged union of `{kind:"user", name?}` and
@@ -272,10 +272,10 @@ The real seams are elsewhere, and they are good ones:
 - `TranscriptPageStatements` (`agent-db-transcript-pages.ts:5`) â€” the paging
   functions depend on three prepared statements, not on a database.
 
-Against that, `host/host-runner-composition.ts` is 2,646 lines,
-`host/sand-host.ts` is 958, and `TranscriptManagerLike = Record<string, any>`
-(`transcript-hub.ts:43`) is how most of the transcript extension refers to its
-own container. The discipline is real in the leaves, absent in the trunk.
+Against that, `host/host-runner-composition.ts` is 2,646 lines and
+`TranscriptManagerLike = Record<string, any>` (`transcript-hub.ts:43`) is how
+most of the transcript extension refers to its own container. The discipline is
+real in the leaves, absent in the trunk.
 
 ## The inference router
 
