@@ -20,7 +20,6 @@ use tinyhivemind_hive::{
     roster::{Roster, RosterMember},
 };
 use tinyhivemind::aside::Audience;
-use tinyhivemind::aside::Audience;
 
 fn agent(id: &str) -> SessionAuthor {
     SessionAuthor::Agent {
@@ -37,8 +36,6 @@ fn said(sequence: u64, id: &str, content: &str) -> SessionMessage {
         audience: Audience::Desk,
         elided: None,
     }
-    audience: Audience::Desk,
-    elided: None,
 }
 
 #[test]
