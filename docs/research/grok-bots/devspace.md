@@ -218,13 +218,14 @@ There is **no hop where a human decision is inserted** in this path — the
 tool is powerful by design... Shell commands run as local commands and can do
 what your user account can do."*
 
-The only place a live human decision is inserted mid-flow is the local-agent
-daemon's own coding-agent sessions when the *provider's own* CLI would
-otherwise prompt a human (e.g. running Claude Code interactively outside
-DevSpace) — DevSpace intercepts and auto-answers that prompt from the
-pre-chosen `writeMode` tier (§2b), so even there no human is asked live;
-`writeMode` is the human's one decision, made when the session/profile is
-configured, not per command.
+The only other place this path touches is the local-agent daemon's own
+coding-agent sessions, where the *provider's own* CLI would otherwise prompt a
+human (e.g. running Claude Code interactively outside DevSpace). This is not a
+live human decision either: DevSpace intercepts that provider permission
+request and auto-answers it from the pre-chosen `writeMode` tier (§2b), so no
+human is asked at the moment of the request. `writeMode` is the human's one
+decision, made once when the session or profile is configured, not per
+command.
 
 ## 5. Audit logging
 
