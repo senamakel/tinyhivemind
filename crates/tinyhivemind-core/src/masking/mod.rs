@@ -164,25 +164,47 @@ fn indented_block_ranges(body: &str) -> Vec<(usize, usize)> {
     let mut open: Option<usize> = None;
     let mut open_end = 0;
     let mut line_start = 0;
+    // An indented code block cannot interrupt a paragraph: the *opening*
+    // line must follow a blank line, or be the first line of the body.
+    // `prev_blank` starts `true` so a block may open at the very start.
+    let mut prev_blank = true;
     for line in body.split_inclusive('\n') {
         let content = line.trim_end_matches(['\n', '\r']);
         if content.trim().is_empty() {
+            prev_blank = true;
             line_start += line.len();
             continue;
         }
-        let indent = content.len() - content.trim_start_matches(' ').len();
-        if indent >= 4 {
+        let indent = indentation_width(content);
+        if indent >= 4 && (open.is_some() || prev_blank) {
             open.get_or_insert(line_start);
             open_end = line_start + line.len();
         } else if let Some(start) = open.take() {
             ranges.push((start, open_end));
         }
+        prev_blank = false;
         line_start += line.len();
     }
     if let Some(start) = open {
         ranges.push((start, open_end));
     }
     ranges
+}
+
+/// `CommonMark`'s indentation width of a line's leading whitespace: a space
+/// advances one column and a tab advances to the next multiple of four, the
+/// same rule fence detection above does not need because a fence marker is
+/// never itself whitespace.
+fn indentation_width(content: &str) -> usize {
+    let mut width = 0;
+    for byte in content.bytes() {
+        match byte {
+            b' ' => width += 1,
+            b'\t' => width += 4 - (width % 4),
+            _ => break,
+        }
+    }
+    width
 }
 
 fn inline_ranges(body: &str, fenced: &[(usize, usize)]) -> Vec<(usize, usize)> {
