@@ -326,6 +326,7 @@ impl Selector for LadderSelector {
 #[derive(Debug)]
 struct Turn {
     sequence: Sequence,
+    audience: Audience,
     speaker: String,
     hop: u32,
     thread_root: Option<Sequence>,
@@ -441,7 +442,7 @@ async fn run_chain(
     room: &Room<'_>,
     floor: &Conversation,
     first: &str,
-) -> Result<Vec<Turn>, String> {
+) -> Result<(Vec<Turn>, Vec<String>), String> {
     let Room {
         seats,
         ids,
@@ -451,6 +452,7 @@ async fn run_chain(
         desks,
     } = room;
     let mut turns: Vec<Turn> = Vec::new();
+    let mut refusals: Vec<String> = Vec::new();
     let mut speaker = first.to_owned();
     let mut hop = 0_u32;
     let mut carried: Option<(String, String)> = None;
@@ -482,16 +484,7 @@ async fn run_chain(
             .filter(|id| **id != seat.id.as_str())
             .copied()
             .collect();
-        let line = seat.speak(&visible, &peers, &ask)?;
-
-        let sequence = journal.append(
-            floor,
-            SessionAuthor::Agent {
-                id: seat.id.clone(),
-                label: seat.id.clone(),
-            },
-            &line,
-        );
+        let line = seat.speak(&visible, &peers, &ask, options.asides)?;
 
         let mentions = resolve_mentions(
             &line,
@@ -501,6 +494,45 @@ async fn run_chain(
             },
             roster,
             desks,
+        );
+
+        // A line that asks for an aside is addressed by the library, not by
+        // this harness reading the marker and believing it. `aside` resolves
+        // who it may reach and refuses with a named reason otherwise; a
+        // refusal leaves the row desk-visible, which is the safe direction.
+        let audience = if options.asides && line.trim_start().starts_with("!aside") {
+            let decision = aside(
+                ASIDES,
+                &AsideInput {
+                    conversation: DispatchConversation::from(floor),
+                    author_id: seat.id.clone(),
+                    mentions: mentions.clone(),
+                    spent: spent_in_aside(&turns, &seat.id),
+                    unsettled: false,
+                },
+                roster,
+                desks,
+            )
+            .map_err(|error| format!("the aside fold failed: {error}"))?;
+            match decision {
+                AsideDecision::One { audience } => audience,
+                AsideDecision::None { reason } => {
+                    refusals.push(format!("{reason:?}"));
+                    Audience::Desk
+                }
+            }
+        } else {
+            Audience::Desk
+        };
+
+        let sequence = journal.append_to(
+            floor,
+            SessionAuthor::Agent {
+                id: seat.id.clone(),
+                label: seat.id.clone(),
+            },
+            &line,
+            audience.clone(),
         );
         let outcome = dispatch_mention(
             queue,
@@ -525,6 +557,7 @@ async fn run_chain(
 
         turns.push(Turn {
             sequence,
+            audience,
             speaker: seat.id.clone(),
             hop,
             thread_root: floor.thread_root,
@@ -546,7 +579,20 @@ async fn run_chain(
         hop = enqueued.request.child_hop;
         carried = Some((enqueued.request.source_id, enqueued.request.content));
     }
-    Ok(turns)
+    Ok((turns, refusals))
+}
+
+/// How many rows this speaker has already spent inside an open aside.
+///
+/// Folded from the turns the run has taken rather than stored, because this
+/// harness holds no state the journal does not already carry.
+fn spent_in_aside(turns: &[Turn], speaker: &str) -> usize {
+    turns
+        .iter()
+        .rev()
+        .take_while(|turn| !turn.audience.is_desk())
+        .filter(|turn| turn.speaker == speaker)
+        .count()
 }
 
 /// Render one conversation as the sequence-and-author lines it projects to.
@@ -645,7 +691,7 @@ async fn run(options: &Options) -> Result<Report, String> {
         thread_root: options.thread.then_some(opening),
     };
 
-    let turns = run_chain(options, &room, &floor, &decision.responder_id).await?;
+    let (turns, refusals) = run_chain(options, &room, &floor, &decision.responder_id).await?;
 
     let channel_view = view(&room.journal, channel, options.window).await?;
     let thread_view = if options.thread {
