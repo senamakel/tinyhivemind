@@ -102,7 +102,7 @@ use crate::metrics::{
     paired_diff_line, spearman_milli, wilson,
 };
 use crate::rng::mix;
-use crate::run::{Participant, drive, run_episode, run_episode_with};
+use crate::run::{AsideMode, Participant, drive, run_episode, run_episode_with};
 use crate::scenario::{Scenario, ScenarioAgent};
 use crate::sim::{Expertise, Room, SPECIALIST_COST_UNIT};
 use crate::swarm::{Channel, SwarmMember, SwarmReport, pooled, run_swarm};
@@ -192,6 +192,11 @@ struct Options {
     /// arguing outside its own specialty. Read by the deferring arms, and by
     /// the `defer_cap` those arms put in their episode policy.
     defer_cap: u32,
+    /// Turns a member may spend asking one peer for a second reading before
+    /// committing to a position. Read by the two aside arms, which differ from
+    /// each other only in who may read the answer. `0` turns both off, and
+    /// makes them bit-identical to `hive+`.
+    aside_cap: u32,
     /// Prior episodes of `hive+` the `ladder+dir` arm earns its directory
     /// from, on the same room.
     history: u32,
@@ -261,6 +266,7 @@ impl Options {
             cost: false,
             blind_evidence: false,
             defer_cap: 1,
+            aside_cap: 1,
             history: 3,
             json: false,
             timeout: 180,
