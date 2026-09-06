@@ -402,6 +402,7 @@ fn apply_expertise_flag(
         }
         "--hidden-profile" => options.expertise = Expertise::HiddenProfile,
         "--defer-cap" => options.defer_cap = next_number(args).unwrap_or(1).max(1),
+        "--aside-cap" => options.aside_cap = next_number(args).unwrap_or(1),
         "--history" => options.history = next_number(args).unwrap_or(3),
         "--cost-tiers" => options.cost = true,
         "--blind-evidence" => options.blind_evidence = true,
@@ -774,7 +775,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
     );
 
     let (totals, wall) = run_arms(options, rooms)?;
-    let arms: [(&str, &Aggregate); 10] = [
+    let arms: [(&str, &Aggregate); 12] = [
         ("ladder", &totals.ladder),
         ("vote", &totals.vote),
         ("hive", &totals.hive_default),
@@ -788,6 +789,8 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
         ("hive+defer", &totals.hive_deferring),
         ("hive+dir+defer", &totals.hive_both),
         ("ladder+dir", &totals.ladder_directed),
+        ("hive+aside", &totals.hive_aside),
+        ("hive+ask", &totals.hive_ask),
     ];
 
     if options.json {
@@ -857,6 +860,12 @@ struct Totals {
     hive_knowing: Aggregate,
     /// The tuned policy with `!defer` bounded, and no directory.
     hive_deferring: Aggregate,
+    /// The tuned policy, with a member that cannot separate its two best
+    /// options spending a turn asking one peer — privately.
+    hive_aside: Aggregate,
+    /// The identical exchange, in the open. The control that isolates
+    /// privacy from asking: same turns, same words, every member reads it.
+    hive_ask: Aggregate,
     /// Both delegation mechanisms at once.
     hive_both: Aggregate,
     /// The tuned policy in a room that puts every seat on the expensive
@@ -926,6 +935,27 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
                 false,
             )?);
         }
+        // The pair that isolates privacy. Both spend a turn asking and a turn
+        // answering; they differ in who may read the answer, and in nothing
+        // else. `--aside-cap 0` leaves both bit-identical to `hive+`.
+        totals.hive_aside.add(&run_episode_checking(
+            room,
+            &tuned,
+            TASK,
+            false,
+            0,
+            AsideMode::Private,
+            options.aside_cap,
+        )?);
+        totals.hive_ask.add(&run_episode_checking(
+            room,
+            &tuned,
+            TASK,
+            false,
+            0,
+            AsideMode::Public,
+            options.aside_cap,
+        )?);
         let seed = mix(options.seed, u64::try_from(index).unwrap_or(0));
         totals.ladder.add_arm(&arms::run_ladder(room, seed)?);
         let earned = earn_directory(room, &tuned, options.history, mix(seed, 0x6869_7374))?;
