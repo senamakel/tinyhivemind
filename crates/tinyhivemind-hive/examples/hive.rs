@@ -20,6 +20,7 @@ use tinyhivemind_hive::{
     step,
     trace::read,
 };
+use tinyhivemind_hive::aside::Audience;
 
 const MEMBERS: [&str; 5] = ["planner", "scout", "critic", "archivist", "auditor"];
 
@@ -171,7 +172,7 @@ fn run(
 /// actually record `!commit` for the episode to converge — phase alone is not
 /// evidence that a decision was recorded. Everywhere else, a script running
 /// out just yields silence.
-fn out_of_script_utterance(turn: &HiveTurn, visible: &[&SessionMessage]) -> String {
+fn out_of_script_utterance(turn: &HiveTurn, visible: &[SessionMessage]) -> String {
     if turn.phase != Phase::Commit {
         return "!question Nothing further from me.".to_owned();
     }
@@ -226,6 +227,8 @@ fn message(sequence: u64, author: SessionAuthor, content: &str) -> SessionMessag
         sequence: Sequence(sequence),
         author,
         content: content.to_owned(),
+        audience: Audience::Desk,
+        elided: None,
     }
 }
 

@@ -47,6 +47,7 @@ use tinyhivemind_hive::{
 
 use crate::federation::Federation;
 use crate::run::Ending;
+use tinyhivemind_hive::aside::Audience;
 
 /// One channel: a desk id, its display name, and who sits on it.
 #[derive(Clone, Debug)]
@@ -86,7 +87,7 @@ pub(crate) trait SwarmMember {
     ///
     /// Returns a host-side failure, such as an agent process that did not
     /// answer.
-    fn speak(&mut self, turn: &HiveTurn, visible: &[&SessionMessage]) -> Result<String, String>;
+    fn speak(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Result<String, String>;
 
     /// Fill one turn caused by a message that arrived from another channel.
     ///
@@ -97,7 +98,7 @@ pub(crate) trait SwarmMember {
     fn answer(
         &mut self,
         incoming: &Referral,
-        visible: &[&SessionMessage],
+        visible: &[SessionMessage],
     ) -> Result<String, String>;
 
     /// Take in whatever a message just appended to this desk carries.
@@ -222,6 +223,8 @@ impl SwarmHost {
             sequence,
             author,
             content,
+            audience: Audience::Desk,
+            elided: None,
         });
         sequence
     }
@@ -678,7 +681,7 @@ impl SwarmMember for SwarmSim {
         ))
     }
 
-    fn speak(&mut self, turn: &HiveTurn, visible: &[&SessionMessage]) -> Result<String, String> {
+    fn speak(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Result<String, String> {
         crate::run::Participant::speak(&mut self.agent, turn, visible)
     }
 
@@ -692,7 +695,7 @@ impl SwarmMember for SwarmSim {
     fn answer(
         &mut self,
         incoming: &Referral,
-        _visible: &[&SessionMessage],
+        _visible: &[SessionMessage],
     ) -> Result<String, String> {
         let carried = readings(&incoming.content);
         if carried.is_empty() {

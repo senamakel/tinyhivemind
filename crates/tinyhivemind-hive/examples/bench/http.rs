@@ -34,6 +34,7 @@ use tinyhivemind_hive::{HiveTurn, SessionMessage};
 use crate::live::AgentPrompt;
 use crate::run::Participant;
 use crate::swarm::SwarmMember;
+use tinyhivemind_hive::aside::Audience;
 
 /// Which wire format the backend speaks.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -206,7 +207,7 @@ impl HttpAgent {
     pub(crate) fn prompt_with(
         &self,
         turn: &HiveTurn,
-        visible: &[&SessionMessage],
+        visible: &[SessionMessage],
         extra: &str,
     ) -> String {
         self.prompt.prompt_with(turn, visible, extra)
@@ -223,7 +224,7 @@ impl Participant for HttpAgent {
         self.prompt.id()
     }
 
-    fn speak(&mut self, turn: &HiveTurn, visible: &[&SessionMessage]) -> Result<String, String> {
+    fn speak(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Result<String, String> {
         let text = self.prompt.prompt(turn, visible);
         self.call(&text)
     }
@@ -269,7 +270,7 @@ impl SwarmMember for HttpDeskAgent {
         self.agent.id()
     }
 
-    fn speak(&mut self, turn: &HiveTurn, visible: &[&SessionMessage]) -> Result<String, String> {
+    fn speak(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Result<String, String> {
         let prompt = self.agent.prompt_with(turn, visible, &self.directory());
         self.agent.call(&prompt)
     }
@@ -277,7 +278,7 @@ impl SwarmMember for HttpDeskAgent {
     fn answer(
         &mut self,
         incoming: &Referral,
-        visible: &[&SessionMessage],
+        visible: &[SessionMessage],
     ) -> Result<String, String> {
         let transcript = AgentPrompt::render(visible);
         let asked = match incoming.kind {
