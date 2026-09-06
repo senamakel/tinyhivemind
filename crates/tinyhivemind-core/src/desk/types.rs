@@ -15,8 +15,9 @@ pub enum ResponderMode {
 
 /// A declared or operator-added group conversation.
 ///
-/// Member ids are ordered: the first non-retired member is the desk lead
-/// unless a complete [`DeskOrder`] replaces that order.
+/// Member ids are ordered: the first member that is neither retired nor
+/// tombstoned is the desk lead unless a complete [`DeskOrder`] replaces that
+/// order.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct Desk {

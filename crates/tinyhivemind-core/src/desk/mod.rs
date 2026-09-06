@@ -106,7 +106,10 @@ impl<'a> DeskSet<'a> {
         self.resolve_id(identity).is_ok()
     }
 
-    /// Return a desk's deduplicated, non-retired members in effective order.
+    /// Return a desk's deduplicated, available members in effective order.
+    ///
+    /// Retired and tombstoned agents are excluded, and nothing in the result
+    /// says which of the two exclusions applied.
     ///
     /// # Errors
     ///
