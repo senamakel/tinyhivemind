@@ -31,6 +31,7 @@ use std::{
 };
 use tinyhivemind::{
     BriefedTeammate, BrevityPolicy, Conversation, EnqueueOutcome, MentionDispatchOutcome,
+    aside::{AsideDecision, AsideInput, AsidePolicy, Audience, Viewer, aside},
     MentionTurnFuture, MentionTurnQueue, SessionAuthor, SessionMessage, SessionQuery,
     TeamBriefing,
     desk::{Desk, DeskSet, ResponderMode},
@@ -39,10 +40,24 @@ use tinyhivemind::{
         MentionTurnRequest, dispatch_mention,
     },
     initialize_session,
-    mention::{MentionAuthor, resolve},
+    mention::{Mention, MentionAuthor, MentionTarget, resolve},
     sharing::{SharingPlan, SharingQuery, SharingState, initialized_state, prepare_delta},
     responder::{ResponderRequest, SelectionPolicy, choose_responder},
     roster::{Person, Roster, RosterMember},
+};
+
+/// The aside policy this desk runs under.
+///
+/// A pair, six rows, and a settlement owed before another may be opened. A
+/// desk solving one problem wants two seats to be able to sort out a
+/// disagreement without spending the room's attention on it — and wants that
+/// to end in something the room can read, which is what `must_surface` buys.
+const ASIDES: AsidePolicy = AsidePolicy {
+    enabled: true,
+    max_members: 1,
+    max_messages: 6,
+    must_surface: true,
+    require_thread: false,
 };
 
 /// How long a seat gets to write the message it never got round to writing.
@@ -249,6 +264,7 @@ async fn main() -> Result<(), BoxError> {
             label: spec.person_label.clone(),
         },
         &brief,
+        Audience::Desk,
     )?;
     println!("[{sequence:?}] {} opened the desk", spec.person_label);
 
@@ -320,6 +336,7 @@ async fn main() -> Result<(), BoxError> {
                         label: spec.person_label.clone(),
                     },
                     &nudge,
+                    Audience::Desk,
                 )?;
                 println!("[{}] chair nudge -> @{}", sequence.0, seat.id);
                 PendingTurn {
@@ -336,10 +353,14 @@ async fn main() -> Result<(), BoxError> {
         };
         turns += 1;
 
+        let viewer = Viewer::Agent {
+            id: seat.id.clone(),
+        };
         let query = SessionQuery {
             conversation: conversation.clone(),
             before: None,
             window: options.window,
+            viewer: viewer.clone(),
         };
         let briefing = TeamBriefing {
             viewer_id: seat.id.clone(),
@@ -357,6 +378,7 @@ async fn main() -> Result<(), BoxError> {
                 })
                 .collect(),
             brevity: BrevityPolicy::DEFAULT,
+            asides: ASIDES,
         };
         let resumed = sessions.get(&seat.id).cloned();
         let plan = match (resumed.as_ref(), shared.get(&seat.id)) {
@@ -368,6 +390,7 @@ async fn main() -> Result<(), BoxError> {
                         current_conversation: &conversation,
                         state,
                         before: sequence,
+                        viewer: viewer.clone(),
                     },
                 )
                 .await?,
@@ -454,6 +477,30 @@ async fn main() -> Result<(), BoxError> {
             println!("   | {line}");
         }
 
+        let mentions = resolve(
+            &output.message,
+            None,
+            &MentionAuthor::Agent {
+                id: seat.id.clone(),
+            },
+            &roster,
+            &desks,
+        );
+        // Who the line reaches is the library's decision, not this host's
+        // reading of the marker: `aside` resolves the audience and refuses
+        // with a named reason, and a refusal leaves the row desk-visible.
+        let audience = address(
+            &transcript,
+            &spec.id,
+            &seat.id,
+            &output.message,
+            &mentions,
+            &roster,
+            &desks,
+        )?;
+        if let Audience::Aside { members } = &audience {
+            println!("   aside to @{}", members.join(", @"));
+        }
         sequence = transcript.append(
             Some(spec.id.clone()),
             SessionAuthor::Agent {
@@ -461,18 +508,12 @@ async fn main() -> Result<(), BoxError> {
                 label: seat.label.clone(),
             },
             &output.message,
+            audience,
         )?;
         if let Some(store) = store.as_ref() {
             store.capture(&seat.id, sequence.0, &output.message);
         }
 
-        let mentions = resolve(
-            &output.message,
-            None,
-            &MentionAuthor::Agent { id: seat.id.clone() },
-            &roster,
-            &desks,
-        );
         let outcome = dispatch_mention(
             &queue,
             policy,
