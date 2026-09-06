@@ -172,12 +172,12 @@ fn parse_line(
     let mut cites = Vec::new();
     for word in words {
         if let Some(value) = word.strip_prefix('#') {
-            if topic.is_none() && !value.is_empty() {
-                topic = Some(TopicId(value.to_owned()));
+            if topic.is_none() {
+                topic = Some(TopicId(value.trim_end_matches('.').to_owned()));
             }
         } else if let Some(value) = word.strip_prefix('>') {
             if target.is_none() {
-                target = value.parse().ok().map(Sequence);
+                target = Some(Sequence(value.parse().unwrap_or(0)));
             }
         } else if let Some(value) = word.strip_prefix('^')
             && let Ok(parsed) = value.parse()
