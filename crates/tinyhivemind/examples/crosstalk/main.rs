@@ -348,6 +348,13 @@ struct Report {
     turns: Vec<Turn>,
     channel_view: Vec<String>,
     thread_view: Vec<String>,
+    /// Whether asides were offered this run.
+    asides: bool,
+    /// Named refusals the `aside` fold returned, if any.
+    refusals: Vec<String>,
+    /// One rendered projection per reader, so the run shows what each of them
+    /// was actually handed rather than what the journal holds.
+    views: Vec<(String, Vec<String>)>,
 }
 
 /// Ask the responder ladder who should answer an unaddressed instruction.
@@ -599,6 +606,27 @@ fn spent_in_aside(turns: &[Turn], speaker: &str) -> usize {
 /// The report compares two of these — the desk channel and the thread — which
 /// is how it shows that a thread is a narrower conversation over the same desk
 /// rather than a separate room.
+/// Render one conversation as one reader is handed it, line by line.
+async fn render_view(
+    journal: &Arc<Journal>,
+    conversation: Conversation,
+    window: usize,
+    viewer: Viewer,
+) -> Result<Vec<String>, String> {
+    project_session(
+        journal.as_ref(),
+        &SessionQuery {
+            conversation,
+            before: None,
+            window,
+            viewer,
+        },
+    )
+    .await
+    .map(|messages| messages.iter().map(agent::render).collect())
+    .map_err(|error| format!("projection failed: {error}"))
+}
+
 async fn view(
     journal: &Arc<Journal>,
     conversation: Conversation,
@@ -708,7 +736,32 @@ async fn run(options: &Options) -> Result<Report, String> {
         Vec::new()
     };
 
+    // What each reader is handed. This is the evidence for the whole
+    // mechanism: the same rows, the same sequences, different content.
+    let mut views = Vec::new();
+    if options.asides {
+        for id in &ids {
+            views.push((
+                format!("@{id}"),
+                render_view(&room.journal, floor.clone(), options.window, Viewer::Agent {
+                    id: (*id).to_owned(),
+                })
+                .await?,
+            ));
+        }
+        views.push((
+            "Ada (human)".to_owned(),
+            render_view(&room.journal, floor.clone(), options.window, Viewer::Person {
+                id: OPERATOR_ID.to_owned(),
+            })
+            .await?,
+        ));
+    }
+
     Ok(Report {
+        asides: options.asides,
+        refusals,
+        views,
         backend: options.backend.label(),
         responder: decision.responder_id,
         rung: format!("{:?}", decision.rung),

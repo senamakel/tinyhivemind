@@ -249,7 +249,7 @@ fn user_prompt(visible: &[SessionMessage], ask: &Ask<'_>) -> String {
 /// addressees, its extent, and where it settled — rather than being dropped.
 /// Dropping it would take from the reader both the citation and the one signal
 /// that a peer knows something it does not.
-fn render(message: &SessionMessage) -> String {
+pub(crate) fn render(message: &SessionMessage) -> String {
     let author = author_label(&message.author);
     let Some(elision) = &message.elided else {
         return format!("[{}] {author}: {}", message.sequence, message.content);
