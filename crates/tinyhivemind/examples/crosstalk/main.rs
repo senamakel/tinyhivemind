@@ -841,8 +841,9 @@ impl Report {
         );
         println!();
 
-        for turn in &self.turns {
-            let scope = turn
+        self.print_transcript();
+
+        if !self.views.is_empty() {
                 .thread_root
                 .map_or_else(|| "channel".to_owned(), |root| format!("thread@{root}"));
             println!(
