@@ -71,6 +71,7 @@ use tinyhivemind::{
     project_session,
 };
 use tinyhivemind_core::mention::{MentionAuthor, resolve as resolve_mentions};
+use tinyhivemind_core::aside::Viewer;
 
 /// The desk this harness seats, and what each seat is for.
 ///
@@ -447,6 +448,7 @@ async fn run_chain(
                 conversation: floor.clone(),
                 before: None,
                 window: options.window,
+                viewer: Viewer::Operator,
             },
         )
         .await
@@ -544,6 +546,7 @@ async fn view(
             conversation,
             before: None,
             window,
+            viewer: Viewer::Operator,
         },
     )
     .await

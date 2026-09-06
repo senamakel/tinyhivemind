@@ -10,6 +10,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tinyhivemind_core::aside::Audience;
+use tinyhivemind_core::aside::Viewer;
 
 fn assert_wire_round_trip<T>(value: &T, expected: serde_json::Value)
 where
@@ -81,6 +82,7 @@ fn query(window: usize) -> SessionQuery {
         conversation: conversation(),
         before: None,
         window,
+        viewer: Viewer::Operator,
     }
 }
 
@@ -212,6 +214,7 @@ fn session_records_pin_their_wire_shape() {
             },
             before: Some(Sequence(10)),
             window: 30,
+            viewer: Viewer::Operator,
         },
         serde_json::json!({
             "conversation": {

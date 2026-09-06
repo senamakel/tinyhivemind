@@ -6,6 +6,7 @@ use super::*;
 use crate::{SessionAuthor, SessionFuture, SessionPage, SourceError};
 use std::{collections::VecDeque, io, sync::Mutex};
 use tinyhivemind_core::aside::Audience;
+use tinyhivemind_core::aside::Viewer;
 
 #[derive(Debug)]
 struct FakeLog {
@@ -105,7 +106,7 @@ fn fold_counts_replies_per_root_and_tracks_the_newest_activity() {
         message(3, Some("engineering"), Some(1), "on it"),
         message(4, Some("engineering"), Some(1), "here is a draft"),
     ];
-    let index = fold_thread_index(&rows, THREAD_INDEX_LIMIT);
+    let index = fold_thread_index(&rows, &Viewer::Operator, THREAD_INDEX_LIMIT);
     assert_eq!(
         index
             .iter()
@@ -132,7 +133,7 @@ fn fold_orders_by_newest_activity_not_by_root() {
         message(3, Some("engineering"), Some(1), "revives the older thread"),
     ];
     assert_eq!(
-        fold_thread_index(&rows, THREAD_INDEX_LIMIT)
+        fold_thread_index(&rows, &Viewer::Operator, THREAD_INDEX_LIMIT)
             .iter()
             .map(|line| line.root.0)
             .collect::<Vec<_>>(),
@@ -153,13 +154,13 @@ fn fold_keeps_only_the_most_recent_threads_up_to_the_limit() {
         })
         .collect();
     assert_eq!(
-        fold_thread_index(&rows, 3)
+        fold_thread_index(&rows, &Viewer::Operator, 3)
             .iter()
             .map(|line| line.root.0)
             .collect::<Vec<_>>(),
         vec![8, 7, 6]
     );
-    assert!(fold_thread_index(&rows, 0).is_empty());
+    assert!(fold_thread_index(&rows, &Viewer::Operator, 0).is_empty());
 }
 
 #[test]
@@ -172,7 +173,7 @@ fn fold_ignores_blank_roots_blank_replies_and_replies_without_a_root() {
         message(5, Some("engineering"), Some(4), "  "),
         message(6, Some("engineering"), Some(4), "counted"),
     ];
-    let index = fold_thread_index(&rows, THREAD_INDEX_LIMIT);
+    let index = fold_thread_index(&rows, &Viewer::Operator, THREAD_INDEX_LIMIT);
     assert_eq!(
         index
             .iter()
@@ -204,7 +205,7 @@ fn opening_collapses_whitespace_and_truncates_on_a_character_boundary() {
             &"x".repeat(THREAD_OPENING_CHARS),
         ),
     ];
-    let index = fold_thread_index(&rows, THREAD_INDEX_LIMIT);
+    let index = fold_thread_index(&rows, &Viewer::Operator, THREAD_INDEX_LIMIT);
     let opening = |root: u64| {
         index
             .iter()
@@ -236,7 +237,7 @@ async fn index_reads_pages_filters_the_desk_and_returns_newest_first() {
             None,
         ),
     ]);
-    let index = read_thread_index(&log, &conversation(), THREAD_INDEX_LIMIT)
+    let index = read_thread_index(&log, &conversation(), &Viewer::Operator, THREAD_INDEX_LIMIT)
         .await
         .expect("indexes");
     assert_eq!(
@@ -258,13 +259,13 @@ async fn index_is_empty_and_unread_for_a_thread_or_a_zero_limit() {
     let mut inside = conversation();
     inside.thread_root = Some(Sequence(1));
     assert!(
-        read_thread_index(&log, &inside, THREAD_INDEX_LIMIT)
+        read_thread_index(&log, &inside, &Viewer::Operator, THREAD_INDEX_LIMIT)
             .await
             .expect("indexes")
             .is_empty()
     );
     assert!(
-        read_thread_index(&log, &conversation(), 0)
+        read_thread_index(&log, &conversation(), &Viewer::Operator, 0)
             .await
             .expect("indexes")
             .is_empty()
@@ -295,7 +296,7 @@ async fn index_stops_at_its_own_scan_bound_well_below_the_projection_limit() {
         ),
     ]);
     assert!(
-        read_thread_index(&log, &conversation(), THREAD_INDEX_LIMIT)
+        read_thread_index(&log, &conversation(), &Viewer::Operator, THREAD_INDEX_LIMIT)
             .await
             .expect("indexes")
             .is_empty()
@@ -306,13 +307,13 @@ async fn index_stops_at_its_own_scan_bound_well_below_the_projection_limit() {
 #[tokio::test]
 async fn index_reports_read_and_validation_failures() {
     assert!(matches!(
-        read_thread_index(&FakeLog::failing(), &conversation(), THREAD_INDEX_LIMIT).await,
+        read_thread_index(&FakeLog::failing(), &conversation(), &Viewer::Operator, THREAD_INDEX_LIMIT).await,
         Err(Error::Read { .. })
     ));
 
     let log = FakeLog::new(vec![page(Vec::new(), Some(4))]);
     assert!(matches!(
-        read_thread_index(&log, &conversation(), THREAD_INDEX_LIMIT).await,
+        read_thread_index(&log, &conversation(), &Viewer::Operator, THREAD_INDEX_LIMIT).await,
         Err(Error::EmptyPageCursor { .. })
     ));
 }

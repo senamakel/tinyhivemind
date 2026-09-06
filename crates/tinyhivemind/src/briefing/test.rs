@@ -12,6 +12,7 @@ use tinyhivemind_core::{
     roster::{Person, RosterMember},
 };
 use tinyhivemind_core::aside::Audience;
+use tinyhivemind_core::aside::Viewer;
 
 fn named_conversation() -> Conversation {
     Conversation {
@@ -406,6 +407,7 @@ async fn initialization_keeps_briefing_separate_from_history() {
         conversation: named_conversation(),
         before: None,
         window: 1,
+        viewer: Viewer::Operator,
     };
     let initialized = initialize_session(
         &OnePage(SessionPage {
@@ -468,6 +470,7 @@ async fn context_carries_the_thread_index_and_host_notes_beside_history() {
         conversation: named_conversation(),
         before: None,
         window: 10,
+        viewer: Viewer::Operator,
     };
     let note = BriefingNote {
         heading: "Work raised in this conversation".into(),
@@ -509,6 +512,7 @@ async fn context_skips_the_index_inside_a_thread_and_propagates_read_failures() 
         conversation: named_conversation(),
         before: None,
         window: 10,
+        viewer: Viewer::Operator,
     };
     query.conversation.thread_root = Some(Sequence(1));
     let initialized = initialize_session_with_context(&log, &query, viewer_briefing(), Vec::new())
@@ -645,6 +649,7 @@ async fn initialization_propagates_projection_errors() {
         conversation: named_conversation(),
         before: None,
         window: 1,
+        viewer: Viewer::Operator,
     };
     assert!(matches!(
         initialize_session(&FailingLog, &query, briefing).await,

@@ -9,6 +9,7 @@ use tinyhivemind::{
     responder::{ResponderRung, SelectionDisposition},
 };
 use tinyhivemind::aside::Audience;
+use tinyhivemind::aside::Viewer;
 
 #[test]
 fn root_exports_runtime_records_and_constants() {
@@ -86,7 +87,7 @@ fn root_exports_search_records_and_constants() {
         EXCERPT_CHARS, MessageHit, SEARCH_LIMIT, SEARCH_SCAN, SearchPattern, SearchQuery,
     };
 
-    let query = SearchQuery::new("/^ship/")
+    let query = SearchQuery::new("/^ship/", Viewer::Operator)
         .in_conversation(Conversation {
             desk_id: "engineering".into(),
             desk_name: "Engineering".into(),
@@ -136,7 +137,7 @@ fn root_exports_the_pin_fold_and_its_briefing_note() {
             audience: Audience::Desk,
         },
     ];
-    let board = fold_pins(&rows, PIN_LIMIT);
+    let board = fold_pins(&rows, &Viewer::Operator, PIN_LIMIT);
     assert_eq!(board[0].sequence, Sequence(1));
     assert_eq!(board[0].label.as_deref(), Some("limits"));
     assert_eq!(

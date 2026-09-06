@@ -12,6 +12,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tinyhivemind_core::aside::Audience;
+use tinyhivemind_core::aside::Viewer;
 
 #[derive(Debug)]
 struct FakeLog {
@@ -101,6 +102,7 @@ async fn plan(log: &FakeLog, state: &SharingState, before: u64) -> Result<Sharin
             current_conversation: &current,
             state,
             before: Sequence(before),
+            viewer: &Viewer::Operator,
         },
     )
     .await
@@ -302,6 +304,7 @@ async fn changed_current_or_stored_conversation_reinitializes_without_reading() 
             current_conversation: &current,
             state: &state,
             before: Sequence(11),
+            viewer: &Viewer::Operator,
         },
     )
     .await
@@ -440,6 +443,7 @@ async fn general_aliases_share_one_delta() {
             current_conversation: &current,
             state: &state,
             before: Sequence(12),
+            viewer: &Viewer::Operator,
         },
     )
     .await
@@ -467,6 +471,7 @@ async fn channels_and_exact_threads_never_mix() {
             current_conversation: &thread,
             state: &state,
             before: Sequence(15),
+            viewer: &Viewer::Operator,
         },
     )
     .await

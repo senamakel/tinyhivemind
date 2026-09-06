@@ -7,6 +7,7 @@ use crate::{Sequence, SessionFuture, SessionPage, SourceError};
 use std::{collections::VecDeque, io, sync::Mutex};
 use tinyhivemind_core::select::MatchKind;
 use tinyhivemind_core::aside::Audience;
+use tinyhivemind_core::aside::Viewer;
 
 #[derive(Debug)]
 struct FakeLog {
@@ -95,7 +96,7 @@ async fn finds_matching_rows_best_first() {
         message(3, Some("engineering"), None, "ship"),
         message(2, Some("engineering"), None, "unrelated chatter"),
     ])]);
-    let hits = search_messages(&log, &SearchQuery::new("ship"))
+    let hits = search_messages(&log, &SearchQuery::new("ship", Viewer::Operator))
         .await
         .expect("searches");
     assert_eq!(hits.len(), 2);
@@ -111,7 +112,7 @@ async fn scopes_a_search_to_one_desk_including_thread_interiors() {
         message(4, Some("engineering"), Some(3), "ship it"),
         message(3, Some("engineering"), None, "opening"),
     ])]);
-    let query = SearchQuery::new("ship").in_conversation(conversation(None));
+    let query = SearchQuery::new("ship", Viewer::Operator).in_conversation(conversation(None));
     let hits = search_messages(&log, &query).await.expect("searches");
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].sequence, Sequence(4));
@@ -126,7 +127,7 @@ async fn scopes_a_search_to_one_thread() {
         message(4, Some("engineering"), Some(3), "ship it here"),
         message(3, Some("engineering"), None, "ship the root"),
     ])]);
-    let query = SearchQuery::new("ship").in_conversation(conversation(Some(3)));
+    let query = SearchQuery::new("ship", Viewer::Operator).in_conversation(conversation(Some(3)));
     let hits = search_messages(&log, &query).await.expect("searches");
     let found: Vec<Sequence> = hits.iter().map(|hit| hit.sequence).collect();
     assert_eq!(found, vec![Sequence(4), Sequence(3)]);
@@ -137,7 +138,7 @@ async fn filters_by_author_id() {
     let mut newest = message(3, None, None, "ship it");
     newest.author = agent("bob");
     let log = FakeLog::new(vec![page(vec![newest, message(2, None, None, "ship it")])]);
-    let query = SearchQuery::new("ship").by_author("bob");
+    let query = SearchQuery::new("ship", Viewer::Operator).by_author("bob");
     let hits = search_messages(&log, &query).await.expect("searches");
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].sequence, Sequence(3));
@@ -153,7 +154,7 @@ async fn matches_an_operator_and_a_system_row_by_author_id() {
         label: "Workflow".into(),
     };
     let log = FakeLog::new(vec![page(vec![operator, system])]);
-    let by_operator = search_messages(&log, &SearchQuery::new("ship").by_author("operator"))
+    let by_operator = search_messages(&log, &SearchQuery::new("ship", Viewer::Operator).by_author("operator"))
         .await
         .expect("searches");
     assert_eq!(by_operator.len(), 1);
@@ -170,7 +171,7 @@ async fn matches_an_operator_and_a_system_row_by_author_id() {
             audience: Audience::Desk,
         },
     ])]);
-    let by_system = search_messages(&log, &SearchQuery::new("ship").by_author("workflow"))
+    let by_system = search_messages(&log, &SearchQuery::new("ship", Viewer::Operator).by_author("workflow"))
         .await
         .expect("searches");
     assert_eq!(by_system.len(), 1);
@@ -182,7 +183,7 @@ async fn excerpts_a_long_row_around_the_match() {
     let filler = "a ".repeat(120);
     let content = format!("{filler}needle {filler}");
     let log = FakeLog::new(vec![page(vec![message(2, None, None, &content)])]);
-    let hits = search_messages(&log, &SearchQuery::new("needle"))
+    let hits = search_messages(&log, &SearchQuery::new("needle", Viewer::Operator))
         .await
         .expect("searches");
     let excerpt = &hits[0].excerpt;
@@ -202,7 +203,7 @@ async fn excerpts_a_match_past_a_width_expanding_lowercase_run() {
     let filler_after = "a ".repeat(60);
     let content = format!("{filler_before}needle {filler_after}");
     let log = FakeLog::new(vec![page(vec![message(2, None, None, &content)])]);
-    let hits = search_messages(&log, &SearchQuery::new("needle"))
+    let hits = search_messages(&log, &SearchQuery::new("needle", Viewer::Operator))
         .await
         .expect("searches");
     assert_eq!(hits.len(), 1);
@@ -221,7 +222,7 @@ async fn keeps_a_short_row_whole_and_collapses_its_whitespace() {
         None,
         "ship\n\n  it   now",
     )])]);
-    let hits = search_messages(&log, &SearchQuery::new("ship"))
+    let hits = search_messages(&log, &SearchQuery::new("ship", Viewer::Operator))
         .await
         .expect("searches");
     assert_eq!(hits[0].excerpt, "ship it now");
@@ -231,12 +232,12 @@ async fn keeps_a_short_row_whole_and_collapses_its_whitespace() {
 async fn returns_nothing_and_reads_nothing_for_a_blank_query_or_zero_limit() {
     let log = FakeLog::new(vec![page(vec![message(2, None, None, "ship")])]);
     assert!(
-        search_messages(&log, &SearchQuery::new("   "))
+        search_messages(&log, &SearchQuery::new("   ", Viewer::Operator))
             .await
             .expect("searches")
             .is_empty()
     );
-    let mut query = SearchQuery::new("ship");
+    let mut query = SearchQuery::new("ship", Viewer::Operator);
     query.limit = 0;
     assert!(
         search_messages(&log, &query)
@@ -254,7 +255,7 @@ async fn truncates_to_the_query_limit() {
         message(3, None, None, "ship two"),
         message(2, None, None, "ship three"),
     ])]);
-    let mut query = SearchQuery::new("ship");
+    let mut query = SearchQuery::new("ship", Viewer::Operator);
     query.limit = 2;
     let hits = search_messages(&log, &query).await.expect("searches");
     assert_eq!(hits.len(), 2);
@@ -263,7 +264,7 @@ async fn truncates_to_the_query_limit() {
 #[tokio::test]
 async fn reports_a_host_read_failure() {
     let log = FakeLog::failing();
-    let error = search_messages(&log, &SearchQuery::new("ship"))
+    let error = search_messages(&log, &SearchQuery::new("ship", Viewer::Operator))
         .await
         .expect_err("read fails");
     assert!(matches!(error, Error::Read { .. }));
@@ -278,7 +279,7 @@ async fn walks_older_pages_until_the_log_ends() {
         },
         page(vec![message(4, None, None, "ship it")]),
     ]);
-    let hits = search_messages(&log, &SearchQuery::new("ship"))
+    let hits = search_messages(&log, &SearchQuery::new("ship", Viewer::Operator))
         .await
         .expect("searches");
     assert_eq!(hits.len(), 1);
@@ -293,9 +294,7 @@ async fn searches_threads_by_their_opening_words() {
         message(3, Some("engineering"), None, "shipping the launch email"),
     ])]);
     let hits = search_threads(
-        &log,
-        &conversation(None),
-        &SearchPattern::parse("shipping"),
+        &log, &conversation(None), &Viewer::Operator, &SearchPattern::parse("shipping"),
         8,
     )
     .await
@@ -310,9 +309,7 @@ async fn searches_no_threads_from_inside_one_or_at_zero_limit() {
     let log = FakeLog::new(vec![page(vec![message(3, None, None, "shipping")])]);
     assert!(
         search_threads(
-            &log,
-            &conversation(Some(3)),
-            &SearchPattern::parse("ship"),
+            &log, &conversation(Some(3)), &Viewer::Operator, &SearchPattern::parse("ship"),
             8
         )
         .await
@@ -320,13 +317,13 @@ async fn searches_no_threads_from_inside_one_or_at_zero_limit() {
         .is_empty()
     );
     assert!(
-        search_threads(&log, &conversation(None), &SearchPattern::parse("ship"), 0)
+        search_threads(&log, &conversation(None), &Viewer::Operator, &SearchPattern::parse("ship"), 0)
             .await
             .expect("searches")
             .is_empty()
     );
     assert!(
-        search_threads(&log, &conversation(None), &SearchPattern::parse(" "), 8)
+        search_threads(&log, &conversation(None), &Viewer::Operator, &SearchPattern::parse(" "), 8)
             .await
             .expect("searches")
             .is_empty()
@@ -352,7 +349,7 @@ fn parses_a_delimited_query_as_an_expression_and_anything_else_as_text() {
 
 #[test]
 fn pins_the_wire_form_of_a_search_query() {
-    let query = SearchQuery::new("/^ship/")
+    let query = SearchQuery::new("/^ship/", Viewer::Operator)
         .in_conversation(conversation(Some(3)))
         .by_author("alice");
     assert_eq!(
@@ -405,7 +402,7 @@ fn pins_the_wire_form_of_a_message_hit() {
 #[tokio::test]
 async fn refuses_an_expression_without_the_feature() {
     let log = FakeLog::new(vec![page(vec![message(2, None, None, "ship")])]);
-    let error = search_messages(&log, &SearchQuery::new("/^ship/"))
+    let error = search_messages(&log, &SearchQuery::new("/^ship/", Viewer::Operator))
         .await
         .expect_err("unsupported");
     assert!(matches!(error, Error::RegexUnsupported { .. }));
@@ -422,7 +419,7 @@ mod expressions {
             message(4, None, None, "shipped the release"),
             message(3, None, None, "we will ship later"),
         ])]);
-        let hits = search_messages(&log, &SearchQuery::new("/^ship(ped)?/"))
+        let hits = search_messages(&log, &SearchQuery::new("/^ship(ped)?/", Viewer::Operator))
             .await
             .expect("searches");
         assert_eq!(hits.len(), 1);
@@ -432,7 +429,7 @@ mod expressions {
     #[tokio::test]
     async fn reports_an_expression_that_does_not_compile() {
         let log = FakeLog::new(vec![page(vec![message(2, None, None, "ship")])]);
-        let error = search_messages(&log, &SearchQuery::new("/ship(/"))
+        let error = search_messages(&log, &SearchQuery::new("/ship(/", Viewer::Operator))
             .await
             .expect_err("invalid");
         assert!(matches!(error, Error::InvalidPattern { .. }));
