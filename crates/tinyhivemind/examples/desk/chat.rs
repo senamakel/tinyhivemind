@@ -33,17 +33,17 @@ impl Chat {
 
     /// Complete one prompt, returning the assistant text or the empty string.
     pub(crate) fn complete(&self, prompt: &str) -> String {
-        // `max_tokens` is a budget the model's own reasoning spends first. At
-        // 1200 against a ladder that injects `reasoning_effort: high`, every
-        // token went to reasoning, `finish_reason` came back `length`, and
-        // `content` was the empty string — a silent turn that looked like a
-        // model refusing to answer and was a cap set too low. Ask for shallow
-        // reasoning, and leave room for the answer after it.
+        // No `max_tokens`, deliberately. A reasoning model spends that budget
+        // on reasoning tokens first: at 1200 the whole cap went to reasoning and
+        // the response came back `finish_reason: length` with `content` empty —
+        // a silent seat that looked like a refusal and was a cap set too low.
+        // 8000 bought 21k characters of reasoning and still no answer, on both
+        // DeepSeek tiers. Uncapped, the same call answers in 350 tokens. The
+        // deadline here is wall clock, which is a bound on the *call* rather
+        // than a bound on the thinking inside it.
         let body = serde_json::json!({
             "model": self.model,
             "messages": [{ "role": "user", "content": prompt }],
-            "max_tokens": 8000,
-            "reasoning_effort": "low",
         });
         let Some(response) = self.post("/v1/chat/completions", &body) else {
             return String::new();

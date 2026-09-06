@@ -46,7 +46,7 @@ use tinyhivemind::{
 };
 
 /// How long a seat gets to write the message it never got round to writing.
-const WRAP_UP_TIMEOUT: Duration = Duration::from_secs(420);
+const WRAP_UP_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// The error every host-side call in this example returns.
 type BoxError = Box<dyn StdError + Send + Sync + 'static>;
@@ -132,7 +132,7 @@ impl Options {
             router_base: std::env::var("LADDER_BASE")
                 .unwrap_or_else(|_| "http://127.0.0.1:6969".into()),
             router_key: std::env::var("LADDER_API_KEY").unwrap_or_default(),
-            router_model: "deepseek".into(),
+            router_model: "deepseek-flash".into(),
         };
         let mut args = std::env::args().skip(1);
         while let Some(flag) = args.next() {
