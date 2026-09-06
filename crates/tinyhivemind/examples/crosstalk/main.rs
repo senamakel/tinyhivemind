@@ -72,7 +72,9 @@ use tinyhivemind::{
     project_session,
 };
 use tinyhivemind_core::aside::{AsideDecision, AsideInput, AsidePolicy, Audience, Viewer, aside};
-use tinyhivemind_core::mention::{Mention, MentionAuthor, MentionTarget, resolve as resolve_mentions};
+use tinyhivemind_core::mention::{
+    Mention, MentionAuthor, MentionTarget, resolve as resolve_mentions,
+};
 
 /// The desk this harness seats, and what each seat is for.
 ///

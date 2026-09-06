@@ -39,7 +39,10 @@ fn root_exports_runtime_records_and_constants() {
             members: vec!["linus".into()]
         }
     );
-    assert_eq!(message.elided.as_ref().map(|elision| elision.messages), Some(1));
+    assert_eq!(
+        message.elided.as_ref().map(|elision| elision.messages),
+        Some(1)
+    );
     assert_eq!((SESSION_WINDOW, PAGE_SIZE, SCAN_LIMIT), (30, 512, 2048));
 }
 
