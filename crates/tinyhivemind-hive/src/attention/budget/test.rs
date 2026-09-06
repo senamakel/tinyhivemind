@@ -279,7 +279,10 @@ fn arbitrary_claims_never_overspend_and_never_leave_a_fragment() {
         let shares = allocate_chars(&requests, &policy);
         assert_eq!(shares.len(), requests.len());
         let spent: usize = shares.iter().map(|share| share.granted).sum();
-        assert!(spent <= policy.total_chars, "{shares:?} overspent {policy:?}");
+        assert!(
+            spent <= policy.total_chars,
+            "{shares:?} overspent {policy:?}"
+        );
 
         for (request, share) in requests.iter().zip(&shares) {
             assert_eq!(share.source_id, request.source_id);
