@@ -377,7 +377,7 @@ pub(crate) fn http_turn(
          request = \"POST\"\n\
          header = \"Authorization: Bearer {key}\"\n\
          header = \"Content-Type: application/json\"\n\
-         data-binary = "{body}"\n\
+         data-binary = \"{body}\"\n\
          max-time = {timeout_secs}\n\
          silent\n\
          show-error\n\
