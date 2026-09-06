@@ -698,13 +698,16 @@ fn an_empty_desk_and_a_deskless_target_refuse_in_the_same_words() {
     let roster = Roster::new(&members, &[], &[]);
     let desk_records = vec![desk("payments", &["ada", "grace"]), desk("solo", &["ada"])];
     let desks = DeskSet::new(&desk_records, &[], &[], &[], &[]);
-    let refuse = |mention| {
-        match referral(OPEN, &input("ada", "payments", vec![mention]), &roster, &desks)
-            .expect("snapshots are well formed")
-        {
-            ReferralDecision::None { reason } => reason,
-            ReferralDecision::One { .. } => panic!("no referral was available"),
-        }
+    let refuse = |mention| match referral(
+        OPEN,
+        &input("ada", "payments", vec![mention]),
+        &roster,
+        &desks,
+    )
+    .expect("snapshots are well formed")
+    {
+        ReferralDecision::None { reason } => reason,
+        ReferralDecision::One { .. } => panic!("no referral was available"),
     };
     let deskless = refuse(agent_mention("hedy", 0));
     let empty = refuse(desk_mention("solo", 0));

@@ -481,6 +481,9 @@ async fn a_refused_enqueue_and_an_unaddressed_reply_decline_in_the_same_words() 
         MentionDispatchOutcome::Refused { reason } => reason.to_string(),
         other => panic!("expected a decline, got {other:?}"),
     };
-    assert_ne!(refused, unaddressed, "the operator's log still separates them");
+    assert_ne!(
+        refused, unaddressed,
+        "the operator's log still separates them"
+    );
     assert_eq!(sentence(refused), sentence(unaddressed));
 }

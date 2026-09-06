@@ -5,11 +5,11 @@ mod test;
 
 mod types;
 
+pub(crate) use types::HOP_BUDGET_SPENT;
 pub use types::{
     DispatchConversation, DispatchKey, MentionDispatchDecision, MentionDispatchInput,
     MentionDispatchPolicy, MentionTurnRequest, NO_AVAILABLE_TARGET, NoDispatchReason,
 };
-pub(crate) use types::HOP_BUDGET_SPENT;
 
 use crate::{error::Result, mention::MentionTarget, roster::Roster};
 

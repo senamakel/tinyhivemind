@@ -572,6 +572,9 @@ fn an_unresolved_name_and_an_inactive_target_refuse_in_the_same_words() {
         MentionDispatchDecision::None { reason } => reason.to_string(),
         MentionDispatchDecision::One { .. } => panic!("no child turn was available"),
     };
-    assert_ne!(unresolved, inactive, "the operator's log still separates them");
+    assert_ne!(
+        unresolved, inactive,
+        "the operator's log still separates them"
+    );
     assert_eq!(sentence(unresolved), sentence(inactive));
 }
