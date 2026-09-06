@@ -26,7 +26,7 @@ use std::{
     error::Error as StdError,
     fs,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, PoisonError},
     time::Duration,
 };
 use tinyhivemind::{
@@ -83,7 +83,7 @@ struct DeskQueue {
 impl MentionTurnQueue for DeskQueue {
     fn enqueue_once(&self, request: MentionTurnRequest) -> MentionTurnFuture<'_> {
         Box::pin(async move {
-            let mut seen = self.seen.lock().expect("queue lock");
+            let mut seen = self.seen.lock().unwrap_or_else(PoisonError::into_inner);
             let key = (request.key.trigger_sequence, request.target_id.clone());
             if seen.contains(&key) {
                 return Ok(EnqueueOutcome::Already);
@@ -309,7 +309,7 @@ async fn main() -> Result<(), BoxError> {
     let mut next_seat = 0_usize;
     let mut tokens = 0_u64;
     while turns < options.max_turns {
-        let job = queue.pending.lock().expect("queue lock").pop_front();
+        let job = queue.pending.lock().unwrap_or_else(PoisonError::into_inner).pop_front();
         let job = match job {
             Some(job) => job,
             None => {

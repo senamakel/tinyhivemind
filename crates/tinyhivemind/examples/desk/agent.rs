@@ -178,7 +178,7 @@ fn parse_events(stdout: &str) -> TurnOutput {
                     text.push_str(part);
                 }
             }
-            Some("tool") | Some("tool_use") => {
+            Some("tool" | "tool_use") => {
                 if let Some(name) = event
                     .pointer("/part/tool")
                     .and_then(serde_json::Value::as_str)
@@ -195,7 +195,7 @@ fn parse_events(stdout: &str) -> TurnOutput {
                     .unwrap_or_default();
                 turn.work_log.push_str("\n$ ");
                 turn.work_log.push_str(&truncate(&input, 1200));
-                turn.work_log.push_str("\n");
+                turn.work_log.push('\n');
                 turn.work_log.push_str(&truncate(result, 1200));
                 turn.work_log.push('\n');
             }

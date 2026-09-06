@@ -11,7 +11,7 @@ use std::{
     fs::{File, OpenOptions},
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{Mutex, PoisonError},
 };
 use tinyhivemind::{
     LogMessage, Sequence, SessionAuthor, SessionFuture, SessionLog, SessionPage, aside::Audience,
@@ -58,7 +58,7 @@ impl JsonlLog {
         content: &str,
         audience: Audience,
     ) -> Result<Sequence, Box<dyn std::error::Error + Send + Sync>> {
-        let mut rows = self.rows.lock().expect("transcript lock is never poisoned");
+        let mut rows = self.rows.lock().unwrap_or_else(PoisonError::into_inner);
         let sequence = Sequence(rows.len() as u64 + 1);
         let row = LogMessage {
             sequence,
@@ -79,18 +79,18 @@ impl JsonlLog {
 
     /// How many rows the transcript holds.
     pub(crate) fn len(&self) -> usize {
-        self.rows.lock().expect("transcript lock").len()
+        self.rows.lock().unwrap_or_else(PoisonError::into_inner).len()
     }
 
     /// Every row, oldest first, for the folds an aside policy needs.
     pub(crate) fn rows(&self) -> Vec<LogMessage> {
-        self.rows.lock().expect("transcript lock").clone()
+        self.rows.lock().unwrap_or_else(PoisonError::into_inner).clone()
     }
 }
 
 impl SessionLog for JsonlLog {
     fn read_before(&self, before: Option<Sequence>, limit: usize) -> SessionFuture<'_> {
-        let rows = self.rows.lock().expect("transcript lock");
+        let rows = self.rows.lock().unwrap_or_else(PoisonError::into_inner);
         let ceiling = before.map_or(u64::MAX, |sequence| sequence.0);
         let mut messages: Vec<LogMessage> = rows
             .iter()
