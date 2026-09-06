@@ -13,6 +13,7 @@ use tinyhivemind_core::{
 };
 use tinyhivemind_core::aside::Audience;
 use tinyhivemind_core::aside::Viewer;
+use tinyhivemind_core::aside::AsidePolicy;
 
 fn named_conversation() -> Conversation {
     Conversation {
@@ -87,6 +88,7 @@ fn briefing_records_pin_their_wire_shape() {
         desk_name: "Engineering".into(),
         teammates: vec![teammate],
         brevity: BrevityPolicy::DEFAULT,
+        asides: AsidePolicy::DEFAULT,
     };
     let briefing_json = serde_json::json!({
         "viewer_id": "alice",
@@ -123,6 +125,7 @@ fn initialization_pins_its_wire_shape() {
             description: Some("Reviews changes".into()),
         }],
         brevity: BrevityPolicy::DEFAULT,
+        asides: AsidePolicy::DEFAULT,
     };
     let initialization = SessionInitialization {
         briefing,
@@ -316,6 +319,7 @@ fn system_text_is_deterministic_and_states_coordination_rules() {
             description: Some("Checks safety".into()),
         }],
         brevity: BrevityPolicy::DEFAULT,
+        asides: AsidePolicy::DEFAULT,
     };
     let expected = "You are @alice in the Engineering desk (id: engineering).\n\
 Teammates:\n\
@@ -394,6 +398,7 @@ async fn initialization_keeps_briefing_separate_from_history() {
         desk_name: "Engineering".into(),
         teammates: Vec::new(),
         brevity: BrevityPolicy::DEFAULT,
+        asides: AsidePolicy::DEFAULT,
     };
     let row = LogMessage {
         sequence: Sequence(4),
@@ -453,6 +458,7 @@ fn viewer_briefing() -> TeamBriefing {
         desk_name: "Engineering".into(),
         teammates: Vec::new(),
         brevity: BrevityPolicy::DEFAULT,
+        asides: AsidePolicy::DEFAULT,
     }
 }
 
@@ -644,6 +650,7 @@ async fn initialization_propagates_projection_errors() {
         desk_name: "Engineering".into(),
         teammates: Vec::new(),
         brevity: BrevityPolicy::DEFAULT,
+        asides: AsidePolicy::DEFAULT,
     };
     let query = SessionQuery {
         conversation: named_conversation(),

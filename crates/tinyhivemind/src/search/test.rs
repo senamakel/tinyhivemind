@@ -168,7 +168,6 @@ async fn matches_an_operator_and_a_system_row_by_author_id() {
                 label: "Workflow".into(),
             },
             ..message(2, None, None, "ship it")
-            audience: Audience::Desk,
         },
     ])]);
     let by_system = search_messages(&log, &SearchQuery::new("ship", Viewer::Operator).by_author("workflow"))
