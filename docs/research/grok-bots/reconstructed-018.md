@@ -258,31 +258,27 @@ code-enforced. `source/packages/agent/loop-detection/` does not help: it detects
 ## The coordinator/host split, and what counts as a port
 
 `source/host/ports/` is not a hexagonal port layer. It is seven small files of
-constants, error classes and helpers: `box.ts` (7 lines) holds user-facing
-strings and error classes but declares no box interface at all (that is
-`CapableBox` in `host/box/box-capabilities.ts`); `transport.ts` (5 lines) is a
-last-message-id tracker; `sand-analytics-types.ts` is one bucketing function;
-`telemetry.ts` describes a ~25-method surface only implicitly, through the keys
-of `createNoopSandTelemetry()`. Two files do hold real injection points
+constants, error classes and helpers: `box.ts` (7 lines) holds strings and error
+classes but declares no box interface (that is `CapableBox` in
+`host/box/box-capabilities.ts`); `transport.ts` (5 lines) is a last-message-id
+tracker; `telemetry.ts` describes a ~25-method surface only implicitly, through
+the keys of `createNoopSandTelemetry()`. Two files do hold real injection points
 (`SandMcpProvider`, `SandProductAnalytics`). Naming the folder `ports/`
 overstates it.
 
 The real seams are elsewhere and they are good ones:
 
 - `TurnExecutor` (`host/extensions/turn-execution/extension.ts:10`) — three
-  methods (`isInferenceReady`, `createRunner`, `createGroupMemberRunner`) bound
-  late by the composition root, with an explicit double-bind error: "a second
-  executor would mint a second runner for the same agent" (line 8).
+  methods bound late by the composition root, with an explicit double-bind
+  error: "a second executor would mint a second runner for the same agent".
 - `GroupOrchestratorDeps` (`group-chat-orchestrator.ts:17`) — six methods
   (`resolveMembers`, `readHistory`, `isCurrent`, `runMemberTurn`,
-  `postMemberMessage`, `finalizeMemberTurn?`). The orchestrator itself does no
-  IO. This is the closest analogue in the repository to `tinyhivemind`'s hive
-  episode: a bounded loop over a history the caller supplies, with waiting
-  pushed behind an interface.
+  `postMemberMessage`, `finalizeMemberTurn?`); the orchestrator does no IO. This
+  is the repository's closest analogue to `tinyhivemind`'s hive episode: a
+  bounded loop over a history the caller supplies, waiting pushed behind an
+  interface.
 - `HostRosterBookkeeping` (`host/host-roster-bookkeeping.ts:46`) — six named
-  single-purpose interfaces (`AttachmentRosterPort`, `TranscriptRosterPort`,
-  `ForeverBoxRosterPort`, `SnapshotBackstopPort`, `BoxStoreSnapshotPort`,
-  `SourceMapRosterPort`) resolved by an overloaded `api(id)`.
+  single-purpose interfaces resolved by an overloaded `api(id)`.
 - `TranscriptPageStatements` (`agent-db-transcript-pages.ts:5`) — the paging
   functions depend on three prepared statements, not on a database.
 
@@ -447,31 +443,30 @@ never accumulated, never displayed.
 
 Ordered by how directly it maps onto `tinyhivemind`:
 
-1. The whole mention grammar — `resolveResponders`, `parseGroupMentions`,
-   `memberMentionHandles`, `hasMentionAt` (`host/groups/group-chat.ts:7-10`),
-   pure over `(members, history)`.
-2. `orderRoundSpeakers` (`group-chat.ts:3`), `isPassContent` /
-   `isPotentialPassPrefix` (line 11), `messagesSinceMemberLastSpoke` (line 16),
-   `formatGroupHistory` (line 14) — speaker rotation, response threshold, and
-   per-viewer projection.
-3. `GroupChatOrchestrator.run` (`group-chat-orchestrator.ts:35`) — a bounded
+1. The whole mention grammar, pure over `(members, history)` —
+   `resolveResponders`, `parseGroupMentions`, `memberMentionHandles`,
+   `hasMentionAt` (`host/groups/group-chat.ts:7-10`) — together with
+   `orderRoundSpeakers` (line 3), `isPassContent` / `isPotentialPassPrefix`
+   (line 11), `messagesSinceMemberLastSpoke` (line 16) and `formatGroupHistory`
+   (line 14): speaker rotation, response threshold, per-viewer projection.
+2. `GroupChatOrchestrator.run` (`group-chat-orchestrator.ts:35`) — a bounded
    episode loop, pure but for six injected methods.
-4. `evaluateAutomationSpendGuard` (`sand-automation-spend-guard.ts:32`) — a
+3. `evaluateAutomationSpendGuard` (`sand-automation-spend-guard.ts:32`) — a
    seven-verdict decision over a window.
-5. `nextEntryId` and its counting helpers (`transcript-entry-ids.ts`) — the
+4. `nextEntryId` and its counting helpers (`transcript-entry-ids.ts`) — the
    whole 78-line file.
-6. `localToolApprovalCovers` (`shared/local-tool-permission-machinery.ts:83`) —
+5. `localToolApprovalCovers` (`shared/local-tool-permission-machinery.ts:83`) —
    a four-line permission predicate shared by two processes.
-7. `truncatePromptFairly` / `computeMaxMinFairAllocations`
+6. `truncatePromptFairly` / `computeMaxMinFairAllocations`
    (`packages/agent-summarization/prompt-truncation.ts:17,70`) — **max-min fair
    allocation** of a character budget across messages: sort by size, hand each
    the smaller of its size and `floor(remaining/remainingCount)`, drop anything
-   under `minUsefulChars = 200` and replace it with an `[omitted N chars]`
-   marker. A directly reusable attention-market fold.
-8. `resolveHostExtensionBootOrder` (`internal/host-extensions.ts:57`) — a
-   topological sort with named errors; `parseCoordinatorFrame`
-   (`shared/rpc/coordinator-port.ts:35`) — a non-throwing frame parser.
-9. Smaller ones: `upsertAgentSummary` (`shared/agents/agent-summaries.ts:13`),
+   under `minUsefulChars = 200` and mark it `[omitted N chars]`. Directly
+   reusable as an attention-market fold.
+7. `resolveHostExtensionBootOrder` (`internal/host-extensions.ts:57`), a
+   topological sort with named errors, and `parseCoordinatorFrame`
+   (`shared/rpc/coordinator-port.ts:35`), a non-throwing frame parser.
+8. Smaller ones: `upsertAgentSummary` (`shared/agents/agent-summaries.ts:13`),
    `getLastEntryFromTranscript` (`session/session-projection.ts:14`), the paging
    folds in `agent-db-transcript-pages.ts`, `estimateTokenCount`
    (`agent-summarization/token-estimate.ts:67`), and
