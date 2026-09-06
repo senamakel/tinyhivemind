@@ -30,6 +30,11 @@ what actually happened when it was run goes in
 - [`long-context.md`](long-context.md) — position bias in a long window,
   context rot, and recursive language models: why P14 makes the transcript
   queryable instead of making the window bigger.
+- [`context-in-agent-teams.md`](context-in-agent-teams.md) — what it costs when
+  two agents on one desk hold different transcripts: the Cognition/Anthropic
+  disagreement about sharing context, hidden profiles, the conformity that full
+  visibility buys, the auditability a private channel owes, and the four ways a
+  divergent view fails a reader with a sliding window. The reading behind P16.
 
 Each closes with a table mapping the mechanisms it covers to the state this
 workspace already holds, and to the state it does not.
