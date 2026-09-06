@@ -59,7 +59,10 @@ impl fmt::Debug for Backend {
                 .field("model", model)
                 .field("timeout_secs", timeout_secs)
                 .finish(),
-            Self::Command { argv } => formatter.debug_struct("Command").field("argv", argv).finish(),
+            Self::Command { argv } => formatter
+                .debug_struct("Command")
+                .field("argv", argv)
+                .finish(),
         }
     }
 }
@@ -140,7 +143,9 @@ impl Seat {
         };
         format!(
             "You are @{}, the {} on the {} desk. {roster}\n\n{RULES}",
-            self.id, self.role, super::host::DESK_NAME,
+            self.id,
+            self.role,
+            super::host::DESK_NAME,
         )
     }
 }

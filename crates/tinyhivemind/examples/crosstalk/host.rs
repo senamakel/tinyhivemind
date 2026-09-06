@@ -15,11 +15,10 @@
 //! library dispatches, not that a host can hold the contract.
 
 use std::collections::HashSet;
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Mutex, PoisonError};
 
 use tinyhivemind::dispatch::{
-    DispatchKey, EnqueueOutcome, EnqueueRefusal, MentionTurnFuture, MentionTurnQueue,
-    MentionTurnRequest,
+    EnqueueOutcome, EnqueueRefusal, MentionTurnFuture, MentionTurnQueue, MentionTurnRequest,
 };
 use tinyhivemind::{
     BoxError, Conversation, LogMessage, Sequence, SessionAuthor, SessionFuture, SessionLog,
@@ -53,7 +52,11 @@ impl Journal {
         content: &str,
     ) -> Sequence {
         let mut rows = self.rows.lock().unwrap_or_else(PoisonError::into_inner);
-        let sequence = Sequence(u64::try_from(rows.len()).unwrap_or(u64::MAX).saturating_add(1));
+        let sequence = Sequence(
+            u64::try_from(rows.len())
+                .unwrap_or(u64::MAX)
+                .saturating_add(1),
+        );
         rows.push(LogMessage {
             sequence,
             chat_id: Some(conversation.desk_id.clone()),
@@ -83,9 +86,8 @@ impl SessionLog for Journal {
             .collect();
         page.sort_by(|left, right| right.sequence.cmp(&left.sequence));
         let next_before = page.last().map(|row| row.sequence);
-        let has_older = next_before.is_some_and(|oldest| {
-            rows.iter().any(|row| row.sequence < oldest)
-        });
+        let has_older =
+            next_before.is_some_and(|oldest| rows.iter().any(|row| row.sequence < oldest));
         let page = SessionPage {
             messages: page,
             next_before: if has_older { next_before } else { None },

@@ -61,7 +61,7 @@ use tinyhivemind::dispatch::{
     MentionDispatchPolicy, dispatch_mention,
 };
 use tinyhivemind::responder::{
-    ResponderRequest, Selector, SelectorCandidate, SelectorFuture, SelectionPolicy,
+    ResponderRequest, SelectionPolicy, Selector, SelectorCandidate, SelectorFuture,
     choose_responder,
 };
 use tinyhivemind::{
@@ -103,7 +103,10 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let runtime = match tokio::runtime::Builder::new_current_thread().enable_all().build() {
+    let runtime = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
         Ok(runtime) => runtime,
         Err(error) => {
             eprintln!("crosstalk: could not start a runtime: {error}");
@@ -175,8 +178,9 @@ impl Options {
                 return Err("--api-base and --agent-cmd are alternatives, not a pair".to_owned());
             }
             (Some(base), None) => {
-                let key = std::env::var(&key_env)
-                    .map_err(|_| format!("{key_env} must be set, or name another with --api-key-env"))?;
+                let key = std::env::var(&key_env).map_err(|_| {
+                    format!("{key_env} must be set, or name another with --api-key-env")
+                })?;
                 Backend::Http {
                     base: base.trim_end_matches('/').to_owned(),
                     key,
@@ -185,8 +189,7 @@ impl Options {
                 }
             }
             (None, Some(command)) => {
-                let argv: Vec<String> =
-                    command.split_whitespace().map(str::to_owned).collect();
+                let argv: Vec<String> = command.split_whitespace().map(str::to_owned).collect();
                 if argv.is_empty() {
                     return Err("--agent-cmd is empty".to_owned());
                 }
@@ -609,10 +612,9 @@ impl Report {
         let saw_the_sender = self.turns.windows(2).all(|pair| {
             let (before, after) = (&pair[0], &pair[1]);
             !matches!(before.outcome, MentionDispatchOutcome::Enqueued)
-                || after
-                    .saw
-                    .iter()
-                    .any(|line| line.starts_with(&format!("{}:@{}", before.sequence, before.speaker)))
+                || after.saw.iter().any(|line| {
+                    line.starts_with(&format!("{}:@{}", before.sequence, before.speaker))
+                })
         });
         claim(
             saw_the_sender,
