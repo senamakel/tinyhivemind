@@ -22,9 +22,9 @@
 //!
 //! # Fence rules
 //!
-//! The fence rules follow the [`CommonMark` fenced code block rules][spec]
-//! closely enough that an author who formats a message for a Markdown renderer
-//! gets the masking they see:
+//! [`fenced_ranges`] covers both of `CommonMark`'s code block kinds, closely
+//! enough that an author who formats a message for a Markdown renderer gets
+//! the masking they see:
 //!
 //! - an opening fence is indented at most three spaces, and is a run of at
 //!   least three backticks or at least three tildes;
@@ -33,9 +33,15 @@
 //! - a closing fence uses the same character as its opener, runs at least as
 //!   long, and carries nothing but whitespace after the run;
 //! - an unclosed fence masks to the end of the body, so a body cannot end
-//!   mid-block with its tail read as grammar.
+//!   mid-block with its tail read as grammar;
+//! - a line indented four or more spaces opens an [indented code
+//!   block][indented-spec] instead, which is why a fence at that indentation
+//!   never opens a fenced one — but its content is still `CommonMark` code, so
+//!   [`fenced_ranges`] masks it too, and a directive quoted inside one cannot
+//!   reach a line-leading grammar.
 //!
 //! [spec]: https://spec.commonmark.org/current/#fenced-code-blocks
+//! [indented-spec]: https://spec.commonmark.org/current/#indented-code-blocks
 
 #[cfg(test)]
 mod test;
