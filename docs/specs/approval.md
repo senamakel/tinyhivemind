@@ -135,15 +135,12 @@ and it denies.
 `conversation` reuses `DispatchConversation` unchanged, so an action is bound
 to the same canonical `(desk_id, thread_root)` pair a dispatch decision binds.
 
-**Trust assumption: `actor_id` is host-authenticated.** `approve` takes it as
-a plain field and never verifies it — the same trust boundary
+**Trust assumption: `actor_id` is host-authenticated**, the same boundary
 [`mention-dispatch.md`](mention-dispatch.md#trust-assumptions) draws around
-`input.hop`. [ADR 0009](../adr/0009-a-refusal-renders-what-the-caller-already-holds.md)'s
-claim that `UnknownActor` discloses nothing the caller could not already read
-holds only if the host derived `actor_id` from its own authenticated session,
-not from a value the caller chose; a host that lets a caller pick its own
-`actor_id` turns that variant into a roster oracle, and no code here can catch
-the mistake.
+`input.hop`. `approve` never verifies it, so ADR 0009's claim that
+`UnknownActor` discloses nothing new holds only if the host derived it from an
+authenticated session rather than a caller-chosen value; otherwise the variant
+becomes a roster oracle no code here can catch.
 
 ### The scope key
 
