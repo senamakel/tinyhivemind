@@ -9,6 +9,7 @@ use crate::{
 use std::io;
 use tinyhivemind_core::{
     desk::{Desk, DeskMember, DeskOrder, ResponderMode},
+    dispatch::MentionDispatchPolicy,
     roster::{Person, RosterMember},
 };
 
