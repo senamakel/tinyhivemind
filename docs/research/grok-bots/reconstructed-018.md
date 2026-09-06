@@ -200,13 +200,13 @@ It exists, it is host-side, and it applies only in group chats. There is no
 mention parsing anywhere in the `send-*` pipeline; `send-message-shaping.ts`
 carries `richText` opaquely.
 
-- `memberMentionHandles(name)` (`group-chat.ts:7`) derives handles from a
-  display name: lowercased whole name, whitespace-stripped variant, and the
-  first token. Three handles per member, no explicit `@handle` field anywhere.
-- `hasMentionAt(lower, handle)` (line 8) is a word-boundary scan for `@handle`
-  using an ASCII `[a-z0-9]` boundary test.
+- `memberMentionHandles(name)` (`group-chat.ts:7`) derives three handles from a
+  display name — lowercased whole name, whitespace-stripped variant, first
+  token. There is no stored `@handle` field anywhere.
+- `hasMentionAt(lower, handle)` (line 8) scans for `@handle` with an ASCII
+  `[a-z0-9]` word-boundary test.
 - `parseGroupMentions(text, members)` (line 9) returns
-  `{isEveryone, memberIds}`, where `isEveryone` is
+  `{isEveryone, memberIds}`, `isEveryone` being
   `/(?:^|[^a-z0-9])@(everyone|all)\b/.test(lower)`.
 - `resolveResponders(members, history)` (line 10) walks back to the last user
   message, unions mentions across every message since, and returns **all members
@@ -217,15 +217,13 @@ All four are pure functions of `(text, members)` or `(members, history)`. The
 "unmentioned means everyone" default is the notable design choice, and it is
 what turns a plain group message into a ten-turn episode.
 
-Two more pure pieces sit next to them and are directly relevant to
-`tinyhivemind`'s response-threshold work: `isPassContent` (line 11) recognises
-`(pass)` — group members are instructed to send exactly `"(pass)"` when they
-have nothing to add, and `isPotentialPassPrefix` lets a stream be suppressed
-before the word finishes. `orderRoundSpeakers` (line 3) rotates the speaker
-order by round so the same member does not always open.
+Three more pure pieces sit beside them. `isPassContent` (line 11) recognises
+`(pass)` — members are instructed to send exactly that when they have nothing to
+add — and `isPotentialPassPrefix` suppresses the stream before the word
+finishes. `orderRoundSpeakers` (line 3) rotates the opener by round.
 `messagesSinceMemberLastSpoke` (line 16) is the per-viewer projection: it slices
-the history from that member's last utterance, which is what each member's turn
-prompt is built from (`buildGroupTurnPrompt`, line 18).
+history from that member's last utterance, which is what its turn prompt is
+built from (`buildGroupTurnPrompt`, line 18).
 
 ### Scheduling
 
@@ -461,15 +459,15 @@ never accumulated, never displayed.
 
 Ordered by how directly it maps onto `tinyhivemind`:
 
-1. `resolveResponders` / `parseGroupMentions` / `memberMentionHandles` /
-   `hasMentionAt` (`host/groups/group-chat.ts:7-10`) — the whole mention
-   grammar, pure over `(members, history)`.
+1. The whole mention grammar — `resolveResponders`, `parseGroupMentions`,
+   `memberMentionHandles`, `hasMentionAt` (`host/groups/group-chat.ts:7-10`),
+   pure over `(members, history)`.
 2. `orderRoundSpeakers` (`group-chat.ts:3`), `isPassContent` /
    `isPotentialPassPrefix` (line 11), `messagesSinceMemberLastSpoke` (line 16),
    `formatGroupHistory` (line 14) — speaker rotation, response threshold, and
    per-viewer projection.
 3. `GroupChatOrchestrator.run` (`group-chat-orchestrator.ts:35`) — a bounded
-   episode loop that is pure but for six injected methods.
+   episode loop, pure but for six injected methods.
 4. `evaluateAutomationSpendGuard` (`sand-automation-spend-guard.ts:32`) — a
    seven-verdict decision over a window.
 5. `nextEntryId` and its counting helpers (`transcript-entry-ids.ts`) — the
@@ -480,17 +478,16 @@ Ordered by how directly it maps onto `tinyhivemind`:
    (`packages/agent-summarization/prompt-truncation.ts:17,70`) — **max-min fair
    allocation** of a character budget across messages: sort by size, hand each
    the smaller of its size and `floor(remaining/remainingCount)`, drop anything
-   allocated under `minUsefulChars = 200` and replace it with an
-   `[omitted N chars]` marker. A directly reusable attention-market fold.
-8. `resolveHostExtensionBootOrder` / `describeCycle`
-   (`internal/host-extensions.ts:57,113`) — topological sort with named errors.
-9. `parseCoordinatorFrame` (`shared/rpc/coordinator-port.ts:35`) — a
-   non-throwing frame parser returning accept/reject.
-10. Smaller ones: `upsertAgentSummary` (`shared/agents/agent-summaries.ts:13`),
-    `getLastEntryFromTranscript` (`session/session-projection.ts:14`), the
-    paging folds in `agent-db-transcript-pages.ts`, `estimateTokenCount`
-    (`agent-summarization/token-estimate.ts:67`), and
-    `single-message-loop-detector.ts` (config injected as thunks).
+   under `minUsefulChars = 200` and replace it with an `[omitted N chars]`
+   marker. A directly reusable attention-market fold.
+8. `resolveHostExtensionBootOrder` (`internal/host-extensions.ts:57`) — a
+   topological sort with named errors; `parseCoordinatorFrame`
+   (`shared/rpc/coordinator-port.ts:35`) — a non-throwing frame parser.
+9. Smaller ones: `upsertAgentSummary` (`shared/agents/agent-summaries.ts:13`),
+   `getLastEntryFromTranscript` (`session/session-projection.ts:14`), the paging
+   folds in `agent-db-transcript-pages.ts`, `estimateTokenCount`
+   (`agent-summarization/token-estimate.ts:67`), and
+   `single-message-loop-detector.ts` (config injected as thunks).
 
 ## Where the README overclaims
 
