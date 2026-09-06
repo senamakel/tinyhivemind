@@ -5,6 +5,7 @@
 use super::*;
 
 use crate::trace::read;
+use tinyhivemind::aside::Audience;
 use tinyhivemind::{SessionAuthor, SessionMessage};
 
 fn said(sequence: u64, author: &str, content: &str) -> SessionMessage {
@@ -15,6 +16,8 @@ fn said(sequence: u64, author: &str, content: &str) -> SessionMessage {
             label: author.into(),
         },
         content: content.into(),
+        audience: Audience::Desk,
+        elided: None,
     }
 }
 
@@ -159,6 +162,23 @@ fn a_decoded_directory_rejects_a_repeated_pair() {
     let error = serde_json::from_value::<Directory>(repeated).expect_err("a repeated pair");
     assert!(
         error.to_string().contains("duplicate directory entry"),
+        "unexpected error: {error}"
+    );
+}
+
+#[test]
+fn a_decoded_directory_rejects_an_out_of_range_weight() {
+    let over = serde_json::json!([entry_value("archivist", "pool", WEIGHT_CEILING + 1)]);
+    let error = serde_json::from_value::<Directory>(over).expect_err("weight above the ceiling");
+    assert!(
+        error.to_string().contains("out of range"),
+        "unexpected error: {error}"
+    );
+
+    let under = serde_json::json!([entry_value("archivist", "pool", -1)]);
+    let error = serde_json::from_value::<Directory>(under).expect_err("a negative weight");
+    assert!(
+        error.to_string().contains("out of range"),
         "unexpected error: {error}"
     );
 }

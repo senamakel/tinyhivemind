@@ -55,3 +55,15 @@ crates, because the fold's input is `LogMessage`, the port's own row type.
 `SessionContext` in [`../briefing`](../briefing), alongside host-supplied
 `BriefingNote`s — carried *beside* the operator's message, never appended to it.
 See [`docs/specs/thread-scoped-conversations.md`](../../../../docs/specs/thread-scoped-conversations.md).
+
+## Audience
+
+A root the viewer may not read yields no `ThreadLine`, because `opening` is
+verbatim content. A *reply* it may not read is not counted either: a reply
+count and a `latest` sequence describe a message, and one that moved a thread
+up this index would tell a viewer both that something was said and roughly
+when.
+
+The closed thread is not hidden by that. Its root still appears in the desk
+projection as an attributed stub, which is where a reader is entitled to learn
+the exchange happened.

@@ -52,3 +52,17 @@ and everything else may scroll away.
 `SessionContext::pins` in [`../briefing`](../briefing), rendered into the
 context text beside the thread index and the host's own notes — carried next to
 the operator's message, never appended to it.
+
+## Audience
+
+A marker in a row the viewer may not read never touched that viewer's board: an
+aside must not silently rearrange what a non-member is told to keep. A pin
+whose *target* the viewer may not read is dropped rather than shown blank —
+`excerpt` is 120 verbatim characters that `pin_note` renders into an agent's
+system text, so this is the leak with the shortest path to a prompt, and a pin
+pointing at something the reader cannot open is not a working set anyway.
+
+A target that fell outside the scanned rows keeps its existing behaviour, the
+pin standing with no excerpt, because absence from the scan says nothing about
+audience. Members can pin inside their own aside and read the excerpt, which is
+what lets a private exchange survive a context reset.

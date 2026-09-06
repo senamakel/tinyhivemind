@@ -182,8 +182,8 @@ turns, and stampede on a single `@everyone`.
 **What is a desk, and who is on it?** A declared room merged with the
 operator's runtime additions, retirements and ordering.
 
-**Who does `@this` mean?** A mention grammar resolved against the live roster
-and desks, where only a direct agent mention can start a turn.
+**Who does a name address?** A mention grammar resolved against the live
+roster and desks, where only a direct agent mention can start a turn.
 
 **What does one participant see?** An attributed, thread-aware projection of a
 multi-speaker transcript into one viewer's history, so agent B never reads

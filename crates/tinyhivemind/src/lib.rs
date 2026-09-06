@@ -29,9 +29,27 @@
 //!         description: None,
 //!     }],
 //!     brevity: Default::default(),
+//!     asides: Default::default(),
 //! };
 //! assert!(briefing.system_text().contains("@bob"));
 //! ```
+//!
+//! # Seeing the two edges run
+//!
+//! The `crosstalk` example seats real models on one desk and prints what each
+//! turn was shown: an unaddressed instruction routed by [`choose_responder`],
+//! an agent's reply addressing a peer by name, and the one child turn
+//! [`dispatch_mention`] allows out of it, bounded by the host's hop budget.
+//!
+//! ```sh
+//! cargo run -p tinyhivemind --example crosstalk -- \
+//!   --api-base http://127.0.0.1:6969 --model flash --thread
+//! ```
+//!
+//! It needs a live endpoint or an agent CLI, so it is an example rather than a
+//! test. `crates/tinyhivemind/examples/crosstalk/README.md` says what it does and
+//! does not establish — in particular that addressing a peer is not a private
+//! message, because nothing in this crate restricts who may read a row.
 
 pub mod briefing;
 pub mod dispatch;
@@ -45,8 +63,8 @@ pub mod sharing;
 pub mod threads;
 
 pub use briefing::{
-    BrevityPolicy, BriefedTeammate, BriefingNote, SessionContext, SessionInitialization,
-    TeamBriefing, initialize_session, initialize_session_with_context,
+    BrevityPolicy, BriefedTeammate, BriefingNote, MentionDispatchContext, SessionContext,
+    SessionInitialization, TeamBriefing, initialize_session, initialize_session_with_context,
 };
 pub use dispatch::{
     EnqueueOutcome, EnqueueRefusal, MentionDispatchOutcome, MentionTurnFuture, MentionTurnQueue,
@@ -68,9 +86,9 @@ pub use search::{
     search_messages, search_threads,
 };
 pub use session::{
-    Conversation, LogMessage, PAGE_SIZE, SCAN_LIMIT, SESSION_WINDOW, Sequence, SessionAuthor,
-    SessionFuture, SessionLog, SessionMessage, SessionPage, SessionQuery, SourceError,
-    project_session,
+    Conversation, Elision, LogMessage, PAGE_SIZE, SCAN_LIMIT, SESSION_WINDOW, Sequence,
+    SessionAuthor, SessionFuture, SessionLog, SessionMessage, SessionPage, SessionQuery,
+    SourceError, project_as, project_session,
 };
 pub use sharing::{
     PRESENT_SET_LIMIT, ReinitializeReason, SessionDelta, SharingPlan, SharingQuery, SharingState,

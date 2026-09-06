@@ -31,9 +31,10 @@ pub use types::{MessageHit, SearchPattern, SearchQuery, ThreadHit};
 
 use crate::{
     Conversation, Error, LogMessage, PAGE_SIZE, Result, SessionAuthor, SessionLog,
-    session::{in_desk, matches_conversation, validate_page},
+    session::{admits, in_desk, matches_conversation, validate_page},
     threads::{THREAD_INDEX_SCAN, fold_thread_index, read_desk_rows},
 };
+use tinyhivemind_core::aside::Viewer;
 use tinyhivemind_core::select::{Pattern, TextMatch, score_pattern};
 
 /// Default number of hits one search returns.
@@ -83,7 +84,14 @@ pub async fn search_messages(
         scanned += page.messages.len();
 
         for message in &page.messages {
-            if !in_scope(message, query.scope.as_ref()) || !by_author(message, query) {
+            // Audience is checked here, before scoring, rather than after the
+            // sort. A hit the viewer may not read would otherwise consume one
+            // of `limit` slots in the ranked result and be removed from it,
+            // returning fewer hits than exist for no visible reason.
+            if !admits(message, &query.viewer)
+                || !in_scope(message, query.scope.as_ref())
+                || !by_author(message, query)
+            {
                 continue;
             }
             let line = collapse(&message.content);
@@ -122,6 +130,7 @@ pub async fn search_messages(
 pub async fn search_threads(
     log: &(dyn SessionLog + '_),
     conversation: &Conversation,
+    viewer: &Viewer,
     pattern: &SearchPattern,
     limit: usize,
 ) -> Result<Vec<ThreadHit>> {
@@ -130,12 +139,17 @@ pub async fn search_threads(
     }
     let compiled = CompiledPattern::compile(pattern)?;
     let rows = read_desk_rows(log, conversation, THREAD_INDEX_SCAN, None).await?;
-    Ok(rank_threads(&rows, &compiled.pattern(), limit))
+    Ok(rank_threads(&rows, viewer, &compiled.pattern(), limit))
 }
 
 /// Rank every thread in a chronological desk slice against one pattern.
-fn rank_threads(rows: &[LogMessage], pattern: &Pattern<'_>, limit: usize) -> Vec<ThreadHit> {
-    let index = fold_thread_index(rows, usize::MAX);
+fn rank_threads(
+    rows: &[LogMessage],
+    viewer: &Viewer,
+    pattern: &Pattern<'_>,
+    limit: usize,
+) -> Vec<ThreadHit> {
+    let index = fold_thread_index(rows, viewer, usize::MAX);
     let mut hits: Vec<ThreadHit> = index
         .into_iter()
         .filter_map(|line| {

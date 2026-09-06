@@ -30,6 +30,9 @@ mod test;
 
 mod types;
 
+mod budget;
+
+pub use budget::{BudgetPolicy, BudgetRequest, BudgetShare, BudgetVerdict, allocate_chars};
 pub use types::{AgentThreshold, Bid, BidContext, BidReason};
 
 use std::collections::BTreeMap;

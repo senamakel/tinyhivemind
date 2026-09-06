@@ -13,8 +13,8 @@ room of them reaches a decision. Stigmergy, decaying salience, quorum sensing,
 cross-inhibition and response thresholds, all as pure folds.
 
 It answers four questions and holds no state doing it — who is here, what a desk
-is and who is on it, who `@this` means, and what one participant sees of the
-shared transcript.
+is and who is on it, who an authored mention addresses, and what one participant
+sees of the shared transcript.
 
 Three rules decide what belongs here:
 
@@ -164,6 +164,12 @@ Supporting commands:
 - `cargo test <filter>` — run a focused subset while iterating.
 - `cargo test -p tinyhivemind-core` — run one crate's suite.
 - `cargo run -p tinyhivemind-core --example basic` — run the bundled example.
+- `cargo run -p tinyhivemind --example crosstalk -- --api-base <url> --model <id>`
+  — drive one desk of real agents through the responder ladder and the
+  mention-dispatch edge, and print what each turn saw. `-- --aside` adds
+  private asides and prints what each reader was handed. Needs a live endpoint
+  or `--agent-cmd`; documented in
+  `crates/tinyhivemind/examples/crosstalk/README.md`.
 - `cargo run -p tinyhivemind-hive --example hive` — print one deliberation episode.
 - `cargo run --release -p tinyhivemind-hive --example bench` — simulate and
   benchmark deliberation against the responder ladder and a matched-budget

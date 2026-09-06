@@ -206,7 +206,7 @@ impl HttpAgent {
     pub(crate) fn prompt_with(
         &self,
         turn: &HiveTurn,
-        visible: &[&SessionMessage],
+        visible: &[SessionMessage],
         extra: &str,
     ) -> String {
         self.prompt.prompt_with(turn, visible, extra)
@@ -223,7 +223,7 @@ impl Participant for HttpAgent {
         self.prompt.id()
     }
 
-    fn speak(&mut self, turn: &HiveTurn, visible: &[&SessionMessage]) -> Result<String, String> {
+    fn speak(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Result<String, String> {
         let text = self.prompt.prompt(turn, visible);
         self.call(&text)
     }
@@ -269,7 +269,7 @@ impl SwarmMember for HttpDeskAgent {
         self.agent.id()
     }
 
-    fn speak(&mut self, turn: &HiveTurn, visible: &[&SessionMessage]) -> Result<String, String> {
+    fn speak(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Result<String, String> {
         let prompt = self.agent.prompt_with(turn, visible, &self.directory());
         self.agent.call(&prompt)
     }
@@ -277,7 +277,7 @@ impl SwarmMember for HttpDeskAgent {
     fn answer(
         &mut self,
         incoming: &Referral,
-        visible: &[&SessionMessage],
+        visible: &[SessionMessage],
     ) -> Result<String, String> {
         let transcript = AgentPrompt::render(visible);
         let asked = match incoming.kind {

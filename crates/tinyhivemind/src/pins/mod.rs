@@ -31,6 +31,7 @@
 //!
 //! ```
 //! use tinyhivemind::{LogMessage, Sequence, SessionAuthor, pins::fold_pins};
+//! use tinyhivemind::aside::{Audience, Viewer};
 //!
 //! let author = SessionAuthor::Agent { id: "alice".into(), label: "Alice".into() };
 //! let rows = [
@@ -40,6 +41,7 @@
 //!         parent: None,
 //!         author: author.clone(),
 //!         content: "The rate limiter resets at midnight UTC.".into(),
+//!         audience: Audience::Desk,
 //!     },
 //!     LogMessage {
 //!         sequence: Sequence(2),
@@ -47,9 +49,10 @@
 //!         parent: None,
 //!         author,
 //!         content: "!pin ^1 #limits worth remembering".into(),
+//!         audience: Audience::Desk,
 //!     },
 //! ];
-//! let board = fold_pins(&rows, 12);
+//! let board = fold_pins(&rows, &Viewer::Agent { id: "alice".into() }, 12);
 //! assert_eq!(board[0].sequence, Sequence(1));
 //! assert_eq!(board[0].label.as_deref(), Some("limits"));
 //! assert_eq!(board[0].note.as_deref(), Some("worth remembering"));
@@ -64,9 +67,14 @@ pub use types::{Pin, PinAction, PinDirective};
 
 use crate::{
     BriefingNote, Conversation, LogMessage, Result, Sequence, SessionAuthor, SessionLog,
-    session::matches_conversation, threads::read_desk_rows,
+    session::{admits, matches_conversation},
+    threads::read_desk_rows,
 };
 use std::collections::BTreeMap;
+use tinyhivemind_core::{
+    aside::Viewer,
+    masking::{code_ranges, is_masked},
+};
 
 /// Default number of pins a board holds.
 ///
@@ -84,7 +92,9 @@ pub const PIN_MARKER_CAP: usize = 8;
 /// Read pin markers from an authored body, in reading order.
 ///
 /// A body carrying no marker yields nothing: ordinary conversation never pins
-/// itself by accident.
+/// itself by accident, and a marker inside code -- a fenced or indented
+/// block, or an inline span opened on an earlier line -- is quoted
+/// documentation rather than a directive.
 #[must_use]
 pub fn read_directives(
     body: &str,
@@ -94,16 +104,13 @@ pub fn read_directives(
     if !body.contains('!') {
         return Vec::new();
     }
-    let fenced = fenced_ranges(body);
+    let masked = code_ranges(body);
     let mut directives = Vec::new();
     let mut offset = 0;
     for line in body.split_inclusive('\n') {
         let start = offset;
         offset += line.len();
-        if fenced
-            .iter()
-            .any(|(from, to)| *from <= start && start < *to)
-        {
+        if is_masked(start, &masked) {
             continue;
         }
         let trimmed = line.trim_end_matches(['\n', '\r']).trim_start();
@@ -127,7 +134,7 @@ pub fn read_directives(
 ///
 /// Pins are returned most recently pinned first.
 #[must_use]
-pub fn fold_pins(rows: &[LogMessage], limit: usize) -> Vec<Pin> {
+pub fn fold_pins(rows: &[LogMessage], viewer: &Viewer, limit: usize) -> Vec<Pin> {
     if limit == 0 {
         return Vec::new();
     }
@@ -139,6 +146,13 @@ pub fn fold_pins(rows: &[LogMessage], limit: usize) -> Vec<Pin> {
     let mut board: BTreeMap<Sequence, (Pin, usize)> = BTreeMap::new();
     let mut ordinal = 0_usize;
     for row in rows {
+        // A marker in a row this viewer cannot read was never visible to it,
+        // so it never touched this viewer's board. Reading the directive
+        // anyway would let an aside silently rearrange what a non-member is
+        // told to keep.
+        if !admits(row, viewer) {
+            continue;
+        }
         for directive in read_directives(&row.content, &row.author, row.sequence) {
             match directive.action {
                 PinAction::Pin => {
@@ -165,14 +179,31 @@ pub fn fold_pins(rows: &[LogMessage], limit: usize) -> Vec<Pin> {
         }
     }
 
-    let excerpts: BTreeMap<Sequence, &str> = rows
+    // Only rows this viewer may read can supply an excerpt, and a pin whose
+    // target it may not read is dropped rather than shown blank. `excerpt` is
+    // 120 verbatim characters that `pin_note` renders into an agent's system
+    // text, so this is the leak with the shortest path to a prompt. A pin
+    // pointing at something the reader cannot open is also not a working set:
+    // it spends the prompt budget the pinboard exists to spend well.
+    //
+    // A target outside the scanned rows keeps its existing behaviour — the pin
+    // stands with no excerpt — because absence from the scan says nothing
+    // about audience, and dropping it would silently shrink the board.
+    let readable: BTreeMap<Sequence, &str> = rows
         .iter()
+        .filter(|row| admits(row, viewer))
         .map(|row| (row.sequence, row.content.as_str()))
+        .collect();
+    let withheld: std::collections::BTreeSet<Sequence> = rows
+        .iter()
+        .filter(|row| !admits(row, viewer))
+        .map(|row| row.sequence)
         .collect();
     let mut pins: Vec<(Pin, usize)> = board
         .into_values()
+        .filter(|(pin, _)| !withheld.contains(&pin.sequence))
         .map(|(mut pin, ordinal)| {
-            pin.excerpt = excerpts
+            pin.excerpt = readable
                 .get(&pin.sequence)
                 .map(|content| opening(content))
                 .filter(|opening| !opening.is_empty());
@@ -204,6 +235,7 @@ pub fn fold_pins(rows: &[LogMessage], limit: usize) -> Vec<Pin> {
 pub async fn read_pinboard(
     log: &(dyn SessionLog + '_),
     conversation: &Conversation,
+    viewer: &Viewer,
     limit: usize,
     before: Option<Sequence>,
 ) -> Result<Vec<Pin>> {
@@ -218,7 +250,7 @@ pub async fn read_pinboard(
             .filter(|row| matches_conversation(row, conversation))
             .collect(),
     };
-    Ok(fold_pins(&rows, limit))
+    Ok(fold_pins(&rows, viewer, limit))
 }
 
 /// Render a board as one briefing note, or `None` when the board is empty.
@@ -314,45 +346,4 @@ fn opening(content: &str) -> String {
     let mut opening: String = single_line.chars().take(PIN_EXCERPT_CHARS).collect();
     opening.push('…');
     opening
-}
-
-/// Byte ranges covered by fenced code blocks, which markers do not escape.
-///
-/// Follows the Markdown fence rule a marker's author would expect: a closing
-/// fence must use the same character as the opener and be at least as long.
-/// A shorter run of the same character — three backticks closing a
-/// four-backtick block that itself contains an example fence — is content,
-/// not a close, so tracking only the character and not its length would
-/// resume directive parsing one line early and let quoted documentation
-/// mutate the board.
-fn fenced_ranges(body: &str) -> Vec<(usize, usize)> {
-    let mut ranges = Vec::new();
-    let mut open: Option<(usize, char, usize)> = None;
-    let mut offset = 0;
-    for line in body.split_inclusive('\n') {
-        let start = offset;
-        offset += line.len();
-        let trimmed = line.trim_start();
-        let fence = fence_run(trimmed, '`').or_else(|| fence_run(trimmed, '~'));
-        let Some((char, len)) = fence else { continue };
-        match open {
-            None => open = Some((start, char, len)),
-            Some((from, opener, opener_len)) if opener == char && len >= opener_len => {
-                ranges.push((from, offset));
-                open = None;
-            }
-            Some(_) => {}
-        }
-    }
-    if let Some((from, ..)) = open {
-        ranges.push((from, body.len()));
-    }
-    ranges
-}
-
-/// Whether a trimmed line opens or closes a fence built from `char`, and how
-/// long the leading run of it is.
-fn fence_run(trimmed: &str, char: char) -> Option<(char, usize)> {
-    let len = trimmed.chars().take_while(|&c| c == char).count();
-    (len >= 3).then_some((char, len))
 }

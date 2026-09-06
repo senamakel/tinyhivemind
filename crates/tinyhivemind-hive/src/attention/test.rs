@@ -10,6 +10,7 @@ use crate::{
     salience::SalienceWeights,
     trace::read,
 };
+use tinyhivemind::aside::Audience;
 use tinyhivemind::{Sequence, SessionAuthor, SessionMessage};
 
 const MEMBERS: [&str; 3] = ["planner", "critic", "scout"];
@@ -22,6 +23,8 @@ fn said(sequence: u64, author: &str, content: &str) -> SessionMessage {
             label: author.into(),
         },
         content: content.into(),
+        audience: Audience::Desk,
+        elided: None,
     }
 }
 

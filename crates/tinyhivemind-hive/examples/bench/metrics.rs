@@ -443,6 +443,37 @@ pub(crate) fn paired_diff_line(
     Some(format!("{name} − vote: {diff:+.1} [{low:+.1}, {high:+.1}]"))
 }
 
+/// The same paired bootstrap, against a named control other than `vote`.
+///
+/// `vote` is the right control for the published table — it answers "is a room
+/// worth more than a matched-budget poll". It is the wrong control for a
+/// mechanism *inside* a room, where the question is whether the mechanism
+/// changed anything against the same room without it.
+pub(crate) fn paired_against(
+    name: &str,
+    control_name: &str,
+    treatment: &Aggregate,
+    control: &Aggregate,
+    seed: u64,
+    resamples: u32,
+) -> Option<String> {
+    if treatment.correct_flags.is_empty()
+        || treatment.correct_flags.len() != control.correct_flags.len()
+    {
+        return None;
+    }
+    let diff = treatment.accuracy() - control.accuracy();
+    let (low, high) = paired_bootstrap(
+        &treatment.correct_flags,
+        &control.correct_flags,
+        seed,
+        resamples,
+    );
+    Some(format!(
+        "{name} − {control_name}: {diff:+.1} [{low:+.1}, {high:+.1}]"
+    ))
+}
+
 /// One flat JSON object for `name`, covering every column of both tables.
 ///
 /// Hand-written with [`write!`] rather than a serialization crate: the

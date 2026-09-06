@@ -43,7 +43,9 @@
 //!
 //! # Modules
 //!
-//! - [`attention`] — the bid each member makes for the floor, and the argmax.
+//! - [`attention`] — the bid each member makes for the floor, and the argmax,
+//!   and the max-min fair split of a character budget across the context
+//!   sources a turn carries.
 //! - [`mod@directory`] — who knows what, folded from grounded deposits and the
 //!   citations they drew.
 //! - [`episode`] — the pure state machine, and the visibility filter.
@@ -55,7 +57,7 @@
 //! # Example
 //!
 //! ```
-//! use tinyhivemind::{SessionAuthor, SessionMessage, Sequence};
+//! use tinyhivemind::{SessionAuthor, SessionMessage, Sequence, aside::Audience};
 //! use tinyhivemind_hive::{
 //!     quorum::{consensus, standings, ConsensusState, QuorumPolicy},
 //!     trace::read,
@@ -65,7 +67,13 @@
 //!     SessionAuthor::Agent { id: id.into(), label: id.into() }
 //! }
 //! fn said(sequence: u64, author: SessionAuthor, content: &str) -> SessionMessage {
-//!     SessionMessage { sequence: Sequence(sequence), author, content: content.into() }
+//!     SessionMessage {
+//!         sequence: Sequence(sequence),
+//!         author,
+//!         content: content.into(),
+//!         audience: Audience::Desk,
+//!         elided: None,
+//!     }
 //! }
 //!
 //! // Two agents propose; a third grounds its support in the first proposal.
@@ -124,7 +132,10 @@ pub mod quorum;
 pub mod salience;
 pub mod trace;
 
-pub use attention::{AgentThreshold, Bid, BidReason, bids, floor_holder};
+pub use attention::{
+    AgentThreshold, Bid, BidReason, BudgetPolicy, BudgetRequest, BudgetShare, BudgetVerdict,
+    allocate_chars, bids, floor_holder,
+};
 pub use directory::{Directory, DirectoryEntry, DirectoryPolicy, WEIGHT_CEILING, directory};
 pub use episode::{
     EpisodePolicy, EpisodeState, HiveStep, HiveTurn, Phase, Visibility, project_for, step,

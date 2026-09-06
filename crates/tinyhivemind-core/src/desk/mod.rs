@@ -23,10 +23,14 @@ pub struct DeskSet<'a> {
     member_additions: &'a [DeskMember],
     orders: &'a [DeskOrder],
     retired_agent_ids: &'a [String],
+    tombstoned_agent_ids: &'a [String],
 }
 
 impl<'a> DeskSet<'a> {
     /// Borrow the snapshots that define the current desk view.
+    ///
+    /// No agent is tombstoned; add that snapshot with
+    /// [`Self::with_tombstoned`].
     #[must_use]
     pub const fn new(
         declared: &'a [Desk],
@@ -41,7 +45,20 @@ impl<'a> DeskSet<'a> {
             member_additions,
             orders,
             retired_agent_ids,
+            tombstoned_agent_ids: &[],
         }
+    }
+
+    /// Borrow the ids of agents that were removed for good.
+    ///
+    /// A tombstoned agent leaves every desk it was declared or added to, so
+    /// [`Self::lead`] and [`Self::members`] cannot name one even when the host
+    /// has not also retired it. See [`Roster`](crate::roster::Roster) for the
+    /// three states and why a tombstone is not merely a retirement.
+    #[must_use]
+    pub const fn with_tombstoned(mut self, tombstoned_agent_ids: &'a [String]) -> Self {
+        self.tombstoned_agent_ids = tombstoned_agent_ids;
+        self
     }
 
     /// Iterate declared then operator-added desk records.
@@ -89,7 +106,13 @@ impl<'a> DeskSet<'a> {
         self.resolve_id(identity).is_ok()
     }
 
-    /// Return a desk's deduplicated, non-retired members in effective order.
+    /// Return a desk's deduplicated, available members in effective order.
+    ///
+    /// Retired and tombstoned agents are excluded, and nothing in the result
+    /// says which of the two exclusions applied. A stored order that still
+    /// names a now-unavailable agent is not rejected: the stale entry is
+    /// skipped rather than forcing the host to rewrite the order the moment
+    /// an agent retires or is tombstoned.
     ///
     /// # Errors
     ///
@@ -97,7 +120,12 @@ impl<'a> DeskSet<'a> {
     pub fn members(&self, identity: &str) -> Result<Vec<&'a str>> {
         let desk_id = self.resolve_id(identity)?;
         if let Some(order) = self.orders.iter().find(|order| order.desk_id == desk_id) {
-            return Ok(order.ordered.iter().map(String::as_str).collect());
+            return Ok(order
+                .ordered
+                .iter()
+                .map(String::as_str)
+                .filter(|agent_id| !self.is_unavailable(agent_id))
+                .collect());
         }
         Ok(self.base_members(desk_id))
     }
@@ -188,37 +216,58 @@ impl<'a> DeskSet<'a> {
 
     fn base_members(&self, desk_id: &str) -> Vec<&'a str> {
         let mut members = Vec::new();
-        if let Some(desk) = self.find_id(desk_id) {
-            for member in &desk.members {
-                Self::push_active_once(&mut members, member, self.retired_agent_ids);
+        for member in self.raw_members(desk_id) {
+            if !self.is_unavailable(member) && !members.contains(&member) {
+                members.push(member);
             }
-        }
-        for addition in self
-            .member_additions
-            .iter()
-            .filter(|addition| addition.desk_id == desk_id)
-        {
-            Self::push_active_once(&mut members, &addition.agent_id, self.retired_agent_ids);
         }
         members
     }
 
-    fn push_active_once(
-        members: &mut Vec<&'a str>,
-        agent_id: &'a str,
-        retired_agent_ids: &[String],
-    ) {
-        if !retired_agent_ids.iter().any(|retired| retired == agent_id)
-            && !members.contains(&agent_id)
-        {
-            members.push(agent_id);
-        }
+    /// Every declared or added member of `desk_id`, before filtering out
+    /// unavailable agents.
+    ///
+    /// Used to tell "this agent belonged to the desk and later became
+    /// unavailable" from "this agent never belonged to the desk at all" —
+    /// [`Self::is_unavailable`] alone cannot distinguish the two, and a
+    /// stored order naming an id from the second group is malformed, not
+    /// merely stale.
+    fn raw_members<'b>(&'b self, desk_id: &'b str) -> impl Iterator<Item = &'a str> + 'b {
+        let declared = self
+            .find_id(desk_id)
+            .into_iter()
+            .flat_map(|desk| desk.members.iter().map(String::as_str));
+        let added = self
+            .member_additions
+            .iter()
+            .filter(move |addition| addition.desk_id == desk_id)
+            .map(|addition| addition.agent_id.as_str());
+        declared.chain(added)
+    }
+
+    fn is_unavailable(&self, agent_id: &str) -> bool {
+        self.retired_agent_ids
+            .iter()
+            .chain(self.tombstoned_agent_ids)
+            .any(|unavailable| unavailable == agent_id)
     }
 
     fn validate_order(&self, order: &DeskOrder) -> Result<()> {
         let members = self.base_members(&order.desk_id);
+        let raw_members: Vec<&str> = self.raw_members(&order.desk_id).collect();
         let mut seen: Vec<&str> = Vec::new();
         for agent_id in &order.ordered {
+            // A now-unavailable agent that *was* a member of this desk may
+            // still be named by a stored order: the host is not required to
+            // rewrite the order the moment an agent retires or is
+            // tombstoned, so a stale entry is skipped rather than treated as
+            // an unknown or duplicate member. An unavailable id that was
+            // never a member of this desk at all is a different, genuine
+            // error — global unavailability elsewhere must not launder a
+            // malformed order past validation.
+            if self.is_unavailable(agent_id) && raw_members.contains(&agent_id.as_str()) {
+                continue;
+            }
             if seen.contains(&agent_id.as_str()) {
                 return Err(Error::DuplicateOrderMember {
                     desk_id: order.desk_id.clone(),

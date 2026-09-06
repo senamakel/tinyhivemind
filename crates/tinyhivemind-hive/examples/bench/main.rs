@@ -98,11 +98,13 @@ use crate::federation::Federation;
 use crate::http::{HttpAgent, HttpConfig, HttpDeskAgent, Thinking, Wire};
 use crate::live::{AgentPrompt, Backend, LiveAgent};
 use crate::metrics::{
-    Aggregate, arm_header, arm_row, detail_header, detail_row, json_line, paired_bootstrap,
-    paired_diff_line, spearman_milli, wilson,
+    Aggregate, arm_header, arm_row, detail_header, detail_row, json_line, paired_against,
+    paired_bootstrap, paired_diff_line, spearman_milli, wilson,
 };
 use crate::rng::mix;
-use crate::run::{Participant, drive, run_episode, run_episode_with};
+use crate::run::{
+    AsideMode, Participant, drive, run_episode, run_episode_checking, run_episode_with,
+};
 use crate::scenario::{Scenario, ScenarioAgent};
 use crate::sim::{Expertise, Room, SPECIALIST_COST_UNIT};
 use crate::swarm::{Channel, SwarmMember, SwarmReport, pooled, run_swarm};
@@ -192,6 +194,11 @@ struct Options {
     /// arguing outside its own specialty. Read by the deferring arms, and by
     /// the `defer_cap` those arms put in their episode policy.
     defer_cap: u32,
+    /// Turns a member may spend asking one peer for a second reading before
+    /// committing to a position. Read by the two aside arms, which differ from
+    /// each other only in who may read the answer. `0` turns both off, and
+    /// makes them bit-identical to `hive+`.
+    aside_cap: u32,
     /// Prior episodes of `hive+` the `ladder+dir` arm earns its directory
     /// from, on the same room.
     history: u32,
@@ -261,6 +268,7 @@ impl Options {
             cost: false,
             blind_evidence: false,
             defer_cap: 1,
+            aside_cap: 1,
             history: 3,
             json: false,
             timeout: 180,
@@ -402,6 +410,7 @@ fn apply_expertise_flag(
         }
         "--hidden-profile" => options.expertise = Expertise::HiddenProfile,
         "--defer-cap" => options.defer_cap = next_number(args).unwrap_or(1).max(1),
+        "--aside-cap" => options.aside_cap = next_number(args).unwrap_or(1),
         "--history" => options.history = next_number(args).unwrap_or(3),
         "--cost-tiers" => options.cost = true,
         "--blind-evidence" => options.blind_evidence = true,
@@ -774,7 +783,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
     );
 
     let (totals, wall) = run_arms(options, rooms)?;
-    let arms: [(&str, &Aggregate); 10] = [
+    let arms: [(&str, &Aggregate); 13] = [
         ("ladder", &totals.ladder),
         ("vote", &totals.vote),
         ("hive", &totals.hive_default),
@@ -788,6 +797,9 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
         ("hive+defer", &totals.hive_deferring),
         ("hive+dir+defer", &totals.hive_both),
         ("ladder+dir", &totals.ladder_directed),
+        ("hive+aside", &totals.hive_aside),
+        ("hive+ask", &totals.hive_ask),
+        ("hive+aside!", &totals.hive_aside_informed),
     ];
 
     if options.json {
@@ -815,13 +827,40 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
         }
     }
 
+    // The aside arms against the room they modify, rather than against the
+    // poll. Seeded off a tag of their own so the published bootstraps above
+    // keep their streams.
+    for (index, (name, arm)) in [
+        ("hive+aside", &totals.hive_aside),
+        ("hive+ask", &totals.hive_ask),
+        ("hive+aside!", &totals.hive_aside_informed),
+    ]
+    .iter()
+    .enumerate()
+    {
+        let seed = mix(options.seed, 0xA51D_E000_u64.wrapping_add(index as u64));
+        if let Some(line) = paired_against(name, "hive+", arm, &totals.hive_tuned, seed, 2000) {
+            println!("{line}");
+        }
+    }
+    if let Some(line) = paired_against(
+        "hive+aside",
+        "hive+ask",
+        &totals.hive_aside,
+        &totals.hive_ask,
+        mix(options.seed, 0xA51D_E100),
+        2000,
+    ) {
+        println!("{line}");
+    }
+
     if options.cost {
         cost_table(&[
             ("vote", &totals.vote),
             ("ladder", &totals.ladder),
             ("ladder+dir", &totals.ladder_directed),
             ("hive+", &totals.hive_tuned),
-            ("hive+cost", &totals.hive_both),
+            ("hive+dir+defer", &totals.hive_both),
             ("all-reasoning", &totals.all_reasoning),
         ]);
     }
@@ -857,6 +896,15 @@ struct Totals {
     hive_knowing: Aggregate,
     /// The tuned policy with `!defer` bounded, and no directory.
     hive_deferring: Aggregate,
+    /// The tuned policy, with a member that cannot separate its two best
+    /// options spending a turn asking one peer — privately.
+    hive_aside: Aggregate,
+    /// The identical exchange, in the open. The control that isolates
+    /// privacy from asking: same turns, same words, every member reads it.
+    hive_ask: Aggregate,
+    /// The private exchange again, aimed at whoever the room has heard ground
+    /// the option rather than at whoever spoke first.
+    hive_aside_informed: Aggregate,
     /// Both delegation mechanisms at once.
     hive_both: Aggregate,
     /// The tuned policy in a room that puts every seat on the expensive
@@ -926,6 +974,42 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
                 false,
             )?);
         }
+        // The pair that isolates privacy. Both spend a turn asking and a turn
+        // answering; they differ in who may read the answer, and in nothing
+        // else. `--aside-cap 0` leaves both bit-identical to `hive+`.
+        totals.hive_aside.add(&run_episode_checking(
+            room,
+            &tuned,
+            TASK,
+            false,
+            0,
+            AsideMode::Private,
+            options.aside_cap,
+            false,
+        )?);
+        totals.hive_ask.add(&run_episode_checking(
+            room,
+            &tuned,
+            TASK,
+            false,
+            0,
+            AsideMode::Public,
+            options.aside_cap,
+            false,
+        )?);
+        // The informed variant: the check goes to whoever the room has heard
+        // ground this option. It exists to close the obvious objection to a
+        // negative result — that the question went to the wrong peer.
+        totals.hive_aside_informed.add(&run_episode_checking(
+            room,
+            &tuned,
+            TASK,
+            false,
+            0,
+            AsideMode::Private,
+            options.aside_cap,
+            true,
+        )?);
         let seed = mix(options.seed, u64::try_from(index).unwrap_or(0));
         totals.ladder.add_arm(&arms::run_ladder(room, seed)?);
         let earned = earn_directory(room, &tuned, options.history, mix(seed, 0x6869_7374))?;
@@ -1215,14 +1299,12 @@ fn poll_backend(options: &Options) -> Result<Backend, String> {
     if options.api_base.is_some() {
         return Ok(Backend::Http {
             config: http_config(options)?,
-            model: options.model.clone(),
         });
     }
-    let command = options
-        .agent
-        .clone()
-        .ok_or_else(|| "no --agent-cmd or --api-base given".to_owned())?;
-    Ok(Backend::Cli(command))
+    if options.agent.is_none() {
+        return Err("no --agent-cmd or --api-base given".to_owned());
+    }
+    Ok(Backend::Cli)
 }
 
 /// One HTTP seat's usage, kept alongside its boxed participant so it can be
@@ -1309,15 +1391,25 @@ fn print_expert(scenario: &Scenario, report: &crate::run::EpisodeReport) -> (boo
     let Some(expert) = &scenario.truth_expert else {
         return (false, false);
     };
-    // Every turn but the last is before the commit, and the commit turn is
-    // the last one an episode that converged ever took.
-    let commit_at = report.turns.saturating_sub(1);
+    // Only an episode that recorded a decision has a commit boundary to be
+    // before at all. `commit_at` alone is not enough to tell that: `Tally`
+    // sets it the moment any turn runs in `Phase::Commit`, and a round can
+    // still enter that phase, never emit a valid `!commit`, and exhaust its
+    // budget with `decided` left `None` — that round must not be counted as
+    // an early expert turn either.
+    let commit_at = report
+        .decided
+        .is_some()
+        .then_some(report.commit_at)
+        .flatten();
     let spoke = report
         .first_spoke
         .iter()
         .find(|(id, _)| id == expert)
         .map(|(_, turn)| *turn);
-    let before = spoke.is_some_and(|turn| turn < commit_at);
+    let before = spoke
+        .zip(commit_at)
+        .is_some_and(|(turn, commit)| turn < commit);
     match spoke {
         Some(turn) => println!(
             "hive   expert @{expert} first spoke at turn {turn} ({} the commit)",
@@ -1652,7 +1744,7 @@ fn live_round(
     print_usage(options, &usage_seats);
 
     let backend = poll_backend(options)?;
-    let picks = live::poll(scenario, &backend)?;
+    let picks = live::poll(options, scenario, &backend)?;
     for (id, pick) in &picks {
         println!("vote   {id:>10} alone: #{pick}");
     }
@@ -2048,7 +2140,7 @@ fn live_federation(options: &Options, scenario: &Scenario) -> Result<(), String>
     print_usage(options, &usage_seats);
 
     let backend = poll_backend(options)?;
-    let picks = live::poll(scenario, &backend)?;
+    let picks = live::poll(options, scenario, &backend)?;
     for (id, pick) in &picks {
         println!("vote   {id:>16} alone: #{pick}");
     }

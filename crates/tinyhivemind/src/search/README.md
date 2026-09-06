@@ -63,3 +63,14 @@ list.
 
 Back to the host, or to an agent as a tool result. Nothing here writes to the
 log, and nothing here is stored.
+
+## Audience
+
+`SearchQuery` carries a `Viewer`, and it is a constructor argument rather than
+a builder step with a default because every default would be fail-open: an
+unscoped search reads every desk in the log and returns verbatim excerpts.
+
+The audience is checked before scoring rather than after the sort. Filtering
+afterwards would let a hit the viewer may not read consume one of `limit` slots
+in the ranked result and then be removed from it, returning fewer hits than
+exist for no visible reason.
