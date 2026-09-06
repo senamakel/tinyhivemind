@@ -1051,7 +1051,11 @@ impl Report {
             );
 
             // The rows are the same rows for everybody, and a member reads
-            // what a non-member cannot.
+            // what a non-member cannot. Every claim below is bound to the
+            // exact row `private.first()` names — a later aside's stub, or a
+            // later aside's member, must not be able to satisfy a claim meant
+            // for the first one.
+            let line_prefix = private.first().map(|turn| format!("[{}", turn.sequence));
             let member_lines = private
                 .first()
                 .and_then(|turn| {
@@ -1062,15 +1066,27 @@ impl Report {
                 })
                 .map(|(_, lines)| lines.clone())
                 .unwrap_or_default();
-            let outsider = self.views.iter().find(|(who, lines)| {
-                who.starts_with('@') && lines.iter().any(|line| line.contains("· aside,"))
+            let outsider = line_prefix.as_deref().and_then(|prefix| {
+                self.views.iter().find_map(|(who, lines)| {
+                    if !who.starts_with('@') {
+                        return None;
+                    }
+                    lines
+                        .iter()
+                        .find(|line| line.starts_with(prefix) && line.contains("· aside,"))
+                        .map(|line| (who.clone(), line.clone()))
+                })
             });
             claim(
                 outsider.is_some(),
                 "a non-member was handed a stub instead of the content",
             );
             claim(
-                !member_lines.iter().any(|line| line.contains("· aside,")),
+                line_prefix.as_deref().is_some_and(|prefix| {
+                    !member_lines
+                        .iter()
+                        .any(|line| line.starts_with(prefix) && line.contains("· aside,"))
+                }),
                 "the addressed member was handed the content in full",
             );
             let person = self
@@ -1084,10 +1100,8 @@ impl Report {
                 "a person read every row in full, so nothing here is unauditable",
             );
             claim(
-                outsider.is_some_and(|(_, lines)| {
-                    lines
-                        .iter()
-                        .any(|line| line.contains("settled at [") || line.contains("not settled"))
+                outsider.is_some_and(|(_, line)| {
+                    line.contains("settled at [") || line.contains("not settled")
                 }),
                 "the stub says where the aside settled, or that it has not",
             );
