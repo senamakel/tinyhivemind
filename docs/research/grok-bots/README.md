@@ -73,8 +73,9 @@ our invariant, and it reaches it independently, by deleting every `@` chip but
 the last. That is the strongest external evidence in the survey: four
 independent teams shipped the failure mode and then paid for a bound.
 
-**Everybody has an approval gate, and in every case the decision is pure.**
-Six projects gate side-effecting actions, and each one separates a pure
+**Every surveyed project with a documented approval gate makes its decision
+pure.** Six of the twelve projects gate side-effecting actions, and each one
+separates a pure
 `(action, policy) -> allow | deny | ask` decision from the IO that enacts it —
 exactly the core/port line this workspace draws. We have no approval concept at
 all. It is the largest well-evidenced gap the survey found.
