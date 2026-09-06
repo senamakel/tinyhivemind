@@ -103,6 +103,7 @@ pub mod desk;
 pub mod dispatch;
 pub mod error;
 pub mod find;
+pub mod masking;
 pub mod mention;
 pub mod referral;
 pub mod responder;
