@@ -248,6 +248,13 @@ impl<'a> DeskSet<'a> {
         let members = self.base_members(&order.desk_id);
         let mut seen: Vec<&str> = Vec::new();
         for agent_id in &order.ordered {
+            // A now-unavailable agent may still be named by a stored order:
+            // the host is not required to rewrite the order the moment an
+            // agent retires or is tombstoned, so a stale entry is skipped
+            // rather than treated as an unknown or duplicate member.
+            if self.is_unavailable(agent_id) {
+                continue;
+            }
             if seen.contains(&agent_id.as_str()) {
                 return Err(Error::DuplicateOrderMember {
                     desk_id: order.desk_id.clone(),
