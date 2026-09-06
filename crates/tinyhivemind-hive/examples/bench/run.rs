@@ -391,17 +391,51 @@ pub(crate) fn run_episode_with(
     keep_trace: bool,
     defer_cap: u32,
 ) -> Result<EpisodeReport, String> {
+    run_episode_checking(room, policy, task, keep_trace, defer_cap, AsideMode::Off, 0)
+}
+
+/// Run one full episode, letting every member spend up to `aside_cap` turns
+/// asking one peer for a second reading before it commits to a position.
+///
+/// `mode` decides who may read that exchange, and nothing else: the two
+/// settings cost the same turns and write the same words. That is what makes
+/// them a matched pair, and it is the whole of what the aside arms measure.
+///
+/// `AsideMode::Off` with `aside_cap: 0` is what every other arm passes, and a
+/// member that opens no check behaves exactly as it did before the move
+/// existed — the same discipline `defer_cap` follows.
+///
+/// # Errors
+///
+/// Returns the library's own error text if a snapshot or policy is malformed.
+pub(crate) fn run_episode_checking(
+    room: &Room,
+    policy: &EpisodePolicy,
+    task: &str,
+    keep_trace: bool,
+    defer_cap: u32,
+    aside_mode: AsideMode,
+    aside_cap: u32,
+) -> Result<EpisodeReport, String> {
     let ids = room.member_ids();
     let mut agents: Vec<SimAgent> = room.agents.clone();
     for agent in &mut agents {
         agent.set_quorum(policy.quorum);
         agent.set_defer_cap(defer_cap);
+        agent.set_aside_cap(aside_cap);
     }
     let mut participants: Vec<&mut dyn Participant> = agents
         .iter_mut()
         .map(|agent| agent as &mut dyn Participant)
         .collect();
-    let report = drive(&ids, &mut participants, policy, task, keep_trace)?;
+    let report = drive_with(
+        &ids,
+        &mut participants,
+        policy,
+        task,
+        keep_trace,
+        aside_mode,
+    )?;
 
     // `drive` stays ignorant of which member is an expert or a decisive
     // hidden-profile holder; only the room knows that, and only after the
