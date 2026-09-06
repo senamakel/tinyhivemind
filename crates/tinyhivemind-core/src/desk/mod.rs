@@ -109,7 +109,10 @@ impl<'a> DeskSet<'a> {
     /// Return a desk's deduplicated, available members in effective order.
     ///
     /// Retired and tombstoned agents are excluded, and nothing in the result
-    /// says which of the two exclusions applied.
+    /// says which of the two exclusions applied. A stored order that still
+    /// names a now-unavailable agent is not rejected: the stale entry is
+    /// skipped rather than forcing the host to rewrite the order the moment
+    /// an agent retires or is tombstoned.
     ///
     /// # Errors
     ///
@@ -117,7 +120,12 @@ impl<'a> DeskSet<'a> {
     pub fn members(&self, identity: &str) -> Result<Vec<&'a str>> {
         let desk_id = self.resolve_id(identity)?;
         if let Some(order) = self.orders.iter().find(|order| order.desk_id == desk_id) {
-            return Ok(order.ordered.iter().map(String::as_str).collect());
+            return Ok(order
+                .ordered
+                .iter()
+                .map(String::as_str)
+                .filter(|agent_id| !self.is_unavailable(agent_id))
+                .collect());
         }
         Ok(self.base_members(desk_id))
     }
