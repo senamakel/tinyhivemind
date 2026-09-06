@@ -460,19 +460,20 @@ fn every_refusal_is_a_lowercase_sentence_without_trailing_punctuation() {
 
 #[tokio::test]
 async fn a_refused_enqueue_and_an_unaddressed_reply_decline_in_the_same_words() {
-    let members = members();
+    let (members, addressed) = fixture();
     let roster = Roster::new(&members, &[], &[]);
-    let policy = MentionDispatchPolicy {
-        enabled: true,
-        max_hops: 2,
+    let mut unaddressed_input = addressed.clone();
+    unaddressed_input.mentions.clear();
+    let refusing = FixedQueue {
+        calls: AtomicUsize::new(0),
+        outcome: Ok(EnqueueOutcome::Refused {
+            reason: EnqueueRefusal::TargetUnavailable,
+        }),
     };
-    let refusing = RefusingQueue {
-        reason: EnqueueRefusal::TargetUnavailable,
-    };
-    let refused = dispatch_mention(&refusing, policy, &input(vec![mention("bob", 0)]), &roster)
+    let refused = dispatch_mention(&refusing, policy(), &addressed, &roster)
         .await
         .unwrap();
-    let unaddressed = dispatch_mention(&refusing, policy, &input(Vec::new()), &roster)
+    let unaddressed = dispatch_mention(&refusing, policy(), &unaddressed_input, &roster)
         .await
         .unwrap();
     let sentence = |outcome| match outcome {
