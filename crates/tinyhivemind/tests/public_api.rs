@@ -113,6 +113,7 @@ fn root_exports_search_records_and_constants() {
             source: "^ship".into()
         }
     );
+    assert_eq!(query.viewer, Viewer::Operator);
     assert_eq!(query.limit, SEARCH_LIMIT);
     assert_eq!((SEARCH_LIMIT, SEARCH_SCAN, EXCERPT_CHARS), (10, 2048, 96));
 
@@ -126,6 +127,92 @@ fn root_exports_search_records_and_constants() {
         kind: tinyhivemind::select::MatchKind::Exact,
     };
     assert_eq!(hit.sequence, Sequence(4));
+}
+
+#[tokio::test]
+async fn the_search_viewer_argument_narrows_what_is_matched() {
+    use std::{pin::Pin, sync::Mutex};
+    use tinyhivemind::{LogMessage, SearchQuery, search_messages};
+
+    struct FixedLog(Mutex<Vec<LogMessage>>);
+
+    impl tinyhivemind::SessionLog for FixedLog {
+        fn read_before(
+            &self,
+            _before: Option<Sequence>,
+            _limit: usize,
+        ) -> tinyhivemind::SessionFuture<'_> {
+            let messages = std::mem::take(&mut *self.0.lock().expect("log lock is not poisoned"));
+            Box::pin(async move {
+                Ok(tinyhivemind::SessionPage {
+                    messages,
+                    next_before: None,
+                })
+            }) as Pin<Box<_>>
+        }
+    }
+
+    let row = LogMessage {
+        sequence: Sequence(1),
+        chat_id: None,
+        parent: None,
+        author: SessionAuthor::Agent {
+            id: "ada".into(),
+            label: "Ada".into(),
+        },
+        content: "we should ship the migration tonight".into(),
+        audience: Audience::Aside {
+            members: vec!["linus".into()],
+        },
+    };
+    let log = FixedLog(Mutex::new(vec![row.clone()]));
+
+    let outsider_hits = search_messages(&log, &SearchQuery::new("ship", Viewer::Operator))
+        .await
+        .expect("outsider search succeeds");
+    // The row was already consumed by the outsider search above, so reseed it
+    // for the member search — the point under test is what each viewer's own
+    // call returns, not a shared cursor.
+    *log.0.lock().expect("log lock is not poisoned") = vec![row];
+    let member_hits = search_messages(
+        &log,
+        &SearchQuery::new("ship", Viewer::Agent { id: "linus".into() }),
+    )
+    .await
+    .expect("member search succeeds");
+
+    assert!(
+        !outsider_hits.is_empty(),
+        "the operator viewer reads every audience"
+    );
+    assert!(
+        !member_hits.is_empty(),
+        "an addressed member reads its own aside"
+    );
+
+    *log.0.lock().expect("log lock is not poisoned") = vec![LogMessage {
+        sequence: Sequence(1),
+        chat_id: None,
+        parent: None,
+        author: SessionAuthor::Agent {
+            id: "ada".into(),
+            label: "Ada".into(),
+        },
+        content: "we should ship the migration tonight".into(),
+        audience: Audience::Aside {
+            members: vec!["linus".into()],
+        },
+    }];
+    let excluded_hits = search_messages(
+        &log,
+        &SearchQuery::new("ship", Viewer::Agent { id: "grace".into() }),
+    )
+    .await
+    .expect("outsider agent search succeeds");
+    assert!(
+        excluded_hits.is_empty(),
+        "an agent outside the aside's audience must not match its content"
+    );
 }
 
 #[test]
