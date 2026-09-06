@@ -103,12 +103,18 @@ Each was resolved in favour of the parser.
    ` ``` ` or `~~~`, so one body could mask differently in the two crates. It
    also missed a third copy, in `crates/tinyhivemind/src/pins/mod.rs`. There is
    now one scanner — `tinyhivemind_core::masking` — and all three grammars call
-   it, on CommonMark's rules throughout: the mention grammar takes
-   `code_ranges`, and the trace and pin grammars take `fenced_ranges`.
+   `code_ranges`, on CommonMark's rules throughout. An earlier draft had the
+   trace and pin grammars take `fenced_ranges` instead, on the reasoning that a
+   line-leading marker preceded by a backtick is by definition not
+   line-leading; that reasoning holds only when the backtick and the marker
+   share a line. An inline span opened on one line and closed on a later one
+   quotes every whole line between them, so a marker on an interior line of
+   that span has no backtick of its own and would still fire as live grammar
+   under `fenced_ranges` alone — `grammar-traces.md`'s "asymmetry that turned
+   out not to be one" has the full account. There is no remaining asymmetry:
+   every grammar in this workspace reads the same level.
 
-   The one asymmetry left is deliberate, and it is the *level* of masking
-   rather than the fence rules. A mention may sit anywhere in a sentence, so
-   `` `@alice` `` has to be masked as well as a fenced block. A trace marker
+   A trace marker
    and a pin directive only count line-leading, and a marker preceded by a
    backtick is by definition not line-leading, so inline masking would buy them
    nothing but a second scan.
