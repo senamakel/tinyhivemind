@@ -206,6 +206,23 @@ const GROUNDS_WEIGHT: i32 = 45;
 /// readings of their own.
 const RULES_OUT: &str = "rules this one out";
 
+/// How close this member's top two options must be before it is worth a turn
+/// asking one peer what they read.
+///
+/// A member that already separates its two best options by more than this has
+/// nothing a second noisy reading would settle, and spending a turn on the
+/// question would be spending it to learn nothing. Set at half the gap that
+/// separates the genuinely best option from a decoy: inside it the member
+/// genuinely cannot tell, outside it it can.
+const ASIDE_UNCERTAINTY: i32 = (TRUE_QUALITY - DECOY_QUALITY) / 2;
+
+/// What a member writes into the reading it hands a peer.
+///
+/// Parsed back out by the peer, so the two halves of the exchange share one
+/// spelling. The number is this member's own score for the topic, which is
+/// exactly what a second opinion is.
+const ASIDE_READS: &str = "reads";
+
 /// What a specialist's own turn costs, against a lay member's `1`, when a
 /// room is generated with `cost_tiers` set.
 ///
@@ -711,6 +728,15 @@ pub(crate) struct SimAgent {
     /// somebody else got there first with. See the module docs: it is a
     /// participant policy, off unless `--blind-evidence` asked for it.
     blind_evidence: bool,
+    /// Turns this member may spend asking one peer for its reading before
+    /// committing to a position. `0` turns the move off, which is what every
+    /// arm before the aside arms passes.
+    aside_cap: u32,
+    /// Checks this member has already opened.
+    asides_spent: u32,
+    /// Sequences of exchanges this member has already answered or folded in,
+    /// so neither is done twice.
+    handled: Vec<Sequence>,
 }
 
 impl SimAgent {
@@ -760,6 +786,9 @@ impl SimAgent {
             role,
             evals,
             imports: Vec::new(),
+            aside_cap: 0,
+            asides_spent: 0,
+            handled: Vec::new(),
             favourite,
             rng: Rng::seeded(mix(seed, 0x000A_11CE ^ index as u64)),
             quorum: QuorumPolicy::DEFAULT,
@@ -803,6 +832,18 @@ impl SimAgent {
             .max_by_key(|topic| self.score(topic))
             .unwrap_or_else(|| self.favourite.clone());
         true
+    }
+
+    /// Tell the participant how many turns it may spend asking one peer for a
+    /// second reading before committing to a position. `0` turns the move off.
+    ///
+    /// `Room::generate_with` leaves every member at `0`, so an arm that opens
+    /// no check is bit-identical to one built before the move existed — the
+    /// same discipline `set_defer_cap` follows.
+    pub(crate) fn set_aside_cap(&mut self, cap: u32) {
+        self.aside_cap = cap;
+        self.asides_spent = 0;
+        self.handled.clear();
     }
 
     /// Tell the participant which quorum rule the room is running.
