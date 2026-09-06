@@ -29,18 +29,16 @@ sandbox.
 
 ## Architecture as found
 
-Four processes, each a separate source root:
-
-- `source/electron-main/` — desktop lifecycle, settings, auth, box connectors,
-  and ownership of the coordinator child process.
-- `source/electron-preload/` — the trusted bridge to the renderer.
-- `source/node-agent-coordinator/` — the process that talks to inference
-  providers. Its control channel (`source/shared/rpc/coordinator-port.ts`) is a
-  five-variant frame union (`lifecycle`/`request`/`cancel`/`reply`/`event`) with
-  a pure parser, `parseCoordinatorFrame` (line 35), returning
-  `{accepted, frame}` or `{accepted:false, rejection}` rather than throwing.
-- `source/host/` — the interesting layer: sessions, transcripts, turns, groups,
-  tools, permissions.
+Four processes, each a separate source root: `source/electron-main/` (desktop
+lifecycle, settings, auth, box connectors, ownership of the coordinator child
+process), `source/electron-preload/` (the trusted bridge to the renderer),
+`source/node-agent-coordinator/` (the process that talks to inference
+providers), and `source/host/` — the interesting layer: sessions, transcripts,
+turns, groups, tools, permissions. The coordinator's control channel
+(`source/shared/rpc/coordinator-port.ts`) is a five-variant frame union
+(`lifecycle`/`request`/`cancel`/`reply`/`event`) with a pure parser,
+`parseCoordinatorFrame` (line 35), returning `{accepted, frame}` or
+`{accepted:false, rejection}` rather than throwing.
 
 The host is assembled from 35 named extensions
 (`source/host/extensions/extension-ids.generated.ts:1`) started through a tiny
@@ -383,9 +381,8 @@ meta-tools are minted per turn: a discovery tool `GetMcpTools`
 `call_mcp_tool` (`packages/agent/tools/mcp/mcp.ts:438`) taking
 `{server, tool, arguments}`. The routing table is `session.serverDescriptors`,
 keyed by `serverIdentifier` (line 461), with `McpServerDoesNotExistError` on a
-miss. The same grouping appears host-side in `createSandMcpStateExecutor`
-(`host/ports/mcp-state-executor.ts:7`), bucketing
-`SandMcpTool{providerIdentifier, name, toolName, description?, inputSchema?}` by
+miss; the same grouping appears host-side in `createSandMcpStateExecutor`
+(`host/ports/mcp-state-executor.ts:7`), bucketing `SandMcpTool` records by
 `providerIdentifier`.
 
 Execution never happens in-process: it goes through `mcpExecutorResource`
@@ -468,8 +465,8 @@ Ordered by how directly it maps onto `tinyhivemind`:
 
 ## Where the README overclaims
 
-Very little, and the drift is more about *layering* than about *existence*. All
-four added features are real, IO-performing implementations, not stubs.
+Very little, and the drift is about *layering* rather than *existence*: all four
+added features are real, IO-performing implementations, not stubs.
 
 - **"an inference router"** — the word oversells it. It is a four-valued enum in
   a settings file with a `switch`: no routing policy, no fallback, no per-agent
