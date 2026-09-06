@@ -100,7 +100,14 @@ fn briefing_records_pin_their_wire_shape() {
             "role": null,
             "description": "Reviews changes"
         }],
-        "brevity": { "message_chars": 600, "window": 30 }
+        "brevity": { "message_chars": 600, "window": 30 },
+        "asides": {
+            "enabled": false,
+            "max_members": 0,
+            "max_messages": 0,
+            "must_surface": false,
+            "require_thread": false
+        }
     });
     assert_eq!(
         serde_json::to_value(&briefing).expect("briefing serializes"),
@@ -162,7 +169,14 @@ fn initialization_pins_its_wire_shape() {
                 "role": null,
                 "description": "Reviews changes"
             }],
-            "brevity": { "message_chars": 600, "window": 30 }
+            "brevity": { "message_chars": 600, "window": 30 },
+            "asides": {
+                "enabled": false,
+                "max_members": 0,
+                "max_messages": 0,
+                "must_surface": false,
+                "require_thread": false
+            }
         },
         "context": {
             "threads": [{
