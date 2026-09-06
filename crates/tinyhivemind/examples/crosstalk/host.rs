@@ -15,7 +15,7 @@
 //! library dispatches, not that a host can hold the contract.
 
 use std::collections::HashSet;
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use tinyhivemind::dispatch::{
     DispatchKey, EnqueueOutcome, EnqueueRefusal, MentionTurnFuture, MentionTurnQueue,
@@ -52,8 +52,8 @@ impl Journal {
         author: SessionAuthor,
         content: &str,
     ) -> Sequence {
-        let mut rows = self.rows.lock().expect("journal poisoned");
-        let sequence = Sequence(rows.len() as u64 + 1);
+        let mut rows = self.rows.lock().unwrap_or_else(PoisonError::into_inner);
+        let sequence = Sequence(u64::try_from(rows.len()).unwrap_or(u64::MAX).saturating_add(1));
         rows.push(LogMessage {
             sequence,
             chat_id: Some(conversation.desk_id.clone()),
@@ -66,14 +66,14 @@ impl Journal {
 
     /// Return one row by sequence, as a host's transaction would re-read it.
     pub(crate) fn row(&self, sequence: Sequence) -> Option<LogMessage> {
-        let rows = self.rows.lock().expect("journal poisoned");
+        let rows = self.rows.lock().unwrap_or_else(PoisonError::into_inner);
         rows.iter().find(|row| row.sequence == sequence).cloned()
     }
 }
 
 impl SessionLog for Journal {
     fn read_before(&self, before: Option<Sequence>, limit: usize) -> SessionFuture<'_> {
-        let rows = self.rows.lock().expect("journal poisoned");
+        let rows = self.rows.lock().unwrap_or_else(PoisonError::into_inner);
         let mut page: Vec<LogMessage> = rows
             .iter()
             .rev()
@@ -136,7 +136,7 @@ impl<'a> Queue<'a> {
 
     /// Take everything enqueued since the last drain, in arrival order.
     pub(crate) fn drain(&self) -> Vec<Enqueued> {
-        let mut state = self.state.lock().expect("queue poisoned");
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
         std::mem::take(&mut state.pending)
     }
 }
@@ -151,7 +151,7 @@ impl MentionTurnQueue for Queue<'_> {
 impl Queue<'_> {
     /// The whole transaction, run under one lock.
     fn transact(&self, request: &MentionTurnRequest) -> EnqueueOutcome {
-        let mut state = self.state.lock().expect("queue poisoned");
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
 
         let key = (
             request.conversation.desk_id.clone(),

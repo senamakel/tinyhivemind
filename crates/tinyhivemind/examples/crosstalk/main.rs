@@ -407,7 +407,6 @@ async fn run(options: &Options) -> Result<Report, String> {
     let mut turns: Vec<Turn> = Vec::new();
     let mut speaker = decision.responder_id.clone();
     let mut hop = 0_u32;
-    let mut ask = Ask::Desk;
     let mut carried: Option<(String, String)> = None;
 
     loop {
@@ -427,22 +426,17 @@ async fn run(options: &Options) -> Result<Report, String> {
         .await
         .map_err(|error| format!("projection failed: {error}"))?;
 
-        let ask_now = match &carried {
-            Some((from, content)) => Ask::Addressed {
-                from,
-                content,
-            },
+        let ask = match &carried {
+            Some((from, content)) => Ask::Addressed { from, content },
             None => Ask::Desk,
         };
-        let _ = &ask;
-        ask = Ask::Desk;
 
         let peers: Vec<&str> = ids
             .iter()
             .filter(|id| **id != seat.id.as_str())
             .copied()
             .collect();
-        let line = seat.speak(&visible, &peers, &ask_now)?;
+        let line = seat.speak(&visible, &peers, &ask)?;
 
         let sequence = journal.append(
             &floor,
