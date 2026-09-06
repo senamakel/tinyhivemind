@@ -196,3 +196,22 @@ fn a_backslash_does_not_escape_a_closing_backtick() {
     // live.
     assert_eq!(code_ranges(r"`a\`b` @alice"), vec![(0, 4)]);
 }
+
+#[test]
+fn an_inline_opener_does_not_pair_across_a_blank_line() {
+    // A blank line ends a paragraph, so a stray backtick before one and
+    // another after it are two unmatched, literal ticks in separate
+    // paragraphs, not one span spanning both — `@alice` stays live.
+    let body = "`\n\n@alice `";
+    assert_eq!(code_ranges(body), Vec::new());
+}
+
+#[test]
+fn a_non_breaking_space_line_is_not_a_commonmark_blank_line() {
+    // `CommonMark` blank lines hold only spaces and tabs; a non-breaking
+    // space is Unicode whitespace but not one of those two bytes, so a line
+    // holding only one does not separate paragraphs. A directive after it
+    // must not be treated as opening a fresh indented block.
+    let body = "prose\n\u{a0}\n    !pin ^1\n";
+    assert_eq!(fenced_ranges(body), Vec::new());
+}

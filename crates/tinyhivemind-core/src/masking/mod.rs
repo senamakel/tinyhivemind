@@ -364,7 +364,7 @@ fn paragraph_breaks(body: &str) -> Vec<usize> {
 /// the fourth column from any of the first four, so only spaces can survive
 /// this trim.
 fn under_four_columns(content: &str) -> Option<&str> {
-    (indentation_width(content) <= 4 - 1).then(|| content.trim_start_matches(' '))
+    (indentation_width(content) <= 3).then(|| content.trim_start_matches(' '))
 }
 
 /// Whether `content` is an ATX heading: one to six `#` characters followed by
