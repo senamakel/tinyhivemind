@@ -778,6 +778,8 @@ async fn a_reseed_never_hands_a_member_less_than_the_delta_did() {
         .await
         .expect("projects");
 
+        // A re-seed projects the whole window and a delta only what is above
+        // the watermark, so the comparison is over the rows they share.
         assert_eq!(
             incremental
                 .iter()
@@ -785,6 +787,7 @@ async fn a_reseed_never_hands_a_member_less_than_the_delta_did() {
                 .collect::<Vec<_>>(),
             reseeded
                 .iter()
+                .filter(|m| m.sequence > Sequence(10))
                 .map(|m| (m.sequence, m.readable().map(str::to_owned)))
                 .collect::<Vec<_>>(),
             "{id} must read the same rows either way",
