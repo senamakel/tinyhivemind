@@ -22,15 +22,16 @@ neutral roster record.
 1. Validate structural roster and desk invariants. Invalid snapshots fail
    closed.
 2. Build current aliases for active agents, people, desks, and everyone.
-3. Mask closed inline code spans and fenced code blocks without changing body
-   offsets, using the shared `masking::code_ranges` scanner. A mention is
-   mid-line, so it needs inline spans masked as well as fenced blocks; a
-   line-leading grammar such as the hive's traces takes `masking::fenced_ranges`
-   from the same module instead and intentionally omits inline-code masking,
-   since a marker that only counts at the start of a line can never be inside
-   an inline span. The two scanners therefore cannot disagree about which span
-   of a body is a *fenced* block — the level both grammars share — even though
-   only this one also masks inline spans.
+3. Mask closed inline code spans and code blocks without changing body
+   offsets, using the shared `masking::code_ranges` scanner. Every authored
+   grammar in the workspace reads that same level — the hive's traces and the
+   runtime's pin directives included — so none of them can disagree about
+   which span of a body is code. A line-leading marker needs inline spans
+   masked too: a span opened on one line and closed on a later one quotes
+   whole lines between them, so a marker with no backtick ahead of it on its
+   own line can still be inside quoted code. `masking::fenced_ranges` is the
+   block-only half of the same scanner, for a caller that wants exactly
+   CommonMark's fenced and indented blocks.
 4. Extract authored spans, or validate supplied spans when the host has already
    parsed them.
 5. Sort in reading order, remove self and duplicate-offset entries, quiet
