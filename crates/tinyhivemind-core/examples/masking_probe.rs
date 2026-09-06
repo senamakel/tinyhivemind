@@ -35,6 +35,10 @@ fn main() {
     std::io::stdin().read_to_string(&mut input).unwrap();
     for line in input.lines() {
         let body = decode(line);
-        println!("{}|{}", fmt(&fenced_ranges(&body)), fmt(&code_ranges(&body)));
+        println!(
+            "{}|{}",
+            fmt(&fenced_ranges(&body)),
+            fmt(&code_ranges(&body))
+        );
     }
 }
