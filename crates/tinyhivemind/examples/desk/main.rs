@@ -16,12 +16,13 @@
 //! See `README.md` beside this file for the flags and the failure modes.
 
 mod agent;
+mod chat;
 mod deskfile;
 mod log;
 mod memory;
 
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     error::Error as StdError,
     fs,
     path::PathBuf,
@@ -39,6 +40,7 @@ use tinyhivemind::{
     },
     initialize_session,
     mention::{MentionAuthor, resolve},
+    sharing::{SharingPlan, SharingQuery, SharingState, initialized_state, prepare_delta},
     responder::{ResponderRequest, SelectionPolicy, choose_responder},
     roster::{Person, Roster, RosterMember},
 };
@@ -104,6 +106,9 @@ struct Options {
     library_scope: String,
     session_scope: String,
     opencode_config: Option<String>,
+    router_base: String,
+    router_key: String,
+    router_model: String,
 }
 
 impl Options {
@@ -124,6 +129,10 @@ impl Options {
             library_scope: "org:math/problem:euler1006/kind:library".into(),
             session_scope: "org:math/problem:euler1006-hive/kind:session".into(),
             opencode_config: std::env::var("OPENCODE_CONFIG_CONTENT").ok(),
+            router_base: std::env::var("LADDER_BASE")
+                .unwrap_or_else(|_| "http://127.0.0.1:6969".into()),
+            router_key: std::env::var("LADDER_API_KEY").unwrap_or_default(),
+            router_model: "deepseek".into(),
         };
         let mut args = std::env::args().skip(1);
         while let Some(flag) = args.next() {
@@ -142,6 +151,8 @@ impl Options {
                 "--cortex-base" => options.cortex_base = Some(value()?),
                 "--library-scope" => options.library_scope = value()?,
                 "--session-scope" => options.session_scope = value()?,
+                "--router-base" => options.router_base = value()?,
+                "--router-model" => options.router_model = value()?,
                 "--no-memory" => {
                     options.cortex_base = None;
                 }
@@ -211,6 +222,17 @@ async fn main() -> Result<(), BoxError> {
         )),
         _ => None,
     };
+    let wrapup = chat::Chat::new(
+        &options.router_base,
+        &options.router_key,
+        &options.router_model,
+        WRAP_UP_TIMEOUT,
+    );
+    // One CLI session per seat, and one watermark per seat: a seat that has
+    // spoken before is caught up with `prepare_delta` rather than re-read the
+    // whole window it already holds.
+    let mut sessions: HashMap<String, String> = HashMap::new();
+    let mut shared: HashMap<String, SharingState> = HashMap::new();
     let queue = DeskQueue::default();
     let policy = MentionDispatchPolicy {
         enabled: true,
@@ -336,21 +358,61 @@ async fn main() -> Result<(), BoxError> {
                 .collect(),
             brevity: BrevityPolicy::DEFAULT,
         };
-        let session = initialize_session(&transcript, &query, briefing).await?;
+        let resumed = sessions.get(&seat.id).cloned();
+        let plan = match (resumed.as_ref(), shared.get(&seat.id)) {
+            (Some(_), Some(state)) => Some(
+                prepare_delta(
+                    &transcript,
+                    &SharingQuery {
+                        desired_conversation: &conversation,
+                        current_conversation: &conversation,
+                        state,
+                        before: sequence,
+                    },
+                )
+                .await?,
+            ),
+            _ => None,
+        };
+        let (history, briefing_text, catching_up) = match plan {
+            Some(SharingPlan::Delta(delta)) => {
+                shared.insert(seat.id.clone(), delta.next_state);
+                (delta.messages, None, true)
+            }
+            _ => {
+                let session = initialize_session(&transcript, &query, briefing).await?;
+                shared.insert(
+                    seat.id.clone(),
+                    initialized_state(conversation.clone(), sequence),
+                );
+                let text = session.briefing.system_text();
+                (session.history, Some(text), false)
+            }
+        };
         let recalled = store
             .as_ref()
             .map(|store| store.recall(&job.trigger))
             .unwrap_or_default();
 
-        let prompt = compose_prompt(&session.briefing, &session.history, seat, &job, &recalled);
+        let prompt = compose_prompt(briefing_text.as_deref(), &history, seat, &job, &recalled);
         println!(
-            "[turn {turns}] @{} ({} chars of prompt, {} messages of history)",
+            "[turn {turns}] @{} ({} chars of prompt, {} {} message(s){})",
             seat.id,
             prompt.len(),
-            session.history.len()
+            history.len(),
+            if catching_up { "new" } else { "of history" },
+            if resumed.is_some() { ", resumed" } else { "" }
         );
-        let mut output = runner.run(&prompt, &format!("turn-{turns:03}-{}", seat.id), runner.timeout())?;
+        let mut output = runner.run(
+            &prompt,
+            &format!("turn-{turns:03}-{}", seat.id),
+            runner.timeout(),
+            resumed.as_deref(),
+        )?;
         tokens += output.tokens;
+        if let Some(id) = output.session.clone() {
+            sessions.insert(seat.id.clone(), id);
+        }
         if output.timed_out || output.message.trim().is_empty() {
             // A seat that spent its whole budget inside tool calls has said
             // nothing, and a room cannot read work it was never told about.
@@ -362,22 +424,19 @@ async fn main() -> Result<(), BoxError> {
                 output.elapsed
             );
             let wrap = format!(
-                "{prompt}\n\n## Out of time\nYour working turn ended before you posted \
-                 anything. Do NOT start new work and do NOT run any more tools. Post now, \
-                 in one message wrapped in <<<POST and POST>>>: what you established this \
-                 turn, what you did not finish, and the one seat you need next."
+                "{prompt}\n\nYou have no tools. Your working turn ended before you posted \
+                 anything. Write the message now, in one block wrapped in <<<POST and \
+                 POST>>>: what you established, what you did not finish, and the one seat \
+                 you need next."
             );
-            let salvage = runner.run(
-                &wrap,
-                &format!("turn-{turns:03}-{}-wrapup", seat.id),
-                WRAP_UP_TIMEOUT,
-            )?;
-            tokens += salvage.tokens;
-            if salvage.message.trim().is_empty() {
+            let salvage = wrapup.complete(&wrap);
+            let salvage = agent::extract_post(&salvage);
+            if salvage.trim().is_empty() {
                 println!("   !! wrap-up also silent; the seat forfeits this turn");
                 continue;
             }
-            output.message = salvage.message;
+            println!("   wrap-up posted through the router with no tools attached");
+            output.message = salvage;
         }
         println!(
             "   {:?}, {} tokens, tools: {}",
@@ -453,22 +512,32 @@ async fn main() -> Result<(), BoxError> {
 /// The order matters: who it is, what the desk knows, what the room has said,
 /// then what it was actually asked. A model reads the last thing best.
 fn compose_prompt(
-    briefing: &TeamBriefing,
+    briefing: Option<&str>,
     history: &[SessionMessage],
     seat: &deskfile::AgentSpec,
     job: &PendingTurn,
     recalled: &str,
 ) -> String {
-    let mut prompt = briefing.system_text();
+    let mut prompt = match briefing {
+        Some(text) => text.to_string(),
+        None => format!(
+            "You are @{} in this desk. You already hold the briefing and the transcript \
+             up to your last turn; what follows is only what has changed since.",
+            seat.id
+        ),
+    };
     prompt.push_str("\n\n## Your standing brief\n");
     prompt.push_str(seat.brief.trim());
     if !recalled.trim().is_empty() {
         prompt.push_str("\n\n## Desk memory (CortexDB)\n");
         prompt.push_str(recalled.trim());
     }
-    prompt.push_str("\n\n## The room so far\n");
+    prompt.push_str(match briefing {
+        Some(_) => "\n\n## The room so far\n",
+        None => "\n\n## New in the room since your last turn\n",
+    });
     if history.is_empty() {
-        prompt.push_str("(empty)\n");
+        prompt.push_str("(nothing new)\n");
     }
     for message in history {
         let who = match &message.author {
