@@ -266,9 +266,15 @@ fn arbitrary_claims_never_overspend_and_never_leave_a_fragment() {
     for _ in 0..2_000 {
         let count = usize::try_from(next() % 7).expect("bounded count");
         let requests: Vec<BudgetRequest> = (0..count)
-            .map(|index| BudgetRequest::new(format!("source-{index}"), (next() % 2_000) as usize))
+            .map(|index| {
+                let wanted = usize::try_from(next() % 2_000).expect("bounded want");
+                BudgetRequest::new(format!("source-{index}"), wanted)
+            })
             .collect();
-        let policy = tight((next() % 3_000) as usize, (next() % 400) as usize);
+        let policy = tight(
+            usize::try_from(next() % 3_000).expect("bounded budget"),
+            usize::try_from(next() % 400).expect("bounded floor"),
+        );
 
         let shares = allocate_chars(&requests, &policy);
         assert_eq!(shares.len(), requests.len());
