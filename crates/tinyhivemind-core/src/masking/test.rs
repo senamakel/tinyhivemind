@@ -159,3 +159,40 @@ fn a_masked_range_covers_its_start_but_not_its_end() {
     assert!(is_masked(4, &ranges));
     assert!(!is_masked(5, &ranges));
 }
+
+#[test]
+fn an_inline_opener_does_not_pair_across_a_blank_line() {
+    // A code span lives inside one paragraph. A blank line ends that
+    // paragraph, so a stray backtick above it cannot reach a backtick below
+    // it — pairing across the gap would swallow every mention between them.
+    let body = "costs 5` a seat\n\nheads up @alice\n\nand a ` tick";
+    assert_eq!(code_ranges(body), Vec::new());
+}
+
+#[test]
+fn an_inline_opener_does_not_pair_across_a_line_that_ends_its_paragraph() {
+    // The same reasoning as a blank line, for the other single-line blocks
+    // this scanner can recognise: an ATX heading, a thematic break, and a
+    // setext underline each close the paragraph an opener lives in.
+    assert_eq!(code_ranges("a ` b\n# head\n@alice ` c"), Vec::new());
+    assert_eq!(code_ranges("a ` b\n***\n@alice ` c"), Vec::new());
+    assert_eq!(code_ranges("a ` b\nFoo\n---\n@alice ` c"), Vec::new());
+}
+
+#[test]
+fn an_escaped_backtick_does_not_open_an_inline_span() {
+    // `\`` is a literal backtick, so this body has no code span at all and
+    // the mention inside it is live text — which is what a renderer shows.
+    assert_eq!(code_ranges(r"\`@alice`"), Vec::new());
+    // An escaped backslash is not an escape for what follows it, so the
+    // backtick after it does open a span.
+    assert_eq!(code_ranges(r"\\`@alice`"), vec![(2, 10)]);
+}
+
+#[test]
+fn a_backslash_does_not_escape_a_closing_backtick() {
+    // Backslash escapes do not apply inside a code span: `` `a\` `` is a
+    // span holding `a\`, so the text after it — including the mention — is
+    // live.
+    assert_eq!(code_ranges(r"`a\`b` @alice"), vec![(0, 4)]);
+}

@@ -191,7 +191,7 @@ fn indented_block_ranges(body: &str) -> Vec<(usize, usize)> {
     let mut prev_blank = true;
     for line in body.split_inclusive('\n') {
         let content = line.trim_end_matches(['\n', '\r']);
-        if content.trim().is_empty() {
+        if is_blank_line(content) {
             prev_blank = true;
             line_start += line.len();
             continue;
