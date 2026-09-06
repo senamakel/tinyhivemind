@@ -536,3 +536,29 @@ fn a_policy_and_a_refusal_pin_their_wire_forms() {
     );
     assert_eq!(ReferralPolicy::default(), ReferralPolicy::DEFAULT);
 }
+
+#[test]
+fn a_tombstoned_target_is_refused_as_plainly_inactive() {
+    // `linus` stays in the roster and on the platform desk so his old
+    // messages keep their author, but a referral to him is refused with the
+    // reason a retired member already gets. A reason of its own would tell
+    // the asker that somebody used to hold that desk.
+    let members = members();
+    let tombstoned = vec!["linus".to_owned()];
+    let roster = Roster::new(&members, &[], &[]).with_tombstoned(&tombstoned);
+    let desk_records = desks();
+    let desks = DeskSet::new(&desk_records, &[], &[], &[], &[]).with_tombstoned(&tombstoned);
+    let decision = referral(
+        OPEN,
+        &input("ada", "payments", vec![agent_mention("linus", 0)]),
+        &roster,
+        &desks,
+    )
+    .expect("snapshots are well formed");
+    assert_eq!(
+        decision,
+        ReferralDecision::None {
+            reason: NoReferralReason::TargetInactive
+        }
+    );
+}
