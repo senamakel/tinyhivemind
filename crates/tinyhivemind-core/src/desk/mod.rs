@@ -216,25 +216,33 @@ impl<'a> DeskSet<'a> {
 
     fn base_members(&self, desk_id: &str) -> Vec<&'a str> {
         let mut members = Vec::new();
-        if let Some(desk) = self.find_id(desk_id) {
-            for member in &desk.members {
-                self.push_active_once(&mut members, member);
+        for member in self.raw_members(desk_id) {
+            if !self.is_unavailable(member) && !members.contains(&member) {
+                members.push(member);
             }
-        }
-        for addition in self
-            .member_additions
-            .iter()
-            .filter(|addition| addition.desk_id == desk_id)
-        {
-            self.push_active_once(&mut members, &addition.agent_id);
         }
         members
     }
 
-    fn push_active_once(&self, members: &mut Vec<&'a str>, agent_id: &'a str) {
-        if !self.is_unavailable(agent_id) && !members.contains(&agent_id) {
-            members.push(agent_id);
-        }
+    /// Every declared or added member of `desk_id`, before filtering out
+    /// unavailable agents.
+    ///
+    /// Used to tell "this agent belonged to the desk and later became
+    /// unavailable" from "this agent never belonged to the desk at all" —
+    /// [`Self::is_unavailable`] alone cannot distinguish the two, and a
+    /// stored order naming an id from the second group is malformed, not
+    /// merely stale.
+    fn raw_members(&self, desk_id: &str) -> impl Iterator<Item = &'a str> + '_ {
+        let declared = self
+            .find_id(desk_id)
+            .into_iter()
+            .flat_map(|desk| desk.members.iter().map(String::as_str));
+        let added = self
+            .member_additions
+            .iter()
+            .filter(move |addition| addition.desk_id == desk_id)
+            .map(|addition| addition.agent_id.as_str());
+        declared.chain(added)
     }
 
     fn is_unavailable(&self, agent_id: &str) -> bool {
