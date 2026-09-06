@@ -155,7 +155,7 @@ fn sharing_values_pin_deterministic_wire_shapes() {
     assert_eq!(
         serde_json::to_value(&delta).expect("serializes"),
         serde_json::json!({
-            "messages":[{"sequence":11,"author":{"type":"operator"},"content":"new"}],
+            "messages":[{"sequence":11,"author":{"type":"operator"},"content":"new","audience":{"kind":"desk"},"elided":null}],
             "next_state":{
                 "conversation":{"desk_id":"engineering","desk_name":"Engineering","thread_root":null},
                 "watermark":10,
@@ -168,7 +168,7 @@ fn sharing_values_pin_deterministic_wire_shapes() {
         serde_json::to_value(&delta_plan).expect("serializes"),
         serde_json::json!({
             "type":"delta",
-            "messages":[{"sequence":11,"author":{"type":"operator"},"content":"new"}],
+            "messages":[{"sequence":11,"author":{"type":"operator"},"content":"new","audience":{"kind":"desk"},"elided":null}],
             "next_state":{
                 "conversation":{"desk_id":"engineering","desk_name":"Engineering","thread_root":null},
                 "watermark":10,
