@@ -713,6 +713,9 @@ fn tick_rows() -> Vec<LogMessage> {
         said(13, "archivist", "in the open"),
         aside_row(12, "auditor", &["planner"], "and privately, in reply"),
         aside_row(11, "planner", &["auditor"], "privately"),
+        // At the watermark, so the backward walk crosses it and the delta is
+        // a delta rather than a request to re-seed.
+        said(10, "planner", "already delivered"),
     ]
 }
 
@@ -791,7 +794,11 @@ async fn a_reseed_never_hands_a_member_less_than_the_delta_did() {
 
 #[tokio::test]
 async fn a_delta_over_rows_with_no_aside_is_the_same_for_every_viewer() {
-    let rows = vec![said(12, "planner", "two"), said(11, "planner", "one")];
+    let rows = vec![
+        said(12, "planner", "two"),
+        said(11, "planner", "one"),
+        said(10, "planner", "already delivered"),
+    ];
     let baseline = {
         let log = FakeLog::new(vec![page(rows.clone(), None)]);
         delta(plan_for(&log, &state(10), 13, &Viewer::Operator).await).messages
