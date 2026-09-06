@@ -502,34 +502,17 @@ async fn run_chain(
             desks,
         );
 
-        // A line that asks for an aside is addressed by the library, not by
-        // this harness reading the marker and believing it. `aside` resolves
-        // who it may reach and refuses with a named reason otherwise; a
-        // refusal leaves the row desk-visible, which is the safe direction.
-        let audience = if options.asides && line.trim_start().starts_with("!aside") {
-            let decision = aside(
-                ASIDES,
-                &AsideInput {
-                    conversation: DispatchConversation::from(floor),
-                    author_id: seat.id.clone(),
-                    mentions: mentions.clone(),
-                    spent: spent_in_aside(&turns, &seat.id),
-                    unsettled: false,
-                },
-                roster,
-                desks,
-            )
-            .map_err(|error| format!("the aside fold failed: {error}"))?;
-            match decision {
-                AsideDecision::One { audience } => audience,
-                AsideDecision::None { reason } => {
-                    refusals.push(format!("{reason:?}"));
-                    Audience::Desk
-                }
-            }
-        } else {
-            Audience::Desk
-        };
+        let audience = address(
+            options,
+            floor,
+            roster,
+            desks,
+            &seat.id,
+            &line,
+            &mentions,
+            &turns,
+            &mut refusals,
+        )?;
 
         let sequence = journal.append_to(
             floor,
@@ -588,6 +571,49 @@ async fn run_chain(
     Ok((turns, refusals))
 }
 
+/// Decide who one authored line is addressed to.
+///
+/// A line asking for an aside is addressed by the library, not by this harness
+/// reading the marker and believing it: `aside` resolves who it may reach and
+/// refuses with a named reason otherwise. A refusal leaves the row
+/// desk-visible, which is the safe direction to fail in.
+#[allow(clippy::too_many_arguments)]
+fn address(
+    options: &Options,
+    floor: &Conversation,
+    roster: &tinyhivemind_core::roster::Roster<'_>,
+    desks: &tinyhivemind_core::desk::DeskSet<'_>,
+    author_id: &str,
+    line: &str,
+    mentions: &[tinyhivemind_core::mention::Mention],
+    turns: &[Turn],
+    refusals: &mut Vec<String>,
+) -> Result<Audience, String> {
+    if !options.asides || !line.trim_start().starts_with("!aside") {
+        return Ok(Audience::Desk);
+    }
+    let decision = aside(
+        ASIDES,
+        &AsideInput {
+            conversation: DispatchConversation::from(floor),
+            author_id: author_id.to_owned(),
+            mentions: mentions.to_vec(),
+            spent: spent_in_aside(turns, author_id),
+            unsettled: false,
+        },
+        roster,
+        desks,
+    )
+    .map_err(|error| format!("the aside fold failed: {error}"))?;
+    Ok(match decision {
+        AsideDecision::One { audience } => audience,
+        AsideDecision::None { reason } => {
+            refusals.push(format!("{reason:?}"));
+            Audience::Desk
+        }
+    })
+}
+
 /// How many rows this speaker has already spent inside an open aside.
 ///
 /// Folded from the turns the run has taken rather than stored, because this
@@ -606,6 +632,46 @@ fn spent_in_aside(turns: &[Turn], speaker: &str) -> usize {
 /// The report compares two of these — the desk channel and the thread — which
 /// is how it shows that a thread is a narrower conversation over the same desk
 /// rather than a separate room.
+/// What every reader on this desk, and one person, was handed.
+///
+/// This is the evidence for the whole mechanism: the same rows, at the same
+/// sequences, rendered differently for different readers, with a person able
+/// to read all of it.
+async fn every_view(
+    room: &Room<'_>,
+    floor: &Conversation,
+    window: usize,
+) -> Result<Vec<(String, Vec<String>)>, String> {
+    let mut views = Vec::new();
+    for id in &room.ids {
+        views.push((
+            format!("@{id}"),
+            render_view(
+                &room.journal,
+                floor.clone(),
+                window,
+                Viewer::Agent {
+                    id: (*id).to_owned(),
+                },
+            )
+            .await?,
+        ));
+    }
+    views.push((
+        "Ada (human)".to_owned(),
+        render_view(
+            &room.journal,
+            floor.clone(),
+            window,
+            Viewer::Person {
+                id: OPERATOR_ID.to_owned(),
+            },
+        )
+        .await?,
+    ));
+    Ok(views)
+}
+
 /// Render one conversation as one reader is handed it, line by line.
 async fn render_view(
     journal: &Arc<Journal>,
@@ -904,6 +970,15 @@ impl Report {
         }
 
         if self.asides {
+            self.print_aside_claims(&mut claim);
+        }
+
+        failed
+    }
+
+    /// The claims that only an `--aside` run can make.
+    fn print_aside_claims(&self, claim: &mut impl FnMut(bool, &str)) {
+        {
             let private: Vec<&Turn> = self
                 .turns
                 .iter()
@@ -956,8 +1031,6 @@ impl Report {
                 "the stub says where the aside settled, or that it has not",
             );
         }
-
-        failed
     }
 }
 
