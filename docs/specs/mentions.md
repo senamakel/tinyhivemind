@@ -177,9 +177,10 @@ unaddressed/General conversation.
   desk-only syntax, inline/fenced code, supplied suppression and revalidation,
   self/repeat/cap normalization, retired agents, responder selection, and
   addressed-desk/everyone context expansion.
-- A tombstoned agent is covered as an alias, a responder, an `@everyone` member
-  and a desk member, and a test pins that unknown, retired and tombstoned
-  references are refused identically.
+- A tombstoned agent's exclusion is tested in each context it could otherwise
+  appear in — as an alias target, a responder candidate, an `@everyone` member
+  and a desk member — and a test pins that unknown, retired and tombstoned
+  references are refused identically in each.
 - `tinyhivemind-core` remains accepted by the purity assertion.
 
 ## Open questions
