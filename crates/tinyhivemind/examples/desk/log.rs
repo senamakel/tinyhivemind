@@ -13,7 +13,9 @@ use std::{
     path::{Path, PathBuf},
     sync::Mutex,
 };
-use tinyhivemind::{LogMessage, SessionAuthor, SessionFuture, SessionLog, SessionPage, Sequence};
+use tinyhivemind::{
+    LogMessage, SessionAuthor, SessionFuture, SessionLog, SessionPage, Sequence, aside::Audience,
+};
 
 /// An append-only transcript on disk, readable newest-first.
 pub(crate) struct JsonlLog {
@@ -54,6 +56,7 @@ impl JsonlLog {
         chat_id: Option<String>,
         author: SessionAuthor,
         content: &str,
+        audience: Audience,
     ) -> Result<Sequence, Box<dyn std::error::Error + Send + Sync>> {
         let mut rows = self.rows.lock().expect("transcript lock is never poisoned");
         let sequence = Sequence(rows.len() as u64 + 1);
@@ -63,6 +66,7 @@ impl JsonlLog {
             parent: None,
             author,
             content: content.to_string(),
+            audience,
         };
         let mut file = OpenOptions::new().create(true).append(true).open(&self.path)?;
         writeln!(file, "{}", serde_json::to_string(&row)?)?;
@@ -73,6 +77,11 @@ impl JsonlLog {
     /// How many rows the transcript holds.
     pub(crate) fn len(&self) -> usize {
         self.rows.lock().expect("transcript lock").len()
+    }
+
+    /// Every row, oldest first, for the folds an aside policy needs.
+    pub(crate) fn rows(&self) -> Vec<LogMessage> {
+        self.rows.lock().expect("transcript lock").clone()
     }
 }
 
