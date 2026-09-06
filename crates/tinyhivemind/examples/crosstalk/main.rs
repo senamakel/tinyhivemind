@@ -320,6 +320,202 @@ struct Report {
     thread_view: Vec<String>,
 }
 
+/// Ask the responder ladder who should answer an unaddressed instruction.
+///
+/// This is the first of the two edges the harness exists to exercise. The
+/// desk runs in `ResponderMode::Auto`, so with more than one effective member
+/// the pure plan asks for a selection rather than deciding, and the model
+/// rung actually runs. A selector that fails or names a non-candidate costs
+/// the rung and not the run: the library falls back deterministically and
+/// records why in the disposition.
+async fn route_opening(
+    options: &Options,
+    selector: Option<&(dyn Selector + '_)>,
+    roster: &tinyhivemind_core::roster::Roster<'_>,
+    desks: &tinyhivemind_core::desk::DeskSet<'_>,
+) -> Result<tinyhivemind::responder::ResponderDecision, String> {
+    let opening_mentions = resolve_mentions(
+        &options.instruction,
+        None,
+        &MentionAuthor::Person {
+            id: OPERATOR_ID.to_owned(),
+        },
+        roster,
+        desks,
+    );
+    let candidates: Vec<SelectorCandidate> = SEATS
+        .iter()
+        .map(|(id, role)| SelectorCandidate {
+            id: (*id).to_owned(),
+            label: (*id).to_owned(),
+            role: (*role).to_owned(),
+            description: None,
+        })
+        .collect();
+    choose_responder(
+        selector,
+        &ResponderRequest {
+            message: options.instruction.clone(),
+            chat: Some(DESK_ID.to_owned()),
+            mentions: opening_mentions,
+            orchestrator_id: "planner".to_owned(),
+            selection_policy: SelectionPolicy::Allowed,
+        },
+        roster,
+        desks,
+        &candidates,
+    )
+    .await
+    .map_err(|error| format!("the responder ladder failed: {error}"))
+}
+
+/// Run the hand-off chain until the library stops it.
+///
+/// One turn per iteration, and at most one child turn per turn — that bound is
+/// the library's, not this loop's: `mention_dispatch` returns a decision that
+/// can carry exactly one request, and there is no variant that carries two.
+/// The loop ends when a turn addresses nobody, addresses itself, exhausts the
+/// hop budget, or the host's queue refuses it, and the reason is recorded on
+/// the last turn rather than inferred afterwards.
+async fn run_chain(
+    options: &Options,
+    seats: &[Seat],
+    ids: &[&str],
+    journal: &Journal,
+    queue: &Queue<'_>,
+    roster: &tinyhivemind_core::roster::Roster<'_>,
+    desks: &tinyhivemind_core::desk::DeskSet<'_>,
+    floor: &Conversation,
+    first: &str,
+) -> Result<Vec<Turn>, String> {
+    let mut turns: Vec<Turn> = Vec::new();
+    let mut speaker = first.to_owned();
+    let mut hop = 0_u32;
+    let mut carried: Option<(String, String)> = None;
+
+    loop {
+        let seat = seats
+            .iter()
+            .find(|seat| seat.id == speaker)
+            .ok_or_else(|| format!("no seat for {speaker}"))?;
+
+        let visible = project_session(
+            journal,
+            &SessionQuery {
+                conversation: floor.clone(),
+                before: None,
+                window: options.window,
+            },
+        )
+        .await
+        .map_err(|error| format!("projection failed: {error}"))?;
+
+        let ask = match &carried {
+            Some((from, content)) => Ask::Addressed { from, content },
+            None => Ask::Desk,
+        };
+        let peers: Vec<&str> = ids
+            .iter()
+            .filter(|id| **id != seat.id.as_str())
+            .copied()
+            .collect();
+        let line = seat.speak(&visible, &peers, &ask)?;
+
+        let sequence = journal.append(
+            floor,
+            SessionAuthor::Agent {
+                id: seat.id.clone(),
+                label: seat.id.clone(),
+            },
+            &line,
+        );
+
+        let mentions = resolve_mentions(
+            &line,
+            None,
+            &MentionAuthor::Agent {
+                id: seat.id.clone(),
+            },
+            roster,
+            desks,
+        );
+        let outcome = dispatch_mention(
+            queue,
+            MentionDispatchPolicy {
+                enabled: true,
+                max_hops: options.hops,
+            },
+            &MentionDispatchInput {
+                key: DispatchKey {
+                    trigger_sequence: sequence.0,
+                },
+                conversation: DispatchConversation::from(floor),
+                author_id: seat.id.clone(),
+                content: line.clone(),
+                mentions,
+                hop,
+            },
+            roster,
+        )
+        .await
+        .map_err(|error| format!("dispatch failed: {error}"))?;
+
+        turns.push(Turn {
+            sequence,
+            speaker: seat.id.clone(),
+            hop,
+            thread_root: floor.thread_root,
+            content: line,
+            saw: visible
+                .iter()
+                .map(|message| format!("{}:{}", message.sequence, author_label(&message.author)))
+                .collect(),
+            outcome: outcome.clone(),
+        });
+
+        if !matches!(outcome, MentionDispatchOutcome::Enqueued) {
+            break;
+        }
+        let Some(enqueued) = queue.drain().into_iter().next() else {
+            break;
+        };
+        speaker.clone_from(&enqueued.request.target_id);
+        hop = enqueued.request.child_hop;
+        carried = Some((enqueued.request.source_id, enqueued.request.content));
+    }
+    Ok(turns)
+}
+
+/// Render one conversation as the sequence-and-author lines it projects to.
+///
+/// The report compares two of these — the desk channel and the thread — which
+/// is how it shows that a thread is a narrower conversation over the same desk
+/// rather than a separate room.
+async fn view(
+    journal: &Journal,
+    conversation: Conversation,
+    window: usize,
+) -> Result<Vec<String>, String> {
+    project_session(
+        journal,
+        &SessionQuery {
+            conversation,
+            before: None,
+            window,
+        },
+    )
+    .await
+    .map(|messages| {
+        messages
+            .iter()
+            .map(|message: &SessionMessage| {
+                format!("{}:{}", message.sequence, author_label(&message.author))
+            })
+            .collect::<Vec<_>>()
+    })
+    .map_err(|error| format!("projection failed: {error}"))
+}
+
 async fn run(options: &Options) -> Result<Report, String> {
     let ids: Vec<&str> = SEATS.iter().map(|(id, _)| *id).collect();
     let cast = Cast::new(&ids);
@@ -354,49 +550,7 @@ async fn run(options: &Options) -> Result<Report, String> {
         &options.instruction,
     );
 
-    // The ladder decides who answers it.
-    let opening_mentions = resolve_mentions(
-        &options.instruction,
-        None,
-        &MentionAuthor::Person {
-            id: OPERATOR_ID.to_owned(),
-        },
-        &roster,
-        &desks,
-    );
-    let candidates: Vec<SelectorCandidate> = SEATS
-        .iter()
-        .map(|(id, role)| SelectorCandidate {
-            id: (*id).to_owned(),
-            label: (*id).to_owned(),
-            role: (*role).to_owned(),
-            description: None,
-        })
-        .collect();
-    let selector = LadderSelector {
-        backend: options.backend.clone(),
-    };
-    let selector_ref: Option<&(dyn Selector + '_)> =
-        if matches!(options.backend, Backend::Http { .. }) {
-            Some(&selector)
-        } else {
-            None
-        };
-    let decision = choose_responder(
-        selector_ref,
-        &ResponderRequest {
-            message: options.instruction.clone(),
-            chat: Some(DESK_ID.to_owned()),
-            mentions: opening_mentions,
-            orchestrator_id: "planner".to_owned(),
-            selection_policy: SelectionPolicy::Allowed,
-        },
-        &roster,
-        &desks,
-        &candidates,
-    )
-    .await
-    .map_err(|error| format!("the responder ladder failed: {error}"))?;
+    let decision = route_opening(options, selector_ref, &roster, &desks).await?;
 
     // Where the agents talk. Under `--thread` that is a sub-conversation of
     // the desk, rooted at the operator's message: the same members, the same
@@ -407,130 +561,30 @@ async fn run(options: &Options) -> Result<Report, String> {
         thread_root: options.thread.then_some(opening),
     };
 
-    let mut turns: Vec<Turn> = Vec::new();
-    let mut speaker = decision.responder_id.clone();
-    let mut hop = 0_u32;
-    let mut carried: Option<(String, String)> = None;
+    let turns = run_chain(
+        options,
+        &seats,
+        &ids,
+        &journal,
+        &queue,
+        &roster,
+        &desks,
+        &floor,
+        &decision.responder_id,
+    )
+    .await?;
 
-    loop {
-        let seat = seats
-            .iter()
-            .find(|seat| seat.id == speaker)
-            .ok_or_else(|| format!("no seat for {speaker}"))?;
-
-        let visible = project_session(
-            &journal,
-            &SessionQuery {
-                conversation: floor.clone(),
-                before: None,
-                window: options.window,
-            },
-        )
-        .await
-        .map_err(|error| format!("projection failed: {error}"))?;
-
-        let ask = match &carried {
-            Some((from, content)) => Ask::Addressed { from, content },
-            None => Ask::Desk,
-        };
-
-        let peers: Vec<&str> = ids
-            .iter()
-            .filter(|id| **id != seat.id.as_str())
-            .copied()
-            .collect();
-        let line = seat.speak(&visible, &peers, &ask)?;
-
-        let sequence = journal.append(
-            &floor,
-            SessionAuthor::Agent {
-                id: seat.id.clone(),
-                label: seat.id.clone(),
-            },
-            &line,
-        );
-
-        let mentions = resolve_mentions(
-            &line,
-            None,
-            &MentionAuthor::Agent {
-                id: seat.id.clone(),
-            },
-            &roster,
-            &desks,
-        );
-        let outcome = dispatch_mention(
-            &queue,
-            MentionDispatchPolicy {
-                enabled: true,
-                max_hops: options.hops,
-            },
-            &MentionDispatchInput {
-                key: DispatchKey {
-                    trigger_sequence: sequence.0,
-                },
-                conversation: DispatchConversation::from(&floor),
-                author_id: seat.id.clone(),
-                content: line.clone(),
-                mentions,
-                hop,
-            },
-            &roster,
-        )
-        .await
-        .map_err(|error| format!("dispatch failed: {error}"))?;
-
-        turns.push(Turn {
-            sequence,
-            speaker: seat.id.clone(),
-            hop,
-            thread_root: floor.thread_root,
-            content: line.clone(),
-            saw: visible
-                .iter()
-                .map(|message| format!("{}:{}", message.sequence, author_label(&message.author)))
-                .collect(),
-            outcome: outcome.clone(),
-        });
-
-        if !matches!(outcome, MentionDispatchOutcome::Enqueued) {
-            break;
-        }
-        let Some(enqueued) = queue.drain().into_iter().next() else {
-            break;
-        };
-        speaker.clone_from(&enqueued.request.target_id);
-        hop = enqueued.request.child_hop;
-        carried = Some((enqueued.request.source_id, enqueued.request.content));
-    }
-
-    let view = |conversation: Conversation| async {
-        project_session(
-            &journal,
-            &SessionQuery {
-                conversation,
-                before: None,
-                window: options.window,
-            },
-        )
-        .await
-        .map(|messages| {
-            messages
-                .iter()
-                .map(|message: &SessionMessage| {
-                    format!("{}:{}", message.sequence, author_label(&message.author))
-                })
-                .collect::<Vec<_>>()
-        })
-        .map_err(|error| format!("projection failed: {error}"))
-    };
-    let channel_view = view(channel).await?;
+    let channel_view = view(&journal, channel, options.window).await?;
     let thread_view = if options.thread {
-        view(Conversation {
-            desk_id: DESK_ID.to_owned(),
-            desk_name: DESK_NAME.to_owned(),
-            thread_root: Some(opening),
-        })
+        view(
+            &journal,
+            Conversation {
+                desk_id: DESK_ID.to_owned(),
+                desk_name: DESK_NAME.to_owned(),
+                thread_root: Some(opening),
+            },
+            options.window,
+        )
         .await?
     } else {
         Vec::new()
