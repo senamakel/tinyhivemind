@@ -346,7 +346,7 @@ fn paragraph_breaks(body: &str) -> Vec<usize> {
     let mut line_start = 0;
     for line in body.split_inclusive('\n') {
         let content = line.trim_end_matches(['\n', '\r']);
-        if content.trim().is_empty()
+        if is_blank_line(content)
             || is_atx_heading(content)
             || is_thematic_break(content)
             || is_setext_underline(content)
