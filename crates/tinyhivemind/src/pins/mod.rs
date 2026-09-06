@@ -64,9 +64,11 @@ pub use types::{Pin, PinAction, PinDirective};
 
 use crate::{
     BriefingNote, Conversation, LogMessage, Result, Sequence, SessionAuthor, SessionLog,
-    session::matches_conversation, threads::read_desk_rows,
+    session::{admits, matches_conversation},
+    threads::read_desk_rows,
 };
 use std::collections::BTreeMap;
+use tinyhivemind_core::aside::Viewer;
 
 /// Default number of pins a board holds.
 ///
@@ -127,7 +129,7 @@ pub fn read_directives(
 ///
 /// Pins are returned most recently pinned first.
 #[must_use]
-pub fn fold_pins(rows: &[LogMessage], limit: usize) -> Vec<Pin> {
+pub fn fold_pins(rows: &[LogMessage], viewer: &Viewer, limit: usize) -> Vec<Pin> {
     if limit == 0 {
         return Vec::new();
     }
@@ -139,6 +141,13 @@ pub fn fold_pins(rows: &[LogMessage], limit: usize) -> Vec<Pin> {
     let mut board: BTreeMap<Sequence, (Pin, usize)> = BTreeMap::new();
     let mut ordinal = 0_usize;
     for row in rows {
+        // A marker in a row this viewer cannot read was never visible to it,
+        // so it never touched this viewer's board. Reading the directive
+        // anyway would let an aside silently rearrange what a non-member is
+        // told to keep.
+        if !admits(row, viewer) {
+            continue;
+        }
         for directive in read_directives(&row.content, &row.author, row.sequence) {
             match directive.action {
                 PinAction::Pin => {
@@ -165,14 +174,31 @@ pub fn fold_pins(rows: &[LogMessage], limit: usize) -> Vec<Pin> {
         }
     }
 
-    let excerpts: BTreeMap<Sequence, &str> = rows
+    // Only rows this viewer may read can supply an excerpt, and a pin whose
+    // target it may not read is dropped rather than shown blank. `excerpt` is
+    // 120 verbatim characters that `pin_note` renders into an agent's system
+    // text, so this is the leak with the shortest path to a prompt. A pin
+    // pointing at something the reader cannot open is also not a working set:
+    // it spends the prompt budget the pinboard exists to spend well.
+    //
+    // A target outside the scanned rows keeps its existing behaviour — the pin
+    // stands with no excerpt — because absence from the scan says nothing
+    // about audience, and dropping it would silently shrink the board.
+    let readable: BTreeMap<Sequence, &str> = rows
         .iter()
+        .filter(|row| admits(row, viewer))
         .map(|row| (row.sequence, row.content.as_str()))
+        .collect();
+    let withheld: std::collections::BTreeSet<Sequence> = rows
+        .iter()
+        .filter(|row| !admits(row, viewer))
+        .map(|row| row.sequence)
         .collect();
     let mut pins: Vec<(Pin, usize)> = board
         .into_values()
+        .filter(|(pin, _)| !withheld.contains(&pin.sequence))
         .map(|(mut pin, ordinal)| {
-            pin.excerpt = excerpts
+            pin.excerpt = readable
                 .get(&pin.sequence)
                 .map(|content| opening(content))
                 .filter(|opening| !opening.is_empty());
@@ -204,6 +230,7 @@ pub fn fold_pins(rows: &[LogMessage], limit: usize) -> Vec<Pin> {
 pub async fn read_pinboard(
     log: &(dyn SessionLog + '_),
     conversation: &Conversation,
+    viewer: &Viewer,
     limit: usize,
     before: Option<Sequence>,
 ) -> Result<Vec<Pin>> {
@@ -218,7 +245,7 @@ pub async fn read_pinboard(
             .filter(|row| matches_conversation(row, conversation))
             .collect(),
     };
-    Ok(fold_pins(&rows, limit))
+    Ok(fold_pins(&rows, viewer, limit))
 }
 
 /// Render a board as one briefing note, or `None` when the board is empty.
