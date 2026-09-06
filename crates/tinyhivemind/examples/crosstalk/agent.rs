@@ -360,7 +360,7 @@ pub(crate) fn http_turn(
     let body = body.to_string();
 
     let mut child = Command::new("curl")
-        .args(["--config", "-", "--data-binary", &body])
+        .args(["--config", "-"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -371,6 +371,7 @@ pub(crate) fn http_turn(
          request = \"POST\"\n\
          header = \"Authorization: Bearer {key}\"\n\
          header = \"Content-Type: application/json\"\n\
+         data-binary = "{}"\n\
          max-time = {timeout_secs}\n\
          silent\n\
          show-error\n\
