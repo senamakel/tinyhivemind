@@ -108,21 +108,41 @@ no hop and no policy, so an agent at the cap is told the capability exists and
 then finds it inert. Narrowing that sentence by the remaining budget is a host
 concern today, and stated here as a known gap rather than a solved one.
 
-**A decline should be a sentence, not only a type.** Every reason the library
-returns — the seven `NoDispatchReason` variants and the three `EnqueueRefusal`
-variants — is a typed value with no rendering. There is no `Display`, and no
-vocabulary of sentences an acting model could repeat to a person. A host that
-wants one writes it.
+**A decline should be a sentence, not only a type.** The library owns the
+words. Every reason it returns — the seven `NoDispatchReason` variants and the
+three `EnqueueRefusal` variants — renders through `Display` as one lowercase
+sentence an acting model may repeat to a person, and a host neither invents nor
+translates it.
 
-That is deliberate rather than merely absent, and it is bounded by
-[ADR 0008](../adr/0008-an-approval-decision-is-total.md): a refusal that is
-distinguishable is a refusal an agent can probe, and `TargetInactive` versus
-`NoDirectAgentMention` is exactly the pair that turns a failed dispatch into a
-roster oracle. The two rules are compatible only if they are separated by
-audience — the reason is for the operator's log, and any sentence rendered to
-an acting model must be the *same* sentence across the reasons a caller must
-not be able to tell apart. Which reasons those are is unsettled; see
-[`responders.md`](responders.md) for the same tension on the selection path.
+The wording is bounded by
+[ADR 0009](../adr/0009-a-refusal-renders-what-the-caller-already-holds.md),
+which settles this against
+[ADR 0008](../adr/0008-an-approval-decision-is-total.md) rather than leaving the
+two rules pulling: a refusal that is distinguishable is a refusal an agent can
+probe, and `TargetInactive` versus `NoDirectAgentMention` is exactly the pair
+that turns a failed dispatch into a roster oracle. Audience separation — the
+reason for the operator's log, the sentence for the agent — was necessary and
+not sufficient, because it constrains the channel and not the information.
+
+The rule is that a refusal renders its own sentence only when what it discloses
+is something the caller already holds: the policy it supplied, the hop it
+supplied, or its own identity. A refusal that turns on whether a *named other*
+exists, is active or is reachable renders the one shared sentence exported as
+`dispatch::NO_AVAILABLE_TARGET`. So `Disabled`, `HopLimitReached`,
+`SourceInactive` and `SelfMention` are worded apart, while
+`NoDirectAgentMention` and `TargetInactive` are worded identically.
+
+Reachability is itself a channel, which decides the two remaining cases.
+`HopOverflow` is only reachable once a target has resolved, so it renders
+`HopLimitReached`'s sentence verbatim; every `EnqueueRefusal` is reached only
+past that same point, so `Unauthorized` and `TargetUnavailable` render the
+shared sentence and `FeatureDisabled` renders `Disabled`'s verbatim. Success is
+exempt and can be: a dispatch that runs proves the target exists anyway.
+
+`Display` carries the agent's sentence and `Debug` the operator's variant,
+because the rendering that is safe to hand to a model has to be the one `{}`
+reaches for. See [`responders.md`](responders.md) for how the same rule lands on
+the selection path, where nothing is withheld at all.
 
 ## Invariants and constraints
 
@@ -162,6 +182,10 @@ not be able to tell apart. Which reasons those are is unsettled; see
 - Pure tests pin wire forms and cover disabled/zero, hop limits 1 and 2, a
   large limit, `u32::MAX`, inactive/self targets, reading order, quiet and
   non-agent mentions, and exactly-one decisions.
+- Every refusal variant is classified against ADR 0009 by a wildcard-free
+  `match`, so a variant added later does not compile until it is classified,
+  and a test then asserts the withheld ones are indistinguishable and the rest
+  are not.
 - Runtime tests prove zero-or-one queue calls, refusal mapping, source-preserved
   host failure, canonical bound-scope keys, and concurrent/retried duplicate
   enqueue producing exactly one durable key and one durable child turn.
@@ -174,9 +198,8 @@ not be able to tell apart. Which reasons those are is unsettled; see
 
 ## Open questions
 
-- Whether any refusal reason may be rendered to the acting agent, and if so
-  which reasons must share one sentence so the set cannot be used to enumerate
-  a roster. ADR 0008 settles the direction for the approval gate; the dispatch
-  reasons have not been read against it one by one.
 - Host integration and live verification. Nothing else is open for the library
-  phase.
+  phase. Which reasons may be rendered distinctly is no longer open: every
+  variant is classified in
+  [ADR 0009](../adr/0009-a-refusal-renders-what-the-caller-already-holds.md) and
+  each classification is pinned by a test.
