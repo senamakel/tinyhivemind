@@ -15,20 +15,23 @@ pub fn allocate_chars(requests: &[BudgetRequest], policy: &BudgetPolicy) -> Vec<
     loop {
         let wants: Vec<usize> = carried_wants(requests, &carried);
         level = fair_share_level(&wants, policy.total_chars);
-        let Some(greediest) = requests
+        // One at a time, greediest first, rather than every unusable source at
+        // once: dropping the whole class starves a room of `n` equal claims of
+        // *all* context the moment `n` passes what the budget can usefully
+        // serve, where dropping one at a time degrades a claim at a time.
+        let Some((index, _)) = requests
             .iter()
-            .zip(&carried)
-            .filter(|(request, carried)| **carried && unusable(request, level, policy))
-            .map(|(request, _)| request.wanted)
-            .max()
+            .enumerate()
+            .filter(|(index, request)| carried[*index] && unusable(request, level, policy))
+            .max_by(|(_, held), (_, next)| {
+                held.wanted
+                    .cmp(&next.wanted)
+                    .then_with(|| held.source_id.cmp(&next.source_id))
+            })
         else {
             break;
         };
-        for (index, request) in requests.iter().enumerate() {
-            if carried[index] && request.wanted == greediest && unusable(request, level, policy) {
-                carried[index] = false;
-            }
-        }
+        carried[index] = false;
     }
 
     requests
