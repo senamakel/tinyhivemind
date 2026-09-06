@@ -3,7 +3,8 @@
 - **Status:** Proposed
 - **Owner:** `crates/tinyhivemind-core`, with one port in `crates/tinyhivemind`
 - **Reading:** [`../research/grok-bots/README.md`](../research/grok-bots/README.md)
-- **Decision:** [ADR 0008](../adr/0008-an-approval-decision-is-total.md)
+- **Decisions:** [ADR 0008](../adr/0008-an-approval-decision-is-total.md),
+  [ADR 0009](../adr/0009-a-refusal-renders-what-the-caller-already-holds.md)
 
 ## Problem
 
@@ -487,7 +488,8 @@ Shape:
   the same host-owned counter. A host drawing them from two counters gets a
   fence that compares numbers with no relationship, and the library cannot
   detect it.
-Nothing about how a refusal reaches the acting agent is open any more. It was,
-and it is settled by
+
+Whether a `Deny` reason may reach the acting agent, and which reasons must
+share one sentence, is no longer open. It is settled by
 [ADR 0009](../adr/0009-a-refusal-renders-what-the-caller-already-holds.md); see
 [Rendering a denial](#rendering-a-denial).
