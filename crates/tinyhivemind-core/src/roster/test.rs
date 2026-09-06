@@ -161,3 +161,71 @@ fn a_member_stays_attributable_after_it_stops_being_active() {
     );
     assert!(roster.registered_member("ghost").is_none());
 }
+
+#[test]
+fn a_tombstoned_member_stays_registered_and_never_runs() {
+    let members = [
+        RosterMember {
+            id: "alice".into(),
+            name: Some("Alice".into()),
+        },
+        RosterMember {
+            id: "bob".into(),
+            name: Some("Bob".into()),
+        },
+    ];
+    let tombstoned = [String::from("bob")];
+    let roster = Roster::new(&members, &[], &[]).with_tombstoned(&tombstoned);
+
+    assert_eq!(
+        roster
+            .active_members()
+            .map(|member| member.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["alice"]
+    );
+    assert!(roster.active_member("bob").is_none());
+    assert_eq!(
+        roster.registered_member("bob").and_then(|m| m.name.clone()),
+        Some("Bob".into())
+    );
+}
+
+#[test]
+fn a_tombstone_holds_even_when_the_host_also_calls_the_member_retired() {
+    let members = [RosterMember {
+        id: "bob".into(),
+        name: None,
+    }];
+    let bob = [String::from("bob")];
+    let roster = Roster::new(&members, &[], &bob).with_tombstoned(&bob);
+
+    assert!(roster.active_member("bob").is_none());
+    assert!(roster.registered_member("bob").is_some());
+}
+
+#[test]
+fn asking_whether_a_member_may_run_cannot_tell_the_unavailable_states_apart() {
+    let members = [
+        RosterMember {
+            id: "retired".into(),
+            name: None,
+        },
+        RosterMember {
+            id: "tombstoned".into(),
+            name: None,
+        },
+    ];
+    let retired = [String::from("retired")];
+    let tombstoned = [String::from("tombstoned")];
+    let roster = Roster::new(&members, &[], &retired).with_tombstoned(&tombstoned);
+
+    // Every runnability answer is the same sentence: an id the roster never
+    // held and an id it deliberately keeps are equally refused.
+    for id in ["retired", "tombstoned", "never_existed"] {
+        assert!(roster.active_member(id).is_none(), "{id} may not run");
+        assert!(roster.is_retired(id) || id == "never_existed");
+    }
+    assert!(roster.is_retired("tombstoned"));
+    assert!(!roster.is_retired("never_existed"));
+}
