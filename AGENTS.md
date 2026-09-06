@@ -166,8 +166,9 @@ Supporting commands:
 - `cargo run -p tinyhivemind-core --example basic` — run the bundled example.
 - `cargo run -p tinyhivemind --example crosstalk -- --api-base <url> --model <id>`
   — drive one desk of real agents through the responder ladder and the
-  mention-dispatch edge, and print what each turn saw. Needs a live endpoint or
-  `--agent-cmd`; documented in
+  mention-dispatch edge, and print what each turn saw. `-- --aside` adds
+  private asides and prints what each reader was handed. Needs a live endpoint
+  or `--agent-cmd`; documented in
   `crates/tinyhivemind/examples/crosstalk/README.md`.
 - `cargo run -p tinyhivemind-hive --example hive` — print one deliberation episode.
 - `cargo run --release -p tinyhivemind-hive --example bench` — simulate and
