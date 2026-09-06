@@ -681,6 +681,30 @@ fn unsettled_aside(turns: &[Turn], author_id: &str, mentions: &[Mention]) -> boo
     participants.sort_unstable();
     participants.dedup();
 
+    // Replying inside the aside already in progress is not opening another
+    // one — `spent_in_aside`'s own budget is what ends that run, at
+    // `max_messages`. Only starting a *different* aside while an earlier one
+    // among these exact participants has not surfaced should be refused, so a
+    // line whose immediately preceding turn already carries this same
+    // participant set is a continuation, not a candidate to check here.
+    if let Some(Turn {
+        audience: Audience::Aside { members },
+        speaker,
+        ..
+    }) = turns.last()
+    {
+        let mut current: Vec<&str> = members
+            .iter()
+            .map(String::as_str)
+            .chain(std::iter::once(speaker.as_str()))
+            .collect();
+        current.sort_unstable();
+        current.dedup();
+        if current == participants {
+            return false;
+        }
+    }
+
     let mut open = false;
     for turn in turns {
         match &turn.audience {
