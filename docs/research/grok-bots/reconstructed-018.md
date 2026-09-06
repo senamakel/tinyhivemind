@@ -17,17 +17,16 @@
 
 It is an unofficial, source-oriented reconstruction of the shipped Grok Bot
 0.18.0 macOS app (Anysphere; upstream bundle id `com.anysphere.sand`, hence the
-`sand`/`Sand` prefix on almost every identifier). The reconstruction was
-recovered from the compiled `app.asar`, so module boundaries and names are
-inferred. `PROVENANCE.md` sets an "evidence-only reconstruction rule": recovered
-source may express only behaviour supported by an inspectable artifact anchor.
-Thirteen modules are honest empty stubs carrying a comment such as "No named
-runtime surface survived tree shaking" (for example
-`source/packages/agent-core/conversation-actions/steer-outbox.ts:1`).
-
-On top of the reconstruction the author added four things of their own: an
-inference router, routed MCP tooling, local usage counters, and an optional
-local Docker sandbox.
+`sand`/`Sand` prefix on almost every identifier), recovered from the compiled
+`app.asar`, so module boundaries and names are inferred. `PROVENANCE.md` sets an
+"evidence-only reconstruction rule": recovered source may express only behaviour
+supported by an inspectable artifact anchor. Thirteen modules are honest empty
+stubs carrying a comment such as "No named runtime surface survived tree
+shaking" (for example
+`source/packages/agent-core/conversation-actions/steer-outbox.ts:1`). On top of
+the reconstruction the author added four things of their own: an inference
+router, routed MCP tooling, local usage counters, and an optional local Docker
+sandbox.
 
 ## Architecture as found
 
@@ -48,12 +47,11 @@ The host is assembled from 35 named extensions
 (`source/host/extensions/extension-ids.generated.ts:1`) started through a tiny
 DI graph in `source/internal/host-extensions.ts`. `defineHostExtension`
 (line 16) takes `{id, dependencies, start}`; `resolveHostExtensionBootOrder`
-(line 57) is a **pure topological sort** over the declarations that raises named
-errors for a duplicate id, a self-dependency, a missing peer, and a cycle (with
-the cycle path rendered by `describeCycle`, line 113). `startHostExtensions`
-(line 84) is the impure half: it walks that order, injects each extension's
-peers' APIs, and unwinds teardowns in reverse on failure. The pure/impure split
-here is the same one `tinyhivemind` makes, and it is done well.
+(line 57) is a **pure topological sort** raising named errors for a duplicate
+id, a self-dependency, a missing peer and a cycle (path rendered by
+`describeCycle`, line 113). `startHostExtensions` (line 84) is the impure half:
+it walks that order, injects peers' APIs, and unwinds teardowns in reverse on
+failure. The pure/impure split here is the one `tinyhivemind` makes.
 
 The renderer reaches the host over a flat command table:
 `SAND_GATEWAY_COMMANDS` (`source/host/gateway-protocol.ts`) maps **122** string
@@ -84,21 +82,18 @@ KV keys on the DB (`unreadState`, `awaitingUserResponse`, `origin`, `purpose`,
 **The roster is the filesystem.** `listAgents`
 (`source/host/extensions/session/session-roster.ts:7`) does
 `readdir(host.rootDir)`, treats every directory as an agent, `stat`s its
-`store.db`, and folds each into a summary via `buildSummary`
-(`session-summaries.ts:16`), sorting by `updatedAt` descending. There is no
-roster table, no roster record type, and no handle namespace: the agent id *is*
+`store.db` and folds each into a summary via `buildSummary`
+(`session-summaries.ts:16`), sorted by `updatedAt` descending. There is no
+roster table, no roster record type and no handle namespace: the agent id *is*
 the directory name, validated by `assertValidSandAgentId`. Caps are constants —
 `MAX_AGENTS_PER_USER = 50`, `GROUP_MAX_MEMBERS = 6`
-(`source/shared/agents/agents.ts:53`).
-
-`buildSummary` returns an anonymous object: the shape of a roster entry is
-nowhere declared as an interface, only its *input* is (`DbExtras`,
-`session-summaries.ts:8`). The one genuinely pure piece is
-`upsertAgentSummary` (`source/shared/agents/agent-summaries.ts:13`) — an
-array-in, array-out fold keyed on `.id` and re-sorted by `updatedAt`. Everything
-around it is stateful: `RosterProjection`
-(`transcript/roster-projection.ts:25`) is an `EventEmitter` with six mutable
-maps and a debounced flush, despite the name.
+(`source/shared/agents/agents.ts:53`). `buildSummary` returns an anonymous
+object: a roster entry's shape is nowhere declared, only its *input* is
+(`DbExtras`, `session-summaries.ts:8`). The one genuinely pure piece is
+`upsertAgentSummary` (`source/shared/agents/agent-summaries.ts:13`), an
+array-in/array-out fold keyed on `.id`. Everything around it is stateful:
+`RosterProjection` (`transcript/roster-projection.ts:25`) is an `EventEmitter`
+with six mutable maps and a debounced flush, despite the name.
 
 Human versus agent is discriminated in only two places, both group-scoped.
 `GroupMessage.speaker` is a tagged union of `{kind:"user", name?}` and
@@ -294,10 +289,10 @@ The real seams are elsewhere and they are good ones:
 - `TranscriptPageStatements` (`agent-db-transcript-pages.ts:5`) — the paging
   functions depend on three prepared statements, not on a database.
 
-Against that, `host/host-runner-composition.ts` is 2,646 lines and
-`host/sand-host.ts` is 958; `TranscriptManagerLike = Record<string, any>`
+Against that, `host/host-runner-composition.ts` is 2,646 lines,
+`host/sand-host.ts` is 958, and `TranscriptManagerLike = Record<string, any>`
 (`transcript-hub.ts:43`) is how most of the transcript extension refers to its
-own container. The discipline is real in the leaves and absent in the trunk.
+own container. The discipline is real in the leaves, absent in the trunk.
 
 ## The inference router
 
