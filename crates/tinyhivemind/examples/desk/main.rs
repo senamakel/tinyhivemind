@@ -487,6 +487,12 @@ fn compose_prompt(
     prompt.push_str(
         "Do the work first — use your tools, write and run code in this workspace, check \
          what you claim. Then post ONE message to the room.\n\n\
+         You are stateless between turns. This process ends when you post, and the \
+         next turn starts a fresh one. Only three things survive: files in this \
+         workspace (shared with every seat), what you post to the room, and the \
+         desk memory. Before you post, write your working code and your notes to \
+         files — NOTES.md for what you established, and named .py files for code \
+         another seat can run — and say in your message which files you wrote.\n\n\
          Rules of the room:\n\
          - Exactly one seat speaks per message. Mentioning a teammate with @id runs \
            their turn next, and only the FIRST @mention in your message does that. \
