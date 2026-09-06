@@ -123,8 +123,13 @@ nothing; the scanner steps past it and continues.
   ``` `` @alice `` @bob ``` masks only the first —
   `ignores_closed_inline_and_fenced_code_but_not_an_unclosed_inline_tick`.
 
-The two fence scanners in this workspace are **not** the same implementation;
-`grammar-traces.md` §2 states the difference and why it is tolerable.
+`code_ranges` and `fenced_ranges` both live in
+`tinyhivemind_core::masking`, the one scanner every authored grammar in this
+workspace shares — this grammar, the trace grammar of `tinyhivemind-hive`, and
+the pin directives of `tinyhivemind`. The fence rules above are the same rules
+for all three; what differs is that only this grammar also masks inline spans,
+because only this grammar has markers that can sit mid-line.
+`grammar-traces.md` §2 states it from the other side.
 
 ## 3. The alias table
 

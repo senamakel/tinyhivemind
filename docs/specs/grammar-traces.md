@@ -104,32 +104,57 @@ end in whitespace.
 
 ## 2. Fence masking
 
-`fenced_ranges` masks fenced code. A line whose content after `trim_start`
-begins with ` ``` ` or `~~~` toggles a fence; the first such line opens, and a
-later line with the **same** fence character closes. An unclosed fence masks to
-the end of the body. A line is masked when its **start offset** falls inside a
-range, which also means the fence lines themselves are inside the range.
+Fences are found by `tinyhivemind_core::masking::fenced_ranges`, and that is
+the **one scanner every authored grammar in this workspace shares**: the
+mention grammar of `tinyhivemind-core`, this one, and the `!pin` / `!unpin`
+directives of `tinyhivemind::pins` all call the same code. A span one grammar
+reads as code is therefore the same span the others read as code, and a marker
+one grammar treats as quoted documentation cannot be a live instruction to
+another.
+
+Its rules are CommonMark's, so an author who formats a message for a Markdown
+renderer gets the masking they can see:
+
+- an opening fence is indented at most three **spaces** and is a run of at
+  least three backticks or at least three tildes;
+- a backtick opener's info string may not itself contain a backtick, because
+  that is an inline span in a paragraph rather than a block;
+- a closing fence uses the same character as its opener, runs at least as long
+  as it, and carries nothing but whitespace after the run — so a ` ```rust `
+  line inside an open block is content, and a three-backtick line inside a
+  four-backtick block does not close it;
+- an unclosed fence masks to the end of the body, so a body cannot end
+  mid-block with its tail read as grammar.
+
+A line is masked when its **start offset** falls inside a range, which also
+means the fence lines themselves are inside the range.
 
 - `a_marker_inside_a_fenced_block_is_masked`
 - `a_marker_inside_a_tilde_fenced_block_is_masked`
 - `a_fence_only_closes_on_the_same_character_that_opened_it`
 - `an_unclosed_fence_masks_to_the_end_of_the_body`
+- the fence rules themselves are pinned in
+  `crates/tinyhivemind-core/src/masking/test.rs`, one test per rule.
 
-**This is not the same scanner as the mention crate's.** The trace scanner
-imposes no indent limit, no minimum run beyond the literal three characters, no
-info-string rule on the opener, and no "nothing after the run" rule on the
-closer. Concretely, ` ```rust ` closes a fence for the trace parser and does
-not for the mention parser
-(`recognizes_tilde_fences_and_masks_an_unclosed_fence_to_eof`), so one body can
-mask differently in the two crates.
+Note that the three-space indent limit counts **spaces only**, and applies to
+the fence line rather than to the marker. It is not §1.4's whitespace rule,
+where a marker's own leading indentation is stripped with `str::trim_start` and
+any Unicode whitespace counts.
 
-That is tolerated rather than shared: the two crates are separately linked, the
-core crate may not depend on the hive crate, and the failure mode differs —
-mis-masking a mention mis-routes a turn, while mis-masking a marker only
-mis-counts a vote inside an episode the host opted into. It is recorded here so
-nobody discovers it by accident. If it ever needs to be one implementation, the
-shared code belongs in `tinyhivemind-core`, which the hive crate already
-depends on.
+### The one asymmetry, and why it is deliberate
+
+The masker offers two levels, and a grammar takes the level its markers need.
+This grammar and the pin grammar take `fenced_ranges`, which masks fenced
+blocks only. The mention grammar takes `code_ranges`, which masks those **and**
+inline code spans.
+
+That is the *level* of masking, not the fence rules, and it follows from where
+each marker may appear. A mention sits inside a sentence, so `` `@alice` `` is
+a name in prose about a name and has to be masked. A trace marker and a pin
+directive only count at the start of a line, and a marker preceded by a
+backtick is by definition not line-leading —
+`a_backticked_marker_is_not_line_leading_and_needs_no_masking` — so inline
+masking would buy them nothing but a second scan over every body.
 
 ## 3. Parsing one marker line
 
