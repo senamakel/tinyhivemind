@@ -180,8 +180,9 @@ impl Seat {
                     .join(", "),
             )
         };
+        let aside_rules = if asides { ASIDE_RULES } else { "" };
         format!(
-            "You are @{}, the {} on the {} desk. {roster}\n\n{RULES}",
+            "You are @{}, the {} on the {} desk. {roster}\n\n{RULES}{aside_rules}",
             self.id,
             self.role,
             super::host::DESK_NAME,
