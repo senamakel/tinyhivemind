@@ -114,7 +114,7 @@ pub(crate) fn admits(message: &LogMessage, viewer: &Viewer) -> bool {
 /// nothing, would hide the existence of an exchange the room is entitled to
 /// know happened, and would take from a peer the only signal that there is
 /// something worth asking about.
-fn present(
+pub(crate) fn present(
     sequence: Sequence,
     author: SessionAuthor,
     content: String,
@@ -174,7 +174,7 @@ fn participants(message: &SessionMessage) -> HashSet<&str> {
 /// is the honest one: the alternative is backfilling from older history, which
 /// would make two viewers of the same desk disagree about how far back the
 /// window reaches.
-fn collapse_elisions(projected: Vec<SessionMessage>) -> Vec<SessionMessage> {
+pub(crate) fn collapse_elisions(projected: Vec<SessionMessage>) -> Vec<SessionMessage> {
     if !projected.iter().any(|message| message.elided.is_some()) {
         return projected;
     }

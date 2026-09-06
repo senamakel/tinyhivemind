@@ -115,11 +115,13 @@ pub async fn prepare_delta(
                 && !raw.content.trim().is_empty()
                 && !query.state.present_above_watermark.contains(&raw.sequence)
             {
-                messages.push(SessionMessage {
-                    sequence: raw.sequence,
-                    author: raw.author.clone(),
-                    content: raw.content.clone(),
-                });
+                messages.push(crate::session::present(
+                    raw.sequence,
+                    raw.author.clone(),
+                    raw.content.clone(),
+                    raw.audience.clone(),
+                    query.viewer,
+                ));
             }
         }
 
@@ -140,6 +142,10 @@ pub async fn prepare_delta(
     }
 
     messages.reverse();
+    // Collapsed within this delta only: a run of aside rows split across two
+    // ticks cannot merge, because the earlier half is already in the agent's
+    // context and this crate holds no memory of having sent it.
+    let messages = crate::session::collapse_elisions(messages);
     let mut next_state = query.state.clone();
     next_state.watermark = query.before;
     next_state

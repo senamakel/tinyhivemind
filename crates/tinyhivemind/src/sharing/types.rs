@@ -60,6 +60,12 @@ pub struct SharingQuery<'a> {
     pub current_conversation: &'a Conversation,
     /// Last caller-committed sharing progress.
     pub state: &'a SharingState,
+    /// Who the delta is being prepared for.
+    ///
+    /// The delta and the projection apply the same audience predicate. If they
+    /// did not, an agent that re-seeded would see a different transcript from
+    /// one that stayed incremental, and nothing would heal the difference.
+    pub viewer: &'a tinyhivemind_core::aside::Viewer,
     /// Exclusive sequence of the next triggering message.
     pub before: Sequence,
 }
