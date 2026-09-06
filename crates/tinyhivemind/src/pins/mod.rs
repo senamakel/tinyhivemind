@@ -316,4 +316,3 @@ fn opening(content: &str) -> String {
     opening.push('…');
     opening
 }
-

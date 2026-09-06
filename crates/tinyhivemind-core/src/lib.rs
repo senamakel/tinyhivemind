@@ -6,7 +6,7 @@
 //! - **Who is here?** A roster of teammates and the people signed in with them.
 //! - **What is a desk, and who is on it?** A blueprint-declared room merged
 //!   with the operator's runtime additions, retirements and ordering.
-//! - **Who does `@this` mean?** The mention grammar, and the resolution of a
+//! - **Who does a name address?** The mention grammar, and the resolution of a
 //!   name against the roster and the desks.
 //! - **What does one participant see of the shared transcript?** The projection
 //!   of a multi-speaker session into one viewer's turn history.
