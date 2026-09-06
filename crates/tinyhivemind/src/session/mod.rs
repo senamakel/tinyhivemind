@@ -205,53 +205,113 @@ fn participants(message: &SessionMessage) -> HashSet<&str> {
 /// is the honest one: the alternative is backfilling from older history, which
 /// would make two viewers of the same desk disagree about how far back the
 /// window reaches.
-fn collapse_elisions(projected: Vec<SessionMessage>) -> Vec<SessionMessage> {
-    if !projected.iter().any(|message| message.elided.is_some()) {
-        return projected;
+/// One desk-visible row that could settle an aside.
+///
+/// Collected from the *whole* scanned slice rather than from the projection,
+/// because channel narrowing keeps only each root's first reply: when an aside
+/// is that first reply and the settlement is a later one, the settlement is
+/// not in the projection at all and a stub built from it alone would report
+/// `settled_at: None` for an aside the room did in fact settle.
+#[derive(Clone, Debug)]
+pub(crate) struct Settlement {
+    sequence: Sequence,
+    author: Option<String>,
+}
+
+impl Settlement {
+    /// Every desk-visible, agent-authored row in a slice, in sequence order.
+    fn over<'a>(rows: impl Iterator<Item = (&'a Sequence, &'a Audience, &'a SessionAuthor)>) -> Vec<Self> {
+        rows.filter(|(_, audience, _)| audience.is_desk())
+            .map(|(sequence, _, author)| Self {
+                sequence: *sequence,
+                author: author_agent_id(author).map(str::to_owned),
+            })
+            .collect()
+    }
+}
+
+/// Collapse each consecutive run of elided rows from one aside into one stub.
+///
+/// The stub keeps the run's first sequence, records the last, counts what it
+/// stands in for, and points at where the aside settled — the first thing a
+/// participant said in the open afterwards.
+///
+/// `thread` carries each row's conversation identity: a thread root's own
+/// sequence, a reply's root, or `None` for a channel-level row. Two runs only
+/// merge when they share **both** their participants and that identity, so two
+/// distinct closed threads between the same pair stay two stubs. Without it
+/// they would collapse into one, reporting a combined range and count for
+/// exchanges that never were one exchange.
+///
+/// This runs after the window has been filled, so a viewer with asides in
+/// view receives fewer messages than one without. That is a real cost and it
+/// is the honest one: the alternative is backfilling from older history, which
+/// would make two viewers of the same desk disagree about how far back the
+/// window reaches.
+fn collapse_elisions(
+    projected: Vec<(SessionMessage, Option<Sequence>)>,
+    settlements: &[Settlement],
+) -> Vec<SessionMessage> {
+    if !projected
+        .iter()
+        .any(|(message, _)| message.elided.is_some())
+    {
+        return projected.into_iter().map(|(message, _)| message).collect();
     }
 
-    let mut collapsed: Vec<SessionMessage> = Vec::with_capacity(projected.len());
-    for message in projected {
+    let mut collapsed: Vec<(SessionMessage, Option<Sequence>)> =
+        Vec::with_capacity(projected.len());
+    for (message, thread) in projected {
         let extends = match (collapsed.last(), &message.elided) {
-            (Some(previous), Some(_)) => {
-                previous.elided.is_some() && participants(previous) == participants(&message)
+            (Some((previous, previous_thread)), Some(_)) => {
+                previous.elided.is_some()
+                    && *previous_thread == thread
+                    && participants(previous) == participants(&message)
             }
             _ => false,
         };
         if extends
-            && let Some(previous) = collapsed.last_mut()
+            && let Some((previous, _)) = collapsed.last_mut()
             && let Some(elision) = previous.elided.as_mut()
         {
             elision.through = message.sequence;
             elision.messages = elision.messages.saturating_add(1);
             continue;
         }
-        collapsed.push(message);
+        collapsed.push((message, thread));
     }
 
-    settle(&mut collapsed);
+    let mut collapsed: Vec<SessionMessage> =
+        collapsed.into_iter().map(|(message, _)| message).collect();
+    settle(&mut collapsed, settlements);
     collapsed
 }
 
 /// Point each stub at the first thing one of its participants said in the open.
-fn settle(messages: &mut [SessionMessage]) {
-    for index in 0..messages.len() {
-        if messages[index].elided.is_none() {
+fn settle(messages: &mut [SessionMessage], settlements: &[Settlement]) {
+    for message in messages.iter_mut() {
+        if message.elided.is_none() {
             continue;
         }
-        let inside = participants(&messages[index])
+        let inside = participants(message)
             .into_iter()
             .map(str::to_owned)
             .collect::<HashSet<_>>();
-        let settled_at = messages[index + 1..]
+        let after = message
+            .elided
+            .as_ref()
+            .map_or(message.sequence, |elision| elision.through);
+        let settled_at = settlements
             .iter()
-            .find(|later| {
-                later.elided.is_none()
-                    && later.audience.is_desk()
-                    && author_agent_id(&later.author).is_some_and(|id| inside.contains(id))
+            .find(|candidate| {
+                candidate.sequence > after
+                    && candidate
+                        .author
+                        .as_deref()
+                        .is_some_and(|id| inside.contains(id))
             })
-            .map(|later| later.sequence);
-        if let Some(elision) = messages[index].elided.as_mut() {
+            .map(|candidate| candidate.sequence);
+        if let Some(elision) = message.elided.as_mut() {
             elision.settled_at = settled_at;
         }
     }
