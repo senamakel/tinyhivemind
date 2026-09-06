@@ -1579,7 +1579,7 @@ impl crate::run::Participant for SimAgent {
 /// The topic one check names, if it names one.
 fn parse_topic(body: &str) -> Option<TopicId> {
     let word = body.split_whitespace().find(|word| word.starts_with('#'))?;
-    TopicId::new(word.trim_start_matches('#')).ok()
+    Some(TopicId::from(word.trim_start_matches('#')))
 }
 
 /// The topic and reading one answered check carries, if it is an answer.
