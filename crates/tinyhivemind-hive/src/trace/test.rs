@@ -3,7 +3,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::*;
-use tinyhivemind_core::{desk::DeskSet, mention::{self, MentionAuthor}, roster::Roster};
+use tinyhivemind_core::{
+    desk::DeskSet,
+    mention::{self, MentionAuthor},
+    roster::Roster,
+};
 
 fn agent(id: &str) -> SessionAuthor {
     SessionAuthor::Agent {
