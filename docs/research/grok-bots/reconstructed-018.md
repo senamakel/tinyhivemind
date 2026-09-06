@@ -36,11 +36,11 @@ Four processes, each a separate source root:
 - `source/electron-main/` — desktop lifecycle, settings, auth, box connectors,
   and ownership of the coordinator child process.
 - `source/electron-preload/` — the trusted bridge to the renderer.
-- `source/node-agent-coordinator/` — the process that actually talks to
-  inference providers. Its control channel is `source/shared/rpc/coordinator-port.ts`,
-  a five-variant frame union (`lifecycle`/`request`/`cancel`/`reply`/`event`) with
-  a pure parser, `parseCoordinatorFrame` (`coordinator-port.ts:35`), returning
-  `{accepted:true, frame}` or `{accepted:false, rejection}` rather than throwing.
+- `source/node-agent-coordinator/` — the process that talks to inference
+  providers. Its control channel (`source/shared/rpc/coordinator-port.ts`) is a
+  five-variant frame union (`lifecycle`/`request`/`cancel`/`reply`/`event`) with
+  a pure parser, `parseCoordinatorFrame` (line 35), returning
+  `{accepted, frame}` or `{accepted:false, rejection}` rather than throwing.
 - `source/host/` — the interesting layer: sessions, transcripts, turns, groups,
   tools, permissions.
 
@@ -56,10 +56,9 @@ peers' APIs, and unwinds teardowns in reverse on failure. The pure/impure split
 here is the same one `tinyhivemind` makes, and it is done well.
 
 The renderer reaches the host over a flat command table:
-`SAND_GATEWAY_COMMANDS` in `source/host/gateway-protocol.ts` maps **122** string
-command names onto methods of one `GatewayApi` object. That object is `any`
-(`gateway-protocol.ts:2`) — the table is a dispatch switch, not a typed
-boundary.
+`SAND_GATEWAY_COMMANDS` (`source/host/gateway-protocol.ts`) maps **122** string
+command names onto methods of one `GatewayApi` object typed `any` (line 2) — a
+dispatch switch, not a typed boundary.
 
 ## Agent identity and the roster
 
@@ -122,12 +121,11 @@ tool policy is likewise global. The only per-agent persona is
 ## The conversation unit, and how a transcript is addressed
 
 The unit is **the agent**. One agent is one conversation is one directory is one
-SQLite file (`store.db`, `session-paths.ts:9`). A group chat is itself an agent
-directory with a `group.json` beside it. There is no separate session, thread,
-or channel entity — "channels" (`session/channel-store.ts`) are external
-connector bindings (Discord, Slack), not conversation scopes. Threads exist only
-as a stamp on entries (`send-thread-stamping.ts`) and a `getAgentThread` gateway
-command.
+SQLite file (`store.db`, `session-paths.ts:9`); a group chat is itself an agent
+directory with a `group.json` beside it. There is no separate session, thread or
+channel entity — "channels" (`session/channel-store.ts`) are external connector
+bindings, and threads are only a stamp on entries
+(`send-thread-stamping.ts`).
 
 The transcript schema is three columns
 (`source/host/extensions/session/agent-db-schema.ts:15`):
@@ -140,15 +138,15 @@ CREATE TABLE IF NOT EXISTS transcript_entries (
 ) STRICT;
 ```
 
-So a message is addressed **both** ways: by monotone `seq` for paging, and by a
-stable string `id` for reference. This is very close to what `tinyhivemind`
-assumes, with one difference worth noting — the string ids are *derived from
-transcript position*, not minted randomly. `nextEntryId`
+A message is addressed **both** ways: by monotone `seq` for paging and by a
+stable string `id` for reference. That agrees with `tinyhivemind`, with one
+twist — the string ids are *derived from transcript position*, not minted
+randomly. `nextEntryId`
 (`source/host/extensions/transcript/transcript-entry-ids.ts:5`) is a **pure fold
 over the entries the caller already holds**: it counts user messages to get a
 turn number and mints `t3u`, `t3a0`, `t3s1`, `t3ua0` — turn, kind, ordinal —
-probing with `firstUnusedId` until it finds a free one. A boot turn is `"b"`.
-The whole file (78 lines) is pure and would port to Rust unchanged.
+probing with `firstUnusedId` for the first free one; the boot turn is `"b"`. All
+78 lines are pure and would port to Rust unchanged.
 
 Paging is a fold over rows too. `readTranscriptPage` / `readTranscriptWindow` /
 `readTranscriptTail` (`agent-db-transcript-pages.ts:14-16`) take a prepared-
@@ -162,12 +160,10 @@ messages, and messages carrying `fromAgent`/`toAgent`
 predicate over `json_extract` rather than as a fold — which is exactly the piece
 `tinyhivemind` keeps pure and portable.
 
-`session-projection.ts` holds the small pure derivations on top:
+`session-projection.ts` holds the pure derivations on top:
 `getLastEntryFromTranscript` (line 14) filters `hidden`/`branched`/`peerAgentId`
 entries and walks backwards for a preview; `collectLastAttachmentBatchKinds`
-(line 10) folds a trailing attachment batch. `transcript-store.ts` is an
-immutable-update module-level cache (`appendEntry`, `updateEntry`,
-`removeEntry`) — pure functions over one hidden `let`.
+(line 10) folds a trailing attachment batch.
 
 ## How a message causes a turn
 
@@ -247,13 +243,13 @@ to a member jumps ahead of that member's pending group slot. A generation
 counter guards against a late settlement clobbering a newer run (line 259).
 
 There is a watchdog: after `RUN_WATCHDOG_DEFAULT_MS = 120_000` with a user-lane
-item waiting, `onWatchdogFired` interrupts the wedged run; after a
-`watchdogGraceMs = 30_000` grace, `escapeWedgedRun` force-resolves the stuck
-promise, parks it in a `zombies` set, and pumps the next task rather than
-deadlocking. `TurnRuntime.runTurn` (`turn-runtime.ts:327`) short-circuits a
-stale epoch as `"superseded"` (line 367), and `ensureUserReply` (line 534) will
-re-invoke the runner up to `MAX_REPLY_NUDGES = 3` times if the model owed a
-delivery and produced none, each nudge re-checking the epoch.
+item waiting, `onWatchdogFired` interrupts the wedged run; after a 30-second
+grace, `escapeWedgedRun` force-resolves the stuck promise, parks it in a
+`zombies` set, and pumps the next task rather than deadlocking.
+`TurnRuntime.runTurn` (`turn-runtime.ts:327`) short-circuits a stale epoch as
+`"superseded"` (line 367), and `ensureUserReply` (line 534) re-invokes the
+runner up to `MAX_REPLY_NUDGES = 3` times if the model owed a delivery and
+produced none, each nudge re-checking the epoch.
 
 ### Agent-to-agent messaging
 
@@ -330,11 +326,10 @@ createSession(onRequestId, sessionOptions) {
 ```
 
 `getInferenceProvider()` reads and JSON-parses `settings.json` synchronously
-each call (`sand-settings-store.ts:95`), and it is called freshly on every
-`createSession`, every routed `sendPrompt`
-(`node-agent-coordinator/inference-router.ts:188`), and in three other places.
-So it behaves per-turn, but the signal is always the same user toggle. There is
-no cost-, latency-, capability- or task-based routing anywhere.
+each call (`sand-settings-store.ts:95`), freshly on every `createSession`, every
+routed `sendPrompt` (`node-agent-coordinator/inference-router.ts:188`), and in
+three other places. So it behaves per-turn, but the signal is always the same
+user toggle: no cost-, latency-, capability- or task-based routing exists.
 
 Within a provider the model is an env/config lookup, not a decision:
 `configuredCodexModel()` defaults to `"gpt-5.4"` reading `SAND_CODEX_MODEL` or
