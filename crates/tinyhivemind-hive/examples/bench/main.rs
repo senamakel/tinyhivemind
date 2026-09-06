@@ -783,7 +783,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
     );
 
     let (totals, wall) = run_arms(options, rooms)?;
-    let arms: [(&str, &Aggregate); 12] = [
+    let arms: [(&str, &Aggregate); 13] = [
         ("ladder", &totals.ladder),
         ("vote", &totals.vote),
         ("hive", &totals.hive_default),
@@ -799,6 +799,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
         ("ladder+dir", &totals.ladder_directed),
         ("hive+aside", &totals.hive_aside),
         ("hive+ask", &totals.hive_ask),
+        ("hive+aside!", &totals.hive_aside_informed),
     ];
 
     if options.json {
@@ -874,6 +875,9 @@ struct Totals {
     /// The identical exchange, in the open. The control that isolates
     /// privacy from asking: same turns, same words, every member reads it.
     hive_ask: Aggregate,
+    /// The private exchange again, aimed at whoever the room has heard ground
+    /// the option rather than at whoever spoke first.
+    hive_aside_informed: Aggregate,
     /// Both delegation mechanisms at once.
     hive_both: Aggregate,
     /// The tuned policy in a room that puts every seat on the expensive
@@ -954,6 +958,7 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
             0,
             AsideMode::Private,
             options.aside_cap,
+            false,
         )?);
         totals.hive_ask.add(&run_episode_checking(
             room,
@@ -963,6 +968,20 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
             0,
             AsideMode::Public,
             options.aside_cap,
+            false,
+        )?);
+        // The informed variant: the check goes to whoever the room has heard
+        // ground this option. It exists to close the obvious objection to a
+        // negative result — that the question went to the wrong peer.
+        totals.hive_aside_informed.add(&run_episode_checking(
+            room,
+            &tuned,
+            TASK,
+            false,
+            0,
+            AsideMode::Private,
+            options.aside_cap,
+            true,
         )?);
         let seed = mix(options.seed, u64::try_from(index).unwrap_or(0));
         totals.ladder.add_arm(&arms::run_ladder(room, seed)?);

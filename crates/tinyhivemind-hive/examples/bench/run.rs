@@ -379,7 +379,16 @@ pub(crate) fn run_episode_with(
     keep_trace: bool,
     defer_cap: u32,
 ) -> Result<EpisodeReport, String> {
-    run_episode_checking(room, policy, task, keep_trace, defer_cap, AsideMode::Off, 0)
+    run_episode_checking(
+        room,
+        policy,
+        task,
+        keep_trace,
+        defer_cap,
+        AsideMode::Off,
+        0,
+        false,
+    )
 }
 
 /// Run one full episode, letting every member spend up to `aside_cap` turns
@@ -404,13 +413,14 @@ pub(crate) fn run_episode_checking(
     defer_cap: u32,
     aside_mode: AsideMode,
     aside_cap: u32,
+    aside_informed: bool,
 ) -> Result<EpisodeReport, String> {
     let ids = room.member_ids();
     let mut agents: Vec<SimAgent> = room.agents.clone();
     for agent in &mut agents {
         agent.set_quorum(policy.quorum);
         agent.set_defer_cap(defer_cap);
-        agent.set_aside_cap(aside_cap);
+        agent.set_aside_cap(aside_cap, aside_informed);
     }
     let mut participants: Vec<&mut dyn Participant> = agents
         .iter_mut()
