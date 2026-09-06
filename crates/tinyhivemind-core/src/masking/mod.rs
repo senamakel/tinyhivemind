@@ -85,12 +85,11 @@ pub fn is_masked(offset: usize, ranges: &[(usize, usize)]) -> bool {
         .any(|(start, end)| *start <= offset && offset < *end)
 }
 
-/// The byte ranges of `body` covered by a fenced code block.
+/// The byte ranges of `body` covered by a fenced or indented code block.
 ///
 /// Each range is half-open — `start` is masked, `end` is not — and they are
-/// returned in the order the blocks open, which is also ascending order. Use
-/// this for a line-leading grammar; see [`code_ranges`] for one that also
-/// needs inline spans masked.
+/// returned in ascending order. Use this for a line-leading grammar; see
+/// [`code_ranges`] for one that also needs inline spans masked.
 ///
 /// ```
 /// use tinyhivemind_core::masking::fenced_ranges;
