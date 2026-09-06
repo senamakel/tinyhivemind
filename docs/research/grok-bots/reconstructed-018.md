@@ -159,26 +159,21 @@ messages, and messages carrying `fromAgent`/`toAgent`
 predicate over `json_extract` rather than as a fold — which is exactly the piece
 `tinyhivemind` keeps pure and portable.
 
-`session-projection.ts` holds the pure derivations on top:
-`getLastEntryFromTranscript` (line 14) filters `hidden`/`branched`/`peerAgentId`
-entries and walks backwards for a preview; `collectLastAttachmentBatchKinds`
-(line 10) folds a trailing attachment batch.
-
 ## How a message causes a turn
 
 There are two paths, and they follow different rules.
 
 **One-to-one.** `SendPipeline.sendPrompt`
 (`source/host/extensions/transcript/send-pipeline.ts:100`) dedupes on a
-`clientNonce`: an in-flight nonce coalesces onto the running promise; an already
-accepted nonce with a matching digest is a no-op; a reused nonce with a
+`clientNonce`: an in-flight nonce coalesces onto the running promise, an already
+accepted nonce with a matching digest is a no-op, and a reused nonce with a
 different digest raises `PromptAcceptanceDigestMismatchError`. The digest is a
 SHA-256 over canonicalised `(agentId, prompt, richText, replyToId, isFork,
 attachmentPaths, attachmentNames)` (`source/shared/send-acceptance.ts`), and the
-ledger persists to `send-acceptance.json` with `MAX_RECORDS = 256`
-(`prompt-acceptance-ledger.ts`). `dispatchUserTurn` then mints one epoch and
-enqueues exactly one run. Any in-flight turn on that session is *interrupted*,
-not run alongside (`send-turn-dispatch.ts:129`). This is one message, one turn.
+ledger persists to `send-acceptance.json`, capped at 256 records.
+`dispatchUserTurn` mints one epoch and enqueues exactly one run; any in-flight
+turn on that session is *interrupted*, not run alongside
+(`send-turn-dispatch.ts:129`). This is one message, one turn.
 
 **Group.** `send-group-fanout.ts:46` also enqueues exactly one task — but that
 task is `runGroupTurn`, which builds a `GroupChatOrchestrator` and runs a
@@ -331,12 +326,11 @@ three other places. So it behaves per-turn, but the signal is always the same
 user toggle: no cost-, latency-, capability- or task-based routing exists.
 
 Within a provider the model is an env/config lookup, not a decision:
-`configuredCodexModel()` defaults to `"gpt-5.4"` reading `SAND_CODEX_MODEL` or
-`~/.codex/config.toml` (`provider-session.ts:134`); Claude Code takes
-`SAND_CLAUDE_MODEL` (line 213); OpenRouter takes `SAND_OPENROUTER_MODEL`,
-default `"openai/gpt-5.2"` (line 248). Only the `"cursor"` branch reaches the
-original Statsig-experiment machinery (`sand-model-experiment.ts`,
-`sand-labeling.ts`), and the router only decides whether to enter it.
+`configuredCodexModel()` reads `SAND_CODEX_MODEL` or `~/.codex/config.toml`
+(`provider-session.ts:134`), Claude Code takes `SAND_CLAUDE_MODEL` (line 213),
+OpenRouter takes `SAND_OPENROUTER_MODEL` (line 248). Only the `"cursor"` branch
+reaches the original Statsig-experiment machinery
+(`sand-model-experiment.ts`), and the router only decides whether to enter it.
 
 ## Approvals, permissions, tools, sandboxing
 
@@ -385,12 +379,11 @@ approvals, each with an `expiresAtMs`, a `userMessageEpoch` and a
 `hostGeneration` fence. `requestApproval` returns a promise settled by
 `resolveApproval` (line 138), by expiry, by cancellation, or by supersession —
 `beginUserMessageEpoch()` expires every pending approval when the user
-redirects. Modes are resolved per surface (`hostShell`, `boxShell`, `mcp`,
+redirects. Modes resolve per surface (`hostShell`, `boxShell`, `mcp`,
 `computer`, `cloudAgent`, `subagentLaunch`) to `off`/`shadow`/`enforce`
-(`sand-auto-review.ts:12`), and *whether* to ask at all is decided by a
-classifier (`sand-backend-smart-mode-classifier-exec.ts`). So this is a
-per-action, per-turn, model-gated approval rather than a stored permission set —
-and it is the gate MCP calls pass through in `enforce` mode.
+(line 12), and *whether* to ask is decided by a classifier. A per-action,
+per-turn, model-gated approval rather than a stored permission set — and the
+gate MCP calls pass through in `enforce` mode.
 
 **A third gate is attention, not permission.** `evaluateAutomationSpendGuard`
 (`transcript/sand-automation-spend-guard.ts:32`) is a **pure function** from
@@ -432,15 +425,13 @@ A "box" is a separate execution environment running a small Connect daemon
 shell spawn, background shell, read/write, ping, `UpdateEnvironmentVariables`,
 `LoadMcpServers`. The isolation boundary is process/container plus an
 authenticated network hop (`BoxEndpoint{host, port, authToken, headers}`,
-`host/box/loopback-sand-box.ts:20`), not a permission check. Three connectors
-implement the same `SandRemoteHostConnector` interface
+`host/box/loopback-sand-box.ts:20`), not a permission check. Three connectors implement the same `SandRemoteHostConnector` interface
 (`electron-main/box/box-host-connector.ts:38`) and are interchangeable to the
-host: loopback (the host runs inside the same container, port 1337),
-brokered/remote (`GrokBotService.ensureSandBox` returns a gateway URL and token,
-with backoff on `SAND_BOX_BLOCKED`), and local Docker
-(`local-docker-host-connector.ts`) — `docker run` of a pinned public image as
-container `grok-bot-local-vm`, gateway on `127.0.0.1:1340`, a locally generated
-bearer token persisted to `local-docker-vm.json`, credential mounts read-only,
+host: loopback (host inside the same container, port 1337), brokered/remote
+(`GrokBotService.ensureSandBox` returns a gateway URL and token, with backoff on
+`SAND_BOX_BLOCKED`), and local Docker (`local-docker-host-connector.ts`) —
+`docker run` of a pinned public image as `grok-bot-local-vm`, gateway on
+`127.0.0.1:1340`, a locally generated bearer token, read-only credential mounts,
 health-checked before the coordinator connects.
 
 A *second*, unrelated sandbox covers commands the host runs on the user's own
@@ -458,16 +449,13 @@ escape. Agent state is isolated further in worker processes
 Measured per provider: `requests`, `inputTokens`, `outputTokens`,
 `cacheReadTokens`, `cacheWriteTokens`, `lastUsedAt`
 (`source/shared/inference-router.ts:4`). No cost figure is retained. The
-accumulation *is* a fold — `recordInferenceUsage`
-(`sand-settings-store.ts:161`) computes `previous + delta` over the record it
-already holds, clamping each delta through
-`Number.isFinite(v) && v >= 0 ? Math.round(v) : 0`. It is wrapped in a full
-read-JSON/mutate/write-JSON round trip per turn, so the fold is right and the
-storage is not.
-
-Claude Code returns a real `total_cost_usd`, and it is captured into per-turn
-provider metadata (`provider-session.ts:223`) and then dropped — never
-accumulated, never displayed.
+accumulation *is* a fold — `recordInferenceUsage` (`sand-settings-store.ts:161`)
+computes `previous + delta` over the record it already holds, clamping each
+delta through `Number.isFinite(v) && v >= 0 ? Math.round(v) : 0`. It is wrapped
+in a full read-JSON/mutate/write-JSON round trip per turn, so the fold is right
+and the storage is not. Claude Code returns a real `total_cost_usd`, captured
+into per-turn provider metadata (`provider-session.ts:223`) and then dropped —
+never accumulated, never displayed.
 
 ## What is already a fold over data the caller holds
 
