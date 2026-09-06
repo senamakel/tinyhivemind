@@ -389,3 +389,97 @@ fn pins_runtime_outcome_wire_forms() {
         .is_err()
     );
 }
+
+/// What [ADR 0009] requires of one refusal's rendered sentence.
+///
+/// [ADR 0009]: ../../../../docs/adr/0009-a-refusal-renders-what-the-caller-already-holds.md
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Rendering {
+    /// The refusal turns on a named other, so it renders the shared sentence.
+    Shared,
+    /// The refusal is about the caller's own request, so it may render its own.
+    Own,
+}
+
+/// Every refusal, so a rendering can be asserted over the whole enum.
+const EVERY_REFUSAL: [EnqueueRefusal; 3] = [
+    EnqueueRefusal::Unauthorized,
+    EnqueueRefusal::TargetUnavailable,
+    EnqueueRefusal::FeatureDisabled,
+];
+
+/// The classification ADR 0009 fixes for each refusal.
+///
+/// The match is wildcard-free on purpose: a variant added later does not
+/// compile until whoever adds it has classified it here.
+fn required(refusal: EnqueueRefusal) -> Rendering {
+    match refusal {
+        EnqueueRefusal::Unauthorized | EnqueueRefusal::TargetUnavailable => Rendering::Shared,
+        EnqueueRefusal::FeatureDisabled => Rendering::Own,
+    }
+}
+
+#[test]
+fn every_refusal_that_turns_on_a_named_other_renders_the_shared_sentence() {
+    let shared: Vec<EnqueueRefusal> = EVERY_REFUSAL
+        .into_iter()
+        .filter(|refusal| required(*refusal) == Rendering::Shared)
+        .collect();
+    assert!(shared.len() > 1, "collapsing one refusal collapses nothing");
+    for refusal in shared {
+        assert_eq!(
+            refusal.to_string(),
+            NO_AVAILABLE_TARGET,
+            "{refusal:?} must not be distinguishable from a target that was never there"
+        );
+    }
+}
+
+#[test]
+fn a_feature_turned_off_late_is_worded_as_a_feature_turned_off() {
+    // Every queue refusal is reached only after the core decision resolved a
+    // target, so wording only reachable here would report that the mentioned
+    // agent exists. The one refusal that is not about the target borrows the
+    // sentence of the reason a caller could already have got before any
+    // mention was read.
+    assert_eq!(
+        EnqueueRefusal::FeatureDisabled.to_string(),
+        NoDispatchReason::Disabled.to_string()
+    );
+}
+
+#[test]
+fn every_refusal_is_a_lowercase_sentence_without_trailing_punctuation() {
+    for refusal in EVERY_REFUSAL {
+        let sentence = refusal.to_string();
+        assert!(!sentence.is_empty(), "{refusal:?}");
+        assert_eq!(sentence, sentence.to_lowercase(), "{refusal:?}");
+        assert!(!sentence.ends_with(['.', '!', '?']), "{refusal:?}");
+    }
+}
+
+#[tokio::test]
+async fn a_refused_enqueue_and_an_unaddressed_reply_decline_in_the_same_words() {
+    let members = members();
+    let roster = Roster::new(&members, &[], &[]);
+    let policy = MentionDispatchPolicy {
+        enabled: true,
+        max_hops: 2,
+    };
+    let refusing = RefusingQueue {
+        reason: EnqueueRefusal::TargetUnavailable,
+    };
+    let refused = dispatch_mention(&refusing, policy, &input(vec![mention("bob", 0)]), &roster)
+        .await
+        .unwrap();
+    let unaddressed = dispatch_mention(&refusing, policy, &input(Vec::new()), &roster)
+        .await
+        .unwrap();
+    let sentence = |outcome| match outcome {
+        MentionDispatchOutcome::NotDispatched { reason } => reason.to_string(),
+        MentionDispatchOutcome::Refused { reason } => reason.to_string(),
+        other => panic!("expected a decline, got {other:?}"),
+    };
+    assert_ne!(refused, unaddressed, "the operator's log still separates them");
+    assert_eq!(sentence(refused), sentence(unaddressed));
+}
