@@ -256,26 +256,6 @@ fn is_blank_line(content: &str) -> bool {
     content.bytes().all(|byte| matches!(byte, b' ' | b'\t'))
 }
 
-/// The byte ranges of every `CommonMark` blank line in `body`, line ending
-/// included.
-///
-/// A blank line ends a paragraph, so an inline span search must not cross
-/// one: `` ` `` on one line and `` ` `` on a line after a blank one open and
-/// close unrelated, unmatched spans in separate paragraphs, not one span
-/// spanning both.
-fn blank_line_ranges(body: &str) -> Vec<(usize, usize)> {
-    let mut ranges = Vec::new();
-    let mut line_start = 0;
-    for line in body.split_inclusive('\n') {
-        let content = line.trim_end_matches(['\n', '\r']);
-        if is_blank_line(content) {
-            ranges.push((line_start, line_start + line.len()));
-        }
-        line_start += line.len();
-    }
-    ranges
-}
-
 fn inline_ranges(body: &str, fenced: &[(usize, usize)]) -> Vec<(usize, usize)> {
     let bytes = body.as_bytes();
     let breaks = paragraph_breaks(body);
