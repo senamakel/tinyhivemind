@@ -216,6 +216,13 @@ fn briefing_wire_records_require_every_field() {
     assert!(
         serde_json::from_value::<SessionInitialization>(serde_json::json!({
             "briefing": {
+                "asides": {
+                    "enabled": false,
+                    "max_members": 0,
+                    "max_messages": 0,
+                    "must_surface": false,
+                    "require_thread": false
+                },
                 "viewer_id": "alice",
                 "desk_id": "engineering",
                 "desk_name": "Engineering",

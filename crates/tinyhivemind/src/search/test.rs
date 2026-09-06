@@ -383,6 +383,7 @@ fn pins_the_wire_form_of_a_search_query() {
                 "desk_name": "Engineering",
                 "thread_root": 3
             },
+            "viewer": {"kind": "operator"},
             "author_id": "alice",
             "before": null,
             "limit": SEARCH_LIMIT
