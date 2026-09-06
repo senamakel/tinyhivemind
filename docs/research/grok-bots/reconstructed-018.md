@@ -75,13 +75,12 @@ stored hex-encoded under the key `"metadata"` in the agent's SQLite `kv` table:
 `subagentInfo` (`parentAgentId`, `rootParentAgentId`, `toolCallId`, `typeName`),
 `blobEncryptionKey`.
 
-Alongside it, on disk in the same directory: `profile.json`
-(`SandAgentProfile` — `name`, `description`, `title`, `avatarShape`,
-`avatarColor`; `source/host/agents/agent-profile.ts:6`), `settings.json`
-(`notifyOnAgentUpdates`, `hiddenFromSidebar`;
-`source/host/agents/settings-file.ts:8`), and further KV keys on the DB
-(`unreadState`, `awaitingUserResponse`, `origin`, `purpose`,
-`conversationPartners`; `source/host/extensions/session/agent-db.ts:62`).
+Alongside it, in the same directory: `profile.json` (`SandAgentProfile` —
+`name`, `description`, `title`, `avatarShape`, `avatarColor`;
+`source/host/agents/agent-profile.ts:6`), `settings.json`
+(`notifyOnAgentUpdates`, `hiddenFromSidebar`; `settings-file.ts:8`), and further
+KV keys on the DB (`unreadState`, `awaitingUserResponse`, `origin`, `purpose`,
+`conversationPartners`; `session/agent-db.ts:62`).
 
 **The roster is the filesystem.** `listAgents`
 (`source/host/extensions/session/session-roster.ts:7`) does
@@ -93,14 +92,14 @@ the directory name, validated by `assertValidSandAgentId`. Caps are constants �
 `MAX_AGENTS_PER_USER = 50`, `GROUP_MAX_MEMBERS = 6`
 (`source/shared/agents/agents.ts:53`).
 
-`buildSummary` returns an anonymous object; the shape of a roster entry is
-nowhere declared as an interface. Only the *input* is typed: `DbExtras`
-(`session-summaries.ts:8`). The one genuinely pure piece is
+`buildSummary` returns an anonymous object: the shape of a roster entry is
+nowhere declared as an interface, only its *input* is (`DbExtras`,
+`session-summaries.ts:8`). The one genuinely pure piece is
 `upsertAgentSummary` (`source/shared/agents/agent-summaries.ts:13`) — an
 array-in, array-out fold keyed on `.id` and re-sorted by `updatedAt`. Everything
 around it is stateful: `RosterProjection`
-(`source/host/extensions/transcript/roster-projection.ts:25`) is an
-`EventEmitter` with six mutable maps and a debounced flush, despite the name.
+(`transcript/roster-projection.ts:25`) is an `EventEmitter` with six mutable
+maps and a debounced flush, despite the name.
 
 Human versus agent is only discriminated in two places, and only for group
 contexts. `GroupMessage.speaker` is a tagged union of
@@ -114,12 +113,11 @@ sharedRoomId?}` (`group-store.ts:1`) — with the human implicit as the sender.
 Per-agent capability configuration barely exists. The model is a **global**
 setting (`SandStoredSettings.agentDefaultModel`,
 `source/shared/node/settings/sand-settings-store.ts:21`), resolved at inference
-time with experiment overrides layered on
-(`source/host/extensions/inference/inference-service.ts:13`);
-`AgentMetadata.lastUsedModel` records what was used, it does not configure.
-MCP tool policy is likewise global (`mcpDisabledToolsByServerId`). The only
-per-agent persona is `GroupMember.description`, consumed by
-`buildGroupMemberSystemPrompt` (`group-chat.ts:15`).
+time with experiment overrides layered on (`inference-service.ts:13`);
+`AgentMetadata.lastUsedModel` records what was used, it does not configure. MCP
+tool policy is likewise global. The only per-agent persona is
+`GroupMember.description`, consumed by `buildGroupMemberSystemPrompt`
+(`group-chat.ts:15`).
 
 ## The conversation unit, and how a transcript is addressed
 
@@ -260,12 +258,11 @@ delivery and produced none, each nudge re-checking the epoch.
 ### Agent-to-agent messaging
 
 An agent addresses another by explicit id through a `SendToAgent` tool
-(`source/host/agents/agent-messaging.ts:6`), not by parsing `@`. Guards are
-thin (`agent-to-agent-messaging.ts:60`): empty message, self-message, deleted
-target, remote-room target. Text is clamped at
-`AGENT_MESSAGE_MAX_TEXT_LENGTH = 8_000`. Delivery is asynchronous — the message
-is appended to `pendingAgentInbound` and drained by `reviveForAgentInbound`
-(line 149), which enqueues on the recipient's `"agent"` lane.
+(`source/host/agents/agent-messaging.ts:6`), not by parsing `@`. Guards are thin
+(`agent-to-agent-messaging.ts:60`): empty message, self-message, deleted target,
+remote-room target; text clamped at 8,000 characters. Delivery is asynchronous —
+appended to `pendingAgentInbound` and drained by `reviveForAgentInbound`
+(line 149) onto the recipient's `"agent"` lane.
 
 **There is no hop bound, TTL, or cycle detector between distinct agents.** A→B→A
 ping-pong is prevented only by prompt text: "Respond only when you actually have
@@ -280,11 +277,15 @@ recursion guard.
 
 ## The coordinator/host split, and what counts as a port
 
-`source/host/ports/` is not a hexagonal port layer. It is six files of
-constants, error classes, and small adapter factories: `box.ts` is user-facing
-strings plus `boxNotReadyMessageForError`; `transport.ts` (5 lines) is a
-last-message-id tracker; `mcp-state-executor.ts` groups tools by provider into a
-protobuf. Naming it `ports/` overstates it.
+`source/host/ports/` is not a hexagonal port layer. It is seven small files of
+constants, error classes and helpers: `box.ts` (7 lines) holds user-facing
+strings and error classes but declares no box interface at all (that is
+`CapableBox` in `host/box/box-capabilities.ts`); `transport.ts` (5 lines) is a
+last-message-id tracker; `sand-analytics-types.ts` is one bucketing function;
+`telemetry.ts` describes a ~25-method surface only implicitly, through the keys
+of `createNoopSandTelemetry()`. Two files do hold real injection points
+(`SandMcpProvider`, `SandProductAnalytics`). Naming the folder `ports/`
+overstates it.
 
 The real seams are elsewhere and they are good ones:
 
@@ -535,13 +536,11 @@ four added features are real, IO-performing implementations, not stubs.
 - **"an optional local Docker sandbox"** — accurate line for line.
 - The genuine overclaim is architectural, and the repository makes it in its own
   vocabulary rather than in the README: `source/host/ports/` is not a port
-  layer, and `RosterProjection` is not a projection. The README's architecture
-  diagram also renders `coordinator + host` as a single box, which hides that
-  the host is 35 extensions and a 2,646-line composition root.
-- `frontend/` is described honestly as a "readable partial reconstruction" that
-  should not be mistaken for the original source, and `PROVENANCE.md` repeats
-  it. That restraint is warranted: packaged builds keep the shipped renderer and
-  apply only a hash-recorded settings transform.
+  layer, and `RosterProjection` is not a projection. The README diagram renders
+  `coordinator + host` as one box, hiding that the host is 35 extensions and a
+  2,646-line composition root.
+- `frontend/` is described honestly as a "readable partial reconstruction", and
+  `PROVENANCE.md` repeats it. That restraint is warranted.
 
 ## Mechanism → what `tinyhivemind` already has → what it does not
 
