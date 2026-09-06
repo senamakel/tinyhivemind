@@ -68,3 +68,6 @@ See [`example-retry-policy.md`](example-retry-policy.md) for a complete sample.
   the host.
 - [`shared-medium-schema.md`](shared-medium-schema.md) — draft: what a projected
   message carries, per-conversation read state, digests, and supersession.
+- [`approval.md`](approval.md) — proposed: a pure gate for a side-effecting
+  action — `approve` as a total fold, standing grants as a liveness and
+  coverage predicate, and epoch-scoped consent that cannot apply backwards.
