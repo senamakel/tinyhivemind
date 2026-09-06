@@ -57,10 +57,9 @@ dispatch switch, not a typed boundary.
 
 ## Agent identity and the roster
 
-There is no single `Agent` type. Identity is scattered across four persisted
-surfaces per agent, and reassembled on demand.
-
-The closest thing to a schema is `AgentMetadata`
+There is no single `Agent` type: identity is scattered across four persisted
+surfaces per agent and reassembled on demand. The closest thing to a schema is
+`AgentMetadata`
 (`source/packages/agent-kv/agent-store.ts:40`), zod-validated at line 76 and
 stored hex-encoded under the key `"metadata"` in the agent's SQLite `kv` table:
 `agentId`, `latestRootBlobId`, `name`, `mode`
@@ -182,15 +181,14 @@ for (let round = 0; round < GROUP_MAX_ROUNDS; round += 1) {
 Each member turn is `await`ed — serial, never `Promise.all`. Bounds are
 constants: `GROUP_MAX_ROUNDS = 3`, `GROUP_MAX_MEMBER_TURNS = 10`,
 `GROUP_MAX_MESSAGES_PER_TURN = 2`, `GROUP_PROMPT_HISTORY_LIMIT = 24`
-(`group-chat.ts:1`). A round that produces no messages ends the episode
-(line 74). So the answer is neither fan-out nor one-turn: it is **one message,
-one bounded sequential episode of up to ten turns**, cancellable by epoch.
+(`group-chat.ts:1`), and a round producing no messages ends the episode
+(line 74). So the answer is neither fan-out nor one-turn: **one message, one
+bounded sequential episode of up to ten turns**, cancellable by epoch.
 
 ### The mention grammar
 
-It exists, it is host-side, and it applies only in group chats. There is no
-mention parsing anywhere in the `send-*` pipeline; `send-message-shaping.ts`
-carries `richText` opaquely.
+It exists, it is host-side, and it applies only in group chats — there is no
+mention parsing anywhere in the `send-*` pipeline.
 
 - `memberMentionHandles(name)` (`group-chat.ts:7`) derives three handles from a
   display name — lowercased whole name, whitespace-stripped variant, first
@@ -220,11 +218,11 @@ built from (`buildGroupTurnPrompt`, line 18).
 ### Scheduling
 
 `SandRunScheduler` (`run-scheduler.ts`) keeps one queue per `agentId` with three
-lanes — `pendingUser`, `pendingAgent`, `pendingBackground` — and a single
-`active` slot: strict single-flight per agent. `takeNextUserTask` (line 45)
-prefers a non-`"group-member"` source within the user lane, so a direct message
-to a member jumps ahead of that member's pending group slot. A generation
-counter guards against a late settlement clobbering a newer run (line 259).
+lanes — `pendingUser`, `pendingAgent`, `pendingBackground` — and one `active`
+slot: strict single-flight per agent. `takeNextUserTask` (line 45) prefers a
+non-`"group-member"` source within the user lane, so a direct message to a
+member jumps ahead of that member's pending group slot; a generation counter
+guards against a late settlement clobbering a newer run (line 259).
 
 There is a watchdog: after `RUN_WATCHDOG_DEFAULT_MS = 120_000` with a user-lane
 item waiting, the wedged run is interrupted; after a 30-second grace,
@@ -263,7 +261,7 @@ the keys of `createNoopSandTelemetry()`. Two files do hold real injection points
 (`SandMcpProvider`, `SandProductAnalytics`). Naming the folder `ports/`
 overstates it.
 
-The real seams are elsewhere and they are good ones:
+The real seams are elsewhere, and they are good ones:
 
 - `TurnExecutor` (`host/extensions/turn-execution/extension.ts:10`) — three
   methods bound late by the composition root, with an explicit double-bind
