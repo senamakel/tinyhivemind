@@ -55,7 +55,7 @@
 //! # Example
 //!
 //! ```
-//! use tinyhivemind::{SessionAuthor, SessionMessage, Sequence};
+//! use tinyhivemind::{SessionAuthor, SessionMessage, Sequence, aside::Audience};
 //! use tinyhivemind_hive::{
 //!     quorum::{consensus, standings, ConsensusState, QuorumPolicy},
 //!     trace::read,
@@ -65,7 +65,13 @@
 //!     SessionAuthor::Agent { id: id.into(), label: id.into() }
 //! }
 //! fn said(sequence: u64, author: SessionAuthor, content: &str) -> SessionMessage {
-//!     SessionMessage { sequence: Sequence(sequence), author, content: content.into() }
+//!     SessionMessage {
+//!         sequence: Sequence(sequence),
+//!         author,
+//!         content: content.into(),
+//!         audience: Audience::Desk,
+//!         elided: None,
+//!     }
 //! }
 //!
 //! // Two agents propose; a third grounds its support in the first proposal.

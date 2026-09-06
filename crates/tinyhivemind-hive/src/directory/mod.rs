@@ -115,12 +115,15 @@ pub(crate) fn validate_policy(policy: &DirectoryPolicy) -> Result<()> {
 ///     trace::read,
 ///     Sequence, SessionAuthor, SessionMessage,
 /// };
+/// use tinyhivemind::aside::Audience;
 ///
 /// fn said(sequence: u64, id: &str, content: &str) -> SessionMessage {
 ///     SessionMessage {
 ///         sequence: Sequence(sequence),
 ///         author: SessionAuthor::Agent { id: id.into(), label: id.into() },
 ///         content: content.into(),
+///         audience: Audience::Desk,
+///         elided: None,
 ///     }
 /// }
 ///
