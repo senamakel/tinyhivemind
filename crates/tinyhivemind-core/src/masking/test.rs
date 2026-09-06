@@ -11,13 +11,38 @@ fn a_fence_indented_four_spaces_does_not_open_a_block() {
     let indented = "   ```\n@alice\n```\n";
     assert_eq!(fenced_ranges(indented), vec![(0, indented.len())]);
 
-    // With the opener disqualified the bare fence on the last line is an
-    // opener in its own right, and masks to the end of the body.
+    // With the opener disqualified, the over-indented line is masked as an
+    // indented code block of one line instead (see
+    // `an_indented_code_block_masks_all_its_lines`), and the un-indented
+    // `@alice` line ends that run immediately. The bare closing fence on the
+    // last line is then an opener in its own right, unclosed, so it masks to
+    // the end of the body.
     let over_indented = "    ```\n@alice\n```\n";
     assert_eq!(
         fenced_ranges(over_indented),
-        vec![(15, over_indented.len())]
+        vec![(0, 8), (15, over_indented.len())]
     );
+}
+
+#[test]
+fn an_indented_code_block_masks_all_its_lines() {
+    // Four or more spaces of indentation is CommonMark's *other* code block,
+    // distinct from a backtick or tilde fence. A quoted example written this
+    // way — including one that itself contains a bare backtick fence — must
+    // stay masked in full, or a directive quoted for documentation would
+    // reach a line-leading grammar as if it were live.
+    let body = "    ```\n    !unpin ^1\n    ```\n";
+    assert_eq!(fenced_ranges(body), vec![(0, body.len())]);
+}
+
+#[test]
+fn an_indented_code_block_continues_across_a_blank_line() {
+    // CommonMark's indented code block does not end at a blank line; only a
+    // later non-blank, under-indented line (or the end of the body) closes
+    // it.
+    let body = "    line one\n\n    line two\nnot indented\n";
+    let end_of_block = "    line one\n\n    line two\n".len();
+    assert_eq!(fenced_ranges(body), vec![(0, end_of_block)]);
 }
 
 #[test]
