@@ -69,6 +69,20 @@ pub fn resolve(
 ///
 /// Messages carrying no marker contribute nothing, so a transcript of ordinary
 /// conversation folds to an empty medium.
+///
+/// So does a message addressed to an aside, and for a different reason: **an
+/// aside carries information, never support.** A marker written where the room
+/// cannot read it adds no supporter, silences no advocate and earns no
+/// directory credit — identically for every reader, because the filter is on
+/// the row's audience rather than on who is folding. To make an aside count, a
+/// member spends a desk-visible turn saying so in the open.
+///
+/// The test is here, in the one place a transcript becomes a medium, rather
+/// than only inside the episode: a host that folds its own standings gets the
+/// same answer as `step` does, which is the property that keeps quorum
+/// single-valued. See [ADR 0008][adr].
+///
+/// [adr]: https://github.com/tinyhumansai/tinyhivemind/blob/main/docs/adr/0008-an-aside-carries-information-never-support.md
 #[must_use]
 pub fn read(messages: &[SessionMessage]) -> Vec<Trace> {
     read_each(messages.iter())
@@ -86,6 +100,7 @@ pub(crate) fn read_borrowed(messages: &[&SessionMessage]) -> Vec<Trace> {
 
 fn read_each<'a>(messages: impl Iterator<Item = &'a SessionMessage>) -> Vec<Trace> {
     let mut traces: Vec<Trace> = messages
+        .filter(|message| message.audience.is_desk())
         .flat_map(|message| resolve(&message.content, None, &message.author, message.sequence))
         .collect();
     traces.sort_by_key(|trace| (trace.sequence, trace.offset));
