@@ -827,6 +827,33 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
         }
     }
 
+    // The aside arms against the room they modify, rather than against the
+    // poll. Seeded off a tag of their own so the published bootstraps above
+    // keep their streams.
+    for (index, (name, arm)) in [
+        ("hive+aside", &totals.hive_aside),
+        ("hive+ask", &totals.hive_ask),
+        ("hive+aside!", &totals.hive_aside_informed),
+    ]
+    .iter()
+    .enumerate()
+    {
+        let seed = mix(options.seed, 0xA51D_E000_u64.wrapping_add(index as u64));
+        if let Some(line) = paired_against(name, "hive+", arm, &totals.hive_tuned, seed, 2000) {
+            println!("{line}");
+        }
+    }
+    if let Some(line) = paired_against(
+        "hive+aside",
+        "hive+ask",
+        &totals.hive_aside,
+        &totals.hive_ask,
+        mix(options.seed, 0xA51D_E100),
+        2000,
+    ) {
+        println!("{line}");
+    }
+
     if options.cost {
         cost_table(&[
             ("vote", &totals.vote),
