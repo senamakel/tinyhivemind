@@ -399,7 +399,13 @@ async fn project_thread(
 
     projected.truncate(query.window);
     projected.reverse();
-    Ok(projected)
+    seen_rows.reverse();
+    let settlements = Settlement::over(
+        seen_rows
+            .iter()
+            .map(|(sequence, audience, author)| (sequence, audience, author)),
+    );
+    Ok((projected, settlements))
 }
 
 /// One in-desk row held with the `parent` [`SessionMessage`] does not carry.
@@ -419,7 +425,7 @@ struct Candidate {
 async fn project_channel(
     log: &(dyn SessionLog + '_),
     query: &SessionQuery,
-) -> Result<Vec<SessionMessage>> {
+) -> Result<Projection> {
     let mut cursor = query.before;
     let mut scanned = 0_usize;
     let mut seen = Vec::new();
@@ -478,12 +484,20 @@ async fn project_channel(
     }
 
     candidates.reverse();
+    // Settlements come from the whole scanned slice, before narrowing throws
+    // replies away: an aside that is a root's first reply is settled by a
+    // *later* reply, which narrowing drops.
+    let settlements = Settlement::over(
+        candidates
+            .iter()
+            .map(|candidate| (&candidate.sequence, &candidate.audience, &candidate.author)),
+    );
     let projected = narrow_to_roots_and_first_replies(candidates, &query.viewer);
     // Every survivor was counted by the estimate above, and the walk stops the
     // moment that estimate reaches the window, so the window needs no second
     // enforcement here — and enforcing it would have to trim the newest end.
     debug_assert!(projected.len() <= query.window);
-    Ok(projected)
+    Ok((projected, settlements))
 }
 
 /// Keep every root and each root's first reply, from a chronological slice.
@@ -494,14 +508,14 @@ async fn project_channel(
 fn narrow_to_roots_and_first_replies(
     candidates: Vec<Candidate>,
     viewer: &Viewer,
-) -> Vec<SessionMessage> {
+) -> Vec<(SessionMessage, Option<Sequence>)> {
     let roots: BTreeSet<Sequence> = candidates
         .iter()
         .filter(|candidate| candidate.parent.is_none())
         .map(|candidate| candidate.sequence)
         .collect();
     let mut promoted: BTreeSet<Sequence> = BTreeSet::new();
-    let mut projected: Vec<SessionMessage> = Vec::new();
+    let mut projected: Vec<(SessionMessage, Option<Sequence>)> = Vec::new();
 
     for candidate in candidates {
         if candidate.content.trim().is_empty() {
@@ -512,12 +526,19 @@ fn narrow_to_roots_and_first_replies(
             Some(parent) => roots.contains(&parent) && promoted.insert(parent),
         };
         if keep {
-            projected.push(present(
-                candidate.sequence,
-                candidate.author,
-                candidate.content,
-                candidate.audience,
-                viewer,
+            // A root's identity is its own sequence; a promoted reply's is the
+            // root it hangs under. Two closed threads between the same pair
+            // therefore stay two stubs rather than merging into one.
+            let thread = candidate.parent.or(Some(candidate.sequence));
+            projected.push((
+                present(
+                    candidate.sequence,
+                    candidate.author,
+                    candidate.content,
+                    candidate.audience,
+                    viewer,
+                ),
+                thread,
             ));
         }
     }
