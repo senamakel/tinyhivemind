@@ -397,3 +397,51 @@ fn non_agent_only_content_never_fans_out() {
         }
     );
 }
+
+#[test]
+fn a_tombstoned_target_is_refused_as_plainly_inactive() {
+    // A tombstoned agent is still in `members`, so its old messages stay
+    // attributable. Dispatch must refuse it anyway, and must refuse it with
+    // the reason it already gives for a retired one -- a reason of its own
+    // would let an agent probe the roster for who used to be here.
+    let members = members();
+    let tombstoned = vec!["carol".to_owned()];
+    let roster = Roster::new(&members, &[], &[]).with_tombstoned(&tombstoned);
+    let decision = mention_dispatch(
+        MentionDispatchPolicy {
+            enabled: true,
+            max_hops: 2,
+        },
+        &input(vec![mention("carol", 0)], 0),
+        &roster,
+    )
+    .unwrap();
+    assert_eq!(
+        decision,
+        MentionDispatchDecision::None {
+            reason: NoDispatchReason::TargetInactive
+        }
+    );
+}
+
+#[test]
+fn a_tombstoned_source_cannot_start_a_child_turn() {
+    let members = members();
+    let tombstoned = vec!["alice".to_owned()];
+    let roster = Roster::new(&members, &[], &[]).with_tombstoned(&tombstoned);
+    let decision = mention_dispatch(
+        MentionDispatchPolicy {
+            enabled: true,
+            max_hops: 2,
+        },
+        &input(vec![mention("bob", 0)], 0),
+        &roster,
+    )
+    .unwrap();
+    assert_eq!(
+        decision,
+        MentionDispatchDecision::None {
+            reason: NoDispatchReason::SourceInactive
+        }
+    );
+}
