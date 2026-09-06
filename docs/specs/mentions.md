@@ -57,6 +57,18 @@ non-desk collisions. Candidate spans are tokenized on authored character
 boundaries before case-insensitive comparison, so Unicode case mappings never
 change or corrupt their byte offsets.
 
+Alias lookup is the only case-folding step in the workspace. `DeskSet::resolve_id`
+compares desk ids and names **case-sensitively**, so `@#engineering` resolves
+through the alias table to the desk whose id is `Engineering`, while
+`DeskSet::resolve_id("engineering")` returns `Error::UnknownDesk`. The asymmetry
+is deliberate and safe: a resolved `MentionTarget::Desk` carries the canonical
+id rather than the authored casing, and it is that canonical id every later
+lookup — revalidation, member expansion, referral — is given. Folding case in
+`resolve_id` would make two desks named `Ops` and `ops` collide, and refusing to
+fold it in alias lookup would make an authored `@#Engineering` stop addressing a
+desk it plainly names. Neither half should be "fixed" to match the other; see
+[`grammar-mentions.md`](grammar-mentions.md) §1.3.
+
 Closed inline-backtick spans and CommonMark-style fenced spans opened by three
 or more backticks or tildes are ignored. An unclosed inline backtick masks
 nothing. All offsets remain offsets in the original UTF-8 body.
