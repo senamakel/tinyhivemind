@@ -52,6 +52,7 @@ mod agent;
 mod host;
 
 use std::process::ExitCode;
+use std::sync::Arc;
 
 use agent::{Ask, Backend, Seat, author_label};
 use host::{Cast, DESK_ID, DESK_NAME, Journal, OPERATOR_ID, Queue};
@@ -379,10 +380,10 @@ struct Room<'a> {
     seats: Vec<Seat>,
     /// The same ids, borrowed for the roster and desk views.
     ids: Vec<&'a str>,
-    /// The host's journal.
-    journal: Journal,
+    /// The host's journal, shared with the queue that revalidates against it.
+    journal: Arc<Journal>,
     /// The host's enqueue boundary over that journal.
-    queue: Queue<'a>,
+    queue: Queue,
     /// The borrowed roster view.
     roster: tinyhivemind_core::roster::Roster<'a>,
     /// The borrowed desk view.
@@ -560,8 +561,8 @@ async fn run(options: &Options) -> Result<Report, String> {
         })
         .collect();
 
-    let journal = Journal::default();
-    let queue = Queue::new(&journal, true, &ids);
+    let journal = Arc::new(Journal::default());
+    let queue = Queue::new(Arc::clone(&journal), true, &ids);
 
     let channel = Conversation {
         desk_id: DESK_ID.to_owned(),

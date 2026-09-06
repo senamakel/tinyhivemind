@@ -15,7 +15,7 @@
 //! library dispatches, not that a host can hold the contract.
 
 use std::collections::HashSet;
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use tinyhivemind::dispatch::{
     EnqueueOutcome, EnqueueRefusal, MentionTurnFuture, MentionTurnQueue, MentionTurnRequest,
@@ -108,8 +108,8 @@ pub(crate) struct Enqueued {
 /// One `Mutex` stands in for the transaction: the whole revalidation and the
 /// write happen under it, so a duplicated trigger cannot race past the
 /// idempotency check.
-pub(crate) struct Queue<'a> {
-    journal: &'a Journal,
+pub(crate) struct Queue {
+    journal: Arc<Journal>,
     state: Mutex<QueueState>,
     /// Whether the host still enables the feature. Checked again here, on
     /// purpose: the library's policy check happened before the request was
@@ -125,9 +125,9 @@ struct QueueState {
     pending: Vec<Enqueued>,
 }
 
-impl<'a> Queue<'a> {
+impl Queue {
     /// Build a queue over one journal.
-    pub(crate) fn new(journal: &'a Journal, enabled: bool, available: &[&str]) -> Self {
+    pub(crate) fn new(journal: Arc<Journal>, enabled: bool, available: &[&str]) -> Self {
         Self {
             journal,
             state: Mutex::new(QueueState::default()),
@@ -143,14 +143,14 @@ impl<'a> Queue<'a> {
     }
 }
 
-impl MentionTurnQueue for Queue<'_> {
+impl MentionTurnQueue for Queue {
     fn enqueue_once(&self, request: MentionTurnRequest) -> MentionTurnFuture<'_> {
         let outcome = self.transact(&request);
         Box::pin(async move { Ok::<_, BoxError>(outcome) })
     }
 }
 
-impl Queue<'_> {
+impl Queue {
     /// The whole transaction, run under one lock.
     fn transact(&self, request: &MentionTurnRequest) -> EnqueueOutcome {
         let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
