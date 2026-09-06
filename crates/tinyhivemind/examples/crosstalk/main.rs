@@ -433,7 +433,7 @@ async fn run_chain(
             .ok_or_else(|| format!("no seat for {speaker}"))?;
 
         let visible = project_session(
-            journal,
+            journal.as_ref(),
             &SessionQuery {
                 conversation: floor.clone(),
                 before: None,
@@ -525,12 +525,12 @@ async fn run_chain(
 /// is how it shows that a thread is a narrower conversation over the same desk
 /// rather than a separate room.
 async fn view(
-    journal: &Journal,
+    journal: &Arc<Journal>,
     conversation: Conversation,
     window: usize,
 ) -> Result<Vec<String>, String> {
     project_session(
-        journal,
+        journal.as_ref(),
         &SessionQuery {
             conversation,
             before: None,
@@ -616,10 +616,10 @@ async fn run(options: &Options) -> Result<Report, String> {
 
     let turns = run_chain(options, &room, &floor, &decision.responder_id).await?;
 
-    let channel_view = view(&journal, channel, options.window).await?;
+    let channel_view = view(&room.journal, channel, options.window).await?;
     let thread_view = if options.thread {
         view(
-            &journal,
+            &room.journal,
             Conversation {
                 desk_id: DESK_ID.to_owned(),
                 desk_name: DESK_NAME.to_owned(),
