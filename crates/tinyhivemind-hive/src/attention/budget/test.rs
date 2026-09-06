@@ -49,3 +49,19 @@ fn splits_an_oversubscribed_budget_equally_between_equal_claims() {
             .all(|share| share.verdict == BudgetVerdict::Truncated)
     );
 }
+
+#[test]
+fn redistributes_what_a_small_source_does_not_need() {
+    let requests = [
+        BudgetRequest::new("pins", 50),
+        BudgetRequest::new("threads", 1_000),
+        BudgetRequest::new("board", 1_000),
+    ];
+    let shares = allocate_chars(&requests, &tight(1_000, 100));
+    assert_eq!(
+        granted(&shares),
+        [("pins", 50), ("threads", 475), ("board", 475)]
+    );
+    assert_eq!(shares[0].verdict, BudgetVerdict::Whole);
+    assert_eq!(shares[1].omitted, 525);
+}

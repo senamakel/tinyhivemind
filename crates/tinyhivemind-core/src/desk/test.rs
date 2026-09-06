@@ -429,3 +429,26 @@ fn rejects_an_incomplete_order() {
         })
     );
 }
+
+#[test]
+fn a_tombstoned_agent_leaves_every_desk_answer_without_being_retired_too() {
+    let declared = [desk("eng", "Engineering", &["alice", "bob"])];
+    let additions = [DeskMember {
+        desk_id: "eng".into(),
+        agent_id: "bob".into(),
+    }];
+    let tombstoned = [String::from("bob")];
+    let desks = set(&declared, &[], &additions, &[], &[]).with_tombstoned(&tombstoned);
+
+    assert_eq!(desks.members("eng").unwrap(), vec!["alice"]);
+    assert_eq!(desks.lead("eng").unwrap(), Some("alice"));
+
+    // An order is a permutation of the *remaining* members, so a host does not
+    // have to rewrite its orders when a member is tombstoned.
+    let orders = [DeskOrder {
+        desk_id: "eng".into(),
+        ordered: vec!["alice".into()],
+    }];
+    let ordered = set(&declared, &[], &additions, &orders, &[]).with_tombstoned(&tombstoned);
+    assert_eq!(ordered.validate(), Ok(()));
+}
