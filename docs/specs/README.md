@@ -28,6 +28,15 @@ See [`example-retry-policy.md`](example-retry-policy.md) for a complete sample.
   General conversation.
 - [`desks.md`](desks.md) — host-owned desk overlays and the borrowed membership
   algebra.
+- [`grammar.md`](grammar.md) — the index to the authoritative grammar
+  reference for both textual grammars, with the code/prose discrepancies it
+  resolved.
+  - [`grammar-mentions.md`](grammar-mentions.md) — the complete `@` grammar:
+    lexical rules, the alias table, resolution, normalization, and which
+    mention wins for each consumer.
+  - [`grammar-traces.md`](grammar-traces.md) — the complete `!marker` grammar:
+    the eight kinds, the `#topic`, `>target` and `^cite` qualifiers, fence
+    masking, and the markers that fail closed.
 - [`mentions.md`](mentions.md) — roster records, mention grammar, normalization,
   and pure routing decisions.
 - [`sessions.md`](sessions.md) — host-owned paging, attributed projection, and
