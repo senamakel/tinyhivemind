@@ -23,7 +23,11 @@ neutral roster record.
    closed.
 2. Build current aliases for active agents, people, desks, and everyone.
 3. Mask closed inline code spans and fenced code blocks without changing body
-   offsets.
+   offsets, using the shared `masking::code_ranges` scanner. A mention is
+   mid-line, so it needs inline spans masked as well as fenced blocks; a
+   line-leading grammar such as the hive's traces takes `masking::fenced_ranges`
+   from the same module instead, and the two therefore cannot disagree about
+   which span of a body is code.
 4. Extract authored spans, or validate supplied spans when the host has already
    parsed them.
 5. Sort in reading order, remove self and duplicate-offset entries, quiet
