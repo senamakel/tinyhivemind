@@ -91,6 +91,16 @@ fn a_backtick_inside_a_fenced_block_does_not_open_an_inline_span() {
 }
 
 #[test]
+fn an_inline_opener_before_a_fenced_block_does_not_pair_across_it() {
+    // A stray backtick that opens before a fenced block must not reach past
+    // the block to grab a closing backtick after it: the fenced block ends
+    // the paragraph the opener lives in, so the opener is unclosed and
+    // `@alice` after the block stays live text.
+    let body = "`text\n```\ncode\n```\n@alice`";
+    assert_eq!(code_ranges(body), vec![(6, 19)]);
+}
+
+#[test]
 fn a_masked_range_covers_its_start_but_not_its_end() {
     let ranges = [(2, 5)];
     assert!(!is_masked(1, &ranges));
