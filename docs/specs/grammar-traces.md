@@ -127,21 +127,29 @@ renderer gets the masking they can see:
   mid-block with its tail read as grammar;
 - a line indented four or more columns — a tab expands to the next multiple of
   four — opens `CommonMark`'s other code block — the indented one — instead of
-  a fence, and `fenced_ranges` masks that too: the run continues across a
+  a fence, and `code_ranges` masks that too: the run continues across a
   blank line and ends at the first non-blank, under-indented line or the end
   of the body. A quoted example that itself contains a bare `` ``` `` fence,
   written at four columns so it renders as code rather than as a live block,
   stays masked in full for this reason;
 - an indented block cannot interrupt a paragraph, so the indented opener must
-  be the body's first line or follow a blank one — a wrapped, indented
-  continuation line right after live text is lazy continuation of that
-  paragraph, not a new block, and stays live;
-- the four columns are measured from the message's left margin, not from
-  inside a list or blockquote container the way a full `CommonMark` parser
-  measures them. A marker quoted at exactly four raw columns inside a list
-  item can therefore be masked differently than a renderer would show it —
-  a known, accepted limitation of a lexical scanner rather than a block-level
-  parser, not a bug to chase further.
+  be a line with no paragraph open above it: the body's first line, a line
+  after a blank one, or a line after one that closes the block it belongs to
+  — a fenced block, an ATX heading, a thematic break, or a setext underline. A
+  wrapped, indented continuation line right after live text is lazy
+  continuation of that paragraph, not a new block, and stays live;
+- an inline code span — one opened on a run of backticks and closed on the
+  next run of exactly the same length — is masked too, even though this
+  grammar's markers are line-leading. A span opened on one line and closed on
+  a later one quotes every whole line between them, so a marker with no
+  backtick ahead of it on its own line can still sit inside quoted code (see
+  "the asymmetry that turned out not to be one" below);
+- the four columns of an indented block are measured from the message's left
+  margin, not from inside a list or blockquote container the way a full
+  `CommonMark` parser measures them. A marker quoted at exactly four raw
+  columns inside a list item can therefore be masked differently than a
+  renderer would show it — a known, accepted limitation of a lexical scanner
+  rather than a block-level parser, not a bug to chase further.
 
 A line is masked when its **start offset** falls inside a range, which also
 means the fence lines themselves are inside the range.
