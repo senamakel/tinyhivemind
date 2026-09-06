@@ -137,8 +137,12 @@ exists, is active or is reachable renders the one shared sentence exported as
 `NoDirectAgentMention` and `TargetInactive` are worded identically.
 
 Reachability is itself a channel, which decides the two remaining cases.
-`HopOverflow` is only reachable once a target has resolved, so it renders
-`HopLimitReached`'s sentence verbatim; every `EnqueueRefusal` is reached only
+`HopOverflow` is defensive rather than reachable today — `mention_dispatch`
+rejects `input.hop >= max_hops` before the `checked_add`, and `max_hops: u32`
+bounds every admitted hop to at most `u32::MAX - 1`, so the increment cannot
+actually overflow — but its wording is fixed for the day a wider counter makes
+it live: it renders `HopLimitReached`'s sentence verbatim. Every
+`EnqueueRefusal` is reached only
 past that same point, so `Unauthorized` and `TargetUnavailable` render the
 shared sentence and `FeatureDisabled` renders `Disabled`'s verbatim. Success is
 exempt and can be: a dispatch that runs proves the target exists anyway.
