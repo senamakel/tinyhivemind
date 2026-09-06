@@ -158,6 +158,11 @@ fn parse_events(stdout: &str) -> TurnOutput {
         let Ok(event) = serde_json::from_str::<serde_json::Value>(line) else {
             continue;
         };
+        if turn.session.is_none()
+            && let Some(id) = event.get("sessionID").and_then(serde_json::Value::as_str)
+        {
+            turn.session = Some(id.to_string());
+        }
         match event.get("type").and_then(serde_json::Value::as_str) {
             Some("text") => {
                 if let Some(part) = event.pointer("/part/text").and_then(serde_json::Value::as_str) {
@@ -175,16 +180,6 @@ fn parse_events(stdout: &str) -> TurnOutput {
                     turn.tools.push(name.to_string());
                 }
             }
-            Some("step_start") | Some("step_finish") | Some("text") | Some("tool_use") => {
-                if turn.session.is_none()
-                    && let Some(id) = event.get("sessionID").and_then(serde_json::Value::as_str)
-                {
-                    turn.session = Some(id.to_string());
-                }
-            }
-            _ => {}
-        }
-        match event.get("type").and_then(serde_json::Value::as_str) {
             Some("step_finish") => {
                 if let Some(total) = event
                     .pointer("/part/tokens/total")
