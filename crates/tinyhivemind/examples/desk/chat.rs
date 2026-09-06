@@ -46,17 +46,25 @@ impl Chat {
             "messages": [{ "role": "user", "content": prompt }],
         });
         let Some(response) = self.post("/v1/chat/completions", &body) else {
+            eprintln!("   [chat] the router call itself failed");
             return String::new();
         };
-        serde_json::from_str::<serde_json::Value>(&response)
-            .ok()
-            .and_then(|value| {
-                value
-                    .pointer("/choices/0/message/content")
-                    .and_then(serde_json::Value::as_str)
-                    .map(str::to_string)
-            })
-            .unwrap_or_default()
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(&response) else {
+            eprintln!("   [chat] undecodable response: {}", &response[..response.len().min(300)]);
+            return String::new();
+        };
+        let text = value
+            .pointer("/choices/0/message/content")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default();
+        if text.trim().is_empty() {
+            eprintln!(
+                "   [chat] empty content, finish={:?}, body starts {}",
+                value.pointer("/choices/0/finish_reason"),
+                &response[..response.len().min(300)]
+            );
+        }
+        text.to_string()
     }
 
     fn post(&self, path: &str, body: &serde_json::Value) -> Option<String> {
