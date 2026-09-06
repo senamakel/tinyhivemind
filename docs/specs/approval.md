@@ -146,12 +146,15 @@ pub struct ScopeKey {
 }
 ```
 
-This is the reconstruction's `askKey`, which joins
-`agentId`, `toolCallId`, `action` and `target` with NUL bytes — one agent, one
-tool call, one action, one target — kept here as four typed fields rather than
-as one joined string. The NUL-joined rendering exists only as
-`ScopeKey::render()` for a host that wants one opaque dedupe token, and its
-form is pinned by a serde test.
+This is the reconstruction's `askKey` — one agent, one tool call, one action,
+one target — kept here as four typed fields rather than as one joined string.
+`ScopeKey::render()` exists only for a host that wants one opaque dedupe token,
+and its rendering is collision-free by construction rather than by convention:
+each field is length-prefixed before it is written, so an embedded NUL byte in
+a `name`, `path`, `verb` or `call_id` cannot be mistaken for a field boundary,
+and `ActionTarget`'s variant is written as an explicit leading tag so `Named`
+and `Resource` carrying the same string never render the same key. The exact
+byte layout is pinned by a serde test.
 
 A grant declares how far past its own call it reaches:
 
