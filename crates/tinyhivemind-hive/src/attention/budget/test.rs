@@ -33,3 +33,19 @@ fn grants_every_source_in_full_when_the_budget_covers_them() {
             .all(|share| share.verdict == BudgetVerdict::Whole)
     );
 }
+
+#[test]
+fn splits_an_oversubscribed_budget_equally_between_equal_claims() {
+    let requests = [
+        BudgetRequest::new("pins", 1_000),
+        BudgetRequest::new("threads", 1_000),
+    ];
+    let shares = allocate_chars(&requests, &tight(500, 200));
+    assert_eq!(granted(&shares), [("pins", 250), ("threads", 250)]);
+    assert!(shares.iter().all(|share| share.omitted == 750));
+    assert!(
+        shares
+            .iter()
+            .all(|share| share.verdict == BudgetVerdict::Truncated)
+    );
+}
