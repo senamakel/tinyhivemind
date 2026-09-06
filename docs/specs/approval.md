@@ -79,11 +79,16 @@ pub fn approve(
     request: &ApprovalRequest,
     policy: &ApprovalPolicy,
     grants: &[StandingGrant],
+    refusals: &[RememberedRefusal],
     roster: &Roster<'_>,
     desks: &DeskSet<'_>,
     now: Millis,
 ) -> ApprovalDecision
 ```
+
+`refusals` is the host's snapshot of this epoch's remembered refusals, read the
+same way `grants` is: the caller already holds it, and the pure fold cannot
+enforce step 6 of [Evaluation order](#evaluation-order) without it.
 
 It returns `ApprovalDecision`, not `Result<ApprovalDecision>`. That is a
 deliberate departure from this crate's rule that fallible public functions
