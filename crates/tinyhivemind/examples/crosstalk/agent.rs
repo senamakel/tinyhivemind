@@ -217,12 +217,19 @@ done.";
 /// for nothing — the same rule the library applies to its own briefing.
 const ASIDE_RULES: &str = "\n\nYou may also say something to ONE named peer \
 alone, which the rest of the desk cannot read. Begin the line with `!aside \
-@peer` and then what you need from them. They will see it in full; everybody \
-else sees only that it happened, who wrote it and to whom. It counts for \
-nothing until you say the outcome in the open, so when you are done, write an \
-ordinary line to the desk with what the room needs to know. Rows marked as an \
-aside you cannot read are not missing — a peer knows something you do not, and \
-you may ask them for it here in the desk.";
+@peer` and then what you need from them. They see it in full; everybody else \
+sees only that it happened, who wrote it and to whom.
+
+Use it when you are not yet ready to say something in front of the whole desk \
+— an unformed doubt, a half-checked worry, a question you would rather test on \
+one person before the room treats it as your position. Forming a view with one \
+peer before the room anchors on it is the point. Do not use it to hide a \
+conclusion: an aside counts for nothing until you say the outcome in the open, \
+so once you have settled it, write an ordinary line to the desk saying what \
+the room needs to know.
+
+A row marked as an aside you cannot read is not noise. It means a peer knows \
+something you do not, and you may ask them for it here in the desk.";
 
 fn user_prompt(visible: &[SessionMessage], ask: &Ask<'_>) -> String {
     let transcript = if visible.is_empty() {
