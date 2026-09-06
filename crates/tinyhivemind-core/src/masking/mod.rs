@@ -228,8 +228,37 @@ fn indentation_width(content: &str) -> usize {
     width
 }
 
+/// Whether a line, with its line ending already stripped, is `CommonMark`
+/// blank: nothing but spaces and tabs. `str::trim` is not this rule — it
+/// treats any Unicode whitespace as blank, including a non-breaking space,
+/// which `CommonMark` does not.
+fn is_blank_line(content: &str) -> bool {
+    content.bytes().all(|byte| matches!(byte, b' ' | b'\t'))
+}
+
+/// The byte ranges of every `CommonMark` blank line in `body`, line ending
+/// included.
+///
+/// A blank line ends a paragraph, so an inline span search must not cross
+/// one: `` ` `` on one line and `` ` `` on a line after a blank one open and
+/// close unrelated, unmatched spans in separate paragraphs, not one span
+/// spanning both.
+fn blank_line_ranges(body: &str) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::new();
+    let mut line_start = 0;
+    for line in body.split_inclusive('\n') {
+        let content = line.trim_end_matches(['\n', '\r']);
+        if is_blank_line(content) {
+            ranges.push((line_start, line_start + line.len()));
+        }
+        line_start += line.len();
+    }
+    ranges
+}
+
 fn inline_ranges(body: &str, fenced: &[(usize, usize)]) -> Vec<(usize, usize)> {
     let bytes = body.as_bytes();
+    let blank_lines = blank_line_ranges(body);
     let mut ranges = Vec::new();
     let mut offset = 0;
     while offset < bytes.len() {
@@ -251,11 +280,11 @@ fn inline_ranges(body: &str, fenced: &[(usize, usize)]) -> Vec<(usize, usize)> {
         let mut candidate = offset + run;
         let mut closing = None;
         while candidate < bytes.len() {
-            // A fenced block ends the paragraph this opener lives in, so the
-            // search for a closing run must not cross it: pairing across a
-            // fenced block would mask live text after the block as if it
-            // were still inside this opener's inline span.
-            if is_masked(candidate, fenced) {
+            // A fenced block or a blank line ends the paragraph this opener
+            // lives in, so the search for a closing run must not cross
+            // either: pairing across one would mask live text on the far
+            // side as if it were still inside this opener's inline span.
+            if is_masked(candidate, fenced) || is_masked(candidate, &blank_lines) {
                 break;
             }
             if bytes[candidate] != b'`' {
