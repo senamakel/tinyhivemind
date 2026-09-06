@@ -6,6 +6,7 @@ use super::*;
 use crate::{Sequence, SessionFuture, SessionPage, SourceError};
 use std::{collections::VecDeque, io, sync::Mutex};
 use tinyhivemind_core::select::MatchKind;
+use tinyhivemind_core::aside::Audience;
 
 #[derive(Debug)]
 struct FakeLog {
@@ -63,6 +64,7 @@ fn message(sequence: u64, chat: Option<&str>, parent: Option<u64>, content: &str
         author: agent("alice"),
         content: content.to_owned(),
     }
+    audience: Audience::Desk,
 }
 
 fn conversation(thread_root: Option<u64>) -> Conversation {
@@ -165,6 +167,7 @@ async fn matches_an_operator_and_a_system_row_by_author_id() {
                 label: "Workflow".into(),
             },
             ..message(2, None, None, "ship it")
+            audience: Audience::Desk,
         },
     ])]);
     let by_system = search_messages(&log, &SearchQuery::new("ship").by_author("workflow"))

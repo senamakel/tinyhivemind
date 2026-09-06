@@ -5,6 +5,7 @@
 use super::*;
 use crate::Error;
 use std::{
+use tinyhivemind_core::aside::Audience;
     collections::VecDeque,
     io,
     sync::{Arc, Mutex},
@@ -94,6 +95,7 @@ fn message(sequence: u64, chat: Option<&str>, parent: Option<u64>, content: &str
         },
         content: content.into(),
     }
+    audience: Audience::Desk,
 }
 
 fn page(messages: Vec<LogMessage>, next: Option<u64>) -> SessionPage {
@@ -159,6 +161,7 @@ fn session_records_pin_their_wire_shape() {
         parent: Some(Sequence(4)),
         author: SessionAuthor::Operator,
         content: "hello".into(),
+        audience: Audience::Desk,
     };
     assert_wire_round_trip(
         &raw,
@@ -191,6 +194,8 @@ fn session_records_pin_their_wire_shape() {
             sequence: Sequence(9),
             author: SessionAuthor::Operator,
             content: "hello".into(),
+            audience: Audience::Desk,
+            elided: None,
         },
         serde_json::json!({
             "sequence": 9,

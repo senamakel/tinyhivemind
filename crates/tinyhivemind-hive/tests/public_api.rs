@@ -15,6 +15,7 @@ use tinyhivemind_hive::{
 // The runtime and the pure algebra arrive through this crate, so a host takes
 // one dependency and the types it hands to `step` are the same types.
 use tinyhivemind_hive::{
+use tinyhivemind::aside::Audience;
     Conversation, Sequence, SessionAuthor, SessionMessage,
     desk::{Desk, DeskSet, ResponderMode},
     roster::{Roster, RosterMember},
@@ -33,6 +34,8 @@ fn said(sequence: u64, id: &str, content: &str) -> SessionMessage {
         author: agent(id),
         content: content.into(),
     }
+    audience: Audience::Desk,
+    elided: None,
 }
 
 #[test]
@@ -154,6 +157,8 @@ fn a_blind_turn_withholds_a_peer_position_through_the_public_api() {
             sequence: Sequence(1),
             author: SessionAuthor::Operator,
             content: "the task".into(),
+            audience: Audience::Desk,
+            elided: None,
         },
         said(2, "planner", "my own position"),
         said(3, "critic", "a peer position"),

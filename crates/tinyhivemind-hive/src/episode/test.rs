@@ -6,6 +6,7 @@ use super::*;
 
 use crate::{attention::BidReason, directory::DirectoryPolicy, trace::TopicId};
 use tinyhivemind::{
+use tinyhivemind::aside::Audience;
     Conversation, Sequence,
     desk::{Desk, DeskSet, ResponderMode},
     roster::{Roster, RosterMember},
@@ -51,6 +52,8 @@ fn said(sequence: u64, author: &str, content: &str) -> SessionMessage {
         },
         content: content.into(),
     }
+    audience: Audience::Desk,
+    elided: None,
 }
 
 fn operator(sequence: u64, content: &str) -> SessionMessage {
@@ -59,6 +62,8 @@ fn operator(sequence: u64, content: &str) -> SessionMessage {
         author: SessionAuthor::Operator,
         content: content.into(),
     }
+    audience: Audience::Desk,
+    elided: None,
 }
 
 struct Room {
@@ -559,6 +564,8 @@ fn a_blind_turn_hides_peers_but_keeps_the_task_and_its_own_work() {
                 label: "CI".into(),
             },
             content: "build green".into(),
+            audience: Audience::Desk,
+            elided: None,
         },
     ];
     let turn = HiveTurn {

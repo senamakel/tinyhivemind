@@ -5,6 +5,7 @@
 use super::*;
 use crate::{SessionAuthor, SessionFuture, SessionPage, SourceError};
 use std::{collections::VecDeque, io, sync::Mutex};
+use tinyhivemind_core::aside::Audience;
 
 #[derive(Debug)]
 struct FakeLog {
@@ -63,6 +64,7 @@ fn message(sequence: u64, chat: Option<&str>, parent: Option<u64>, content: &str
         author: SessionAuthor::Operator,
         content: content.into(),
     }
+    audience: Audience::Desk,
 }
 
 fn page(messages: Vec<LogMessage>, next: Option<u64>) -> SessionPage {

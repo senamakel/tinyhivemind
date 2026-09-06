@@ -8,6 +8,7 @@ use crate::{
 };
 use std::io;
 use tinyhivemind_core::{
+use tinyhivemind_core::aside::Audience;
     desk::{Desk, DeskMember, DeskOrder, ResponderMode},
     roster::{Person, RosterMember},
 };
@@ -142,6 +143,8 @@ fn initialization_pins_its_wire_shape() {
             sequence: Sequence(4),
             author: SessionAuthor::Operator,
             content: "hello".into(),
+            audience: Audience::Desk,
+            elided: None,
         }],
     };
     let initialization_json = serde_json::json!({
@@ -397,6 +400,7 @@ async fn initialization_keeps_briefing_separate_from_history() {
         parent: None,
         author: SessionAuthor::Operator,
         content: "hello".into(),
+        audience: Audience::Desk,
     };
     let query = SessionQuery {
         conversation: named_conversation(),
@@ -437,6 +441,7 @@ fn desk_row(sequence: u64, parent: Option<u64>, content: &str) -> LogMessage {
         author: SessionAuthor::Operator,
         content: content.into(),
     }
+    audience: Audience::Desk,
 }
 
 fn viewer_briefing() -> TeamBriefing {

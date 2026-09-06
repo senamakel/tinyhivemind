@@ -7,6 +7,7 @@ use crate::{
     Conversation, Error, LogMessage, SessionAuthor, SessionFuture, SessionPage, SourceError,
 };
 use std::{
+use tinyhivemind_core::aside::Audience;
     collections::{BTreeSet, VecDeque},
     io,
     sync::{Arc, Mutex},
@@ -76,6 +77,7 @@ fn raw(sequence: u64, chat: Option<&str>, parent: Option<u64>, content: &str) ->
         },
         content: content.into(),
     }
+    audience: Audience::Desk,
 }
 
 fn page(messages: Vec<LogMessage>, next: Option<u64>) -> SessionPage {
@@ -143,6 +145,8 @@ fn sharing_values_pin_deterministic_wire_shapes() {
             sequence: Sequence(11),
             author: SessionAuthor::Operator,
             content: "new".into(),
+            audience: Audience::Desk,
+            elided: None,
         }],
         next_state: state.clone(),
     };

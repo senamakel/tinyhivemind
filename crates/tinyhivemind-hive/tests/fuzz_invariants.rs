@@ -3,6 +3,7 @@
 #![allow(clippy::expect_used)]
 
 use tinyhivemind_hive::{
+use tinyhivemind::aside::Audience;
     Conversation, DirectoryPolicy, EpisodePolicy, EpisodeState, QuorumPolicy, SalienceWeights,
     Sequence, SessionAuthor, SessionMessage, TRACE_CAP,
     attention::{BidContext, bids},
@@ -86,6 +87,8 @@ fn arbitrary_transcripts_have_stable_well_formed_and_idempotent_folds() {
                 sequence: Sequence(case * 16 + index),
                 author: author(index),
                 content: content(&mut state),
+                audience: Audience::Desk,
+                elided: None,
             })
             .collect();
         let traces = read(&messages);

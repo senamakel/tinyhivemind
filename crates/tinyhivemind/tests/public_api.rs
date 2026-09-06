@@ -3,6 +3,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use tinyhivemind::{
+use tinyhivemind_core::aside::Audience;
     Conversation, EnqueueOutcome, EnqueueRefusal, MentionDispatchOutcome, PAGE_SIZE,
     PRESENT_SET_LIMIT, SCAN_LIMIT, SESSION_WINDOW, Sequence, SessionAuthor, SessionMessage,
     initialized_state, note_present,
@@ -20,6 +21,8 @@ fn root_exports_runtime_records_and_constants() {
         sequence: Sequence(4),
         author: SessionAuthor::Operator,
         content: "hello".into(),
+        audience: Audience::Desk,
+        elided: None,
     };
     assert_eq!(conversation.thread_root, Some(Sequence(3)));
     assert_eq!(message.sequence, Sequence(4));
@@ -122,6 +125,7 @@ fn root_exports_the_pin_fold_and_its_briefing_note() {
             parent: None,
             author: SessionAuthor::Operator,
             content: "the rate limiter resets at midnight UTC".into(),
+            audience: Audience::Desk,
         },
         LogMessage {
             sequence: Sequence(2),
@@ -129,6 +133,7 @@ fn root_exports_the_pin_fold_and_its_briefing_note() {
             parent: None,
             author: SessionAuthor::Operator,
             content: "!pin ^1 #limits keep this".into(),
+            audience: Audience::Desk,
         },
     ];
     let board = fold_pins(&rows, PIN_LIMIT);

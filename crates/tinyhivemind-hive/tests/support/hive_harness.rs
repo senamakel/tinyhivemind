@@ -9,6 +9,7 @@
 
 use tinyhivemind::{Conversation, Sequence, SessionAuthor, SessionMessage};
 use tinyhivemind_hive::{
+use tinyhivemind::aside::Audience;
     EpisodePolicy, EpisodeState, HiveStep, HiveTurn,
     desk::{Desk, DeskSet, ResponderMode},
     project_for,
@@ -118,6 +119,8 @@ impl HiveHarness {
             sequence,
             author,
             content: content.into(),
+            audience: Audience::Desk,
+            elided: None,
         });
         sequence
     }
