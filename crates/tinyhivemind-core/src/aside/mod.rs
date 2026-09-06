@@ -27,14 +27,10 @@ mod test;
 
 mod types;
 
-pub use types::{Audience, AsideDecision, AsideInput, AsidePolicy, NoAsideReason, Viewer};
+pub use types::{AsideDecision, AsideInput, AsidePolicy, Audience, NoAsideReason, Viewer};
 
 use crate::{
-    chat::is_general_chat,
-    desk::DeskSet,
-    error::Result,
-    mention::MentionTarget,
-    roster::Roster,
+    chat::is_general_chat, desk::DeskSet, error::Result, mention::MentionTarget, roster::Roster,
 };
 
 /// Decide whether one authored message may address fewer readers than its desk.
@@ -141,5 +137,5 @@ fn on_desk(agent_id: &str, desk_id: &str, desks: &DeskSet<'_>) -> bool {
     }
     desks
         .members(desk_id)
-        .is_ok_and(|members| members.iter().any(|member| *member == agent_id))
+        .is_ok_and(|members| members.contains(&agent_id))
 }

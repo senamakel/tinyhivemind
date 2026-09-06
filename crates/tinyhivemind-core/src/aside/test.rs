@@ -108,7 +108,11 @@ fn addresses_one_peer_by_mention() {
 fn keeps_addressed_peers_in_reading_order_without_repeats() {
     let audience = audience_of(
         policy(),
-        &input(vec![mention("carol", 9), mention("bob", 2), mention("carol", 20)]),
+        &input(vec![
+            mention("carol", 9),
+            mention("bob", 2),
+            mention("carol", 20),
+        ]),
     );
     assert_eq!(
         audience,
@@ -122,7 +126,10 @@ fn keeps_addressed_peers_in_reading_order_without_repeats() {
 fn drops_the_author_from_its_own_audience() {
     // Naming yourself neither widens nor narrows: an author reads its own row
     // by definition, so `@alice @bob` is an aside with bob.
-    let audience = audience_of(policy(), &input(vec![mention("alice", 0), mention("bob", 7)]));
+    let audience = audience_of(
+        policy(),
+        &input(vec![mention("alice", 0), mention("bob", 7)]),
+    );
     assert_eq!(
         audience,
         Audience::Aside {
@@ -222,7 +229,10 @@ fn an_unresolvable_target_stops_the_decision_rather_than_being_skipped() {
     // The audience the author wrote is not the audience left after quietly
     // dropping the names that did not resolve.
     assert_eq!(
-        refused(policy(), &input(vec![mention("dave", 0), mention("bob", 9)])),
+        refused(
+            policy(),
+            &input(vec![mention("dave", 0), mention("bob", 9)])
+        ),
         NoAsideReason::TargetNotOnDesk,
     );
 }
