@@ -171,20 +171,28 @@ the fence line rather than to the marker. It is not §1.4's whitespace rule,
 where a marker's own leading indentation is stripped with `str::trim_start` and
 any Unicode whitespace counts.
 
-### The one asymmetry, and why it is deliberate
+### The asymmetry that turned out not to be one
 
-The masker offers two levels, and a grammar takes the level its markers need.
-This grammar and the pin grammar take `fenced_ranges`, which masks fenced
-blocks only. The mention grammar takes `code_ranges`, which masks those **and**
-inline code spans.
+Both a mention and a marker resolve against `code_ranges`, which masks fenced
+and indented blocks *and* inline code spans — every authored grammar in this
+workspace reads the same, single level. That was not the original design: a
+line-leading grammar was expected to need `fenced_ranges` alone, on the
+reasoning that a marker preceded by a backtick *on its own line* is by
+definition not line-leading —
+`a_backticked_marker_is_not_line_leading_and_needs_no_masking` still covers
+exactly that case, and still needs no masking to reject it, because
+`parse_line` never sees a line starting with `!` in the first place.
 
-That is the *level* of masking, not the fence rules, and it follows from where
-each marker may appear. A mention sits inside a sentence, so `` `@alice` `` is
-a name in prose about a name and has to be masked. A trace marker and a pin
-directive only count at the start of a line, and a marker preceded by a
-backtick is by definition not line-leading —
-`a_backticked_marker_is_not_line_leading_and_needs_no_masking` — so inline
-masking would buy them nothing but a second scan over every body.
+The reasoning held for a same-line backtick and broke for a multi-line one. An
+inline span opened on one line and closed on a later one quotes every whole
+line in between, `CommonMark`-visible newlines and all, so a marker on an
+*interior* line of that span has no backtick on its own line yet is still
+inside quoted code — `run` `` ` `` on one line, `!pin ^1` on the next, `` ` ``
+`carefully` on the one after that renders as one inline span with `!pin ^1` as
+its (space-joined) content, not as a line-leading directive. Masking on
+fences alone let such a marker fire as though it were unquoted; taking
+`code_ranges` instead closes that hole for every grammar the same way, with no
+per-grammar special case for "unless the span spans more than one line."
 
 ## 3. Parsing one marker line
 
