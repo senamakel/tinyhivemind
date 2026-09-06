@@ -135,7 +135,13 @@ renderer gets the masking they can see:
 - an indented block cannot interrupt a paragraph, so the indented opener must
   be the body's first line or follow a blank one — a wrapped, indented
   continuation line right after live text is lazy continuation of that
-  paragraph, not a new block, and stays live.
+  paragraph, not a new block, and stays live;
+- the four columns are measured from the message's left margin, not from
+  inside a list or blockquote container the way a full `CommonMark` parser
+  measures them. A marker quoted at exactly four raw columns inside a list
+  item can therefore be masked differently than a renderer would show it —
+  a known, accepted limitation of a lexical scanner rather than a block-level
+  parser, not a bug to chase further.
 
 A line is masked when its **start offset** falls inside a range, which also
 means the fence lines themselves are inside the range.
