@@ -104,12 +104,12 @@ end in whitespace.
 
 ## 2. Fence masking
 
-Fences are found by `tinyhivemind_core::masking::fenced_ranges`, and that is
-the **one scanner every authored grammar in this workspace shares**: the
-mention grammar of `tinyhivemind-core`, this one, and the `!pin` / `!unpin`
-directives of `tinyhivemind::pins` all call the same code. A span one grammar
-reads as code is therefore the same span the others read as code, and a marker
-one grammar treats as quoted documentation cannot be a live instruction to
+Code is found by `tinyhivemind_core::masking::code_ranges`, and that is the
+**one scanner every authored grammar in this workspace shares**: the mention
+grammar of `tinyhivemind-core`, this one, and the `!pin` / `!unpin` directives
+of `tinyhivemind::pins` all call the same code. A span one grammar reads as
+code is therefore the same span the others read as code, and a marker one
+grammar treats as quoted documentation cannot be a live instruction to
 another.
 
 Its rules are CommonMark's, so an author who formats a message for a Markdown
