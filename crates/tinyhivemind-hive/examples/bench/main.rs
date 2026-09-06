@@ -102,7 +102,9 @@ use crate::metrics::{
     paired_diff_line, spearman_milli, wilson,
 };
 use crate::rng::mix;
-use crate::run::{AsideMode, Participant, drive, run_episode, run_episode_with};
+use crate::run::{
+    AsideMode, Participant, drive, run_episode, run_episode_checking, run_episode_with,
+};
 use crate::scenario::{Scenario, ScenarioAgent};
 use crate::sim::{Expertise, Room, SPECIALIST_COST_UNIT};
 use crate::swarm::{Channel, SwarmMember, SwarmReport, pooled, run_swarm};
