@@ -26,8 +26,11 @@ neutral roster record.
    offsets, using the shared `masking::code_ranges` scanner. A mention is
    mid-line, so it needs inline spans masked as well as fenced blocks; a
    line-leading grammar such as the hive's traces takes `masking::fenced_ranges`
-   from the same module instead, and the two therefore cannot disagree about
-   which span of a body is code.
+   from the same module instead and intentionally omits inline-code masking,
+   since a marker that only counts at the start of a line can never be inside
+   an inline span. The two scanners therefore cannot disagree about which span
+   of a body is a *fenced* block — the level both grammars share — even though
+   only this one also masks inline spans.
 4. Extract authored spans, or validate supplied spans when the host has already
    parsed them.
 5. Sort in reading order, remove self and duplicate-offset entries, quiet
