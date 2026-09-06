@@ -7,7 +7,12 @@ mod types;
 
 pub use types::{Mention, MentionAuthor, MentionTarget};
 
-use crate::{chat::is_general_chat, desk::DeskSet, roster::Roster};
+use crate::{
+    chat::is_general_chat,
+    desk::DeskSet,
+    masking::{code_ranges, is_masked},
+    roster::Roster,
+};
 
 /// Maximum number of mentions in one message that may remain pinging.
 pub const MENTION_CAP: usize = 50;
@@ -373,106 +378,4 @@ fn opens_at(body: &str, offset: usize) -> bool {
 
 fn closes_alias(character: char) -> bool {
     character.is_whitespace() || ",;.?!:)]}'\"".contains(character)
-}
-
-fn is_masked(offset: usize, ranges: &[(usize, usize)]) -> bool {
-    ranges
-        .iter()
-        .any(|(start, end)| *start <= offset && offset < *end)
-}
-
-fn code_ranges(body: &str) -> Vec<(usize, usize)> {
-    let mut ranges = fenced_ranges(body);
-    ranges.extend(inline_ranges(body, &ranges));
-    ranges.sort_unstable();
-    ranges
-}
-
-fn inline_ranges(body: &str, fenced: &[(usize, usize)]) -> Vec<(usize, usize)> {
-    let bytes = body.as_bytes();
-    let mut ranges = Vec::new();
-    let mut offset = 0;
-    while offset < bytes.len() {
-        if let Some((_, end)) = fenced
-            .iter()
-            .find(|(start, end)| *start <= offset && offset < *end)
-        {
-            offset = *end;
-            continue;
-        }
-        if bytes[offset] != b'`' {
-            offset += 1;
-            continue;
-        }
-        let run = bytes[offset..]
-            .iter()
-            .take_while(|byte| **byte == b'`')
-            .count();
-        let mut candidate = offset + run;
-        let mut closing = None;
-        while candidate < bytes.len() {
-            if is_masked(candidate, fenced) || bytes[candidate] != b'`' {
-                candidate += 1;
-                continue;
-            }
-            let closing_run = bytes[candidate..]
-                .iter()
-                .take_while(|byte| **byte == b'`')
-                .count();
-            if closing_run == run {
-                closing = Some(candidate + closing_run);
-                break;
-            }
-            candidate += closing_run;
-        }
-        if let Some(end) = closing {
-            ranges.push((offset, end));
-            offset = end;
-        } else {
-            offset += run;
-        }
-    }
-    ranges
-}
-
-fn fenced_ranges(body: &str) -> Vec<(usize, usize)> {
-    let mut ranges = Vec::new();
-    let mut open: Option<(usize, u8, usize)> = None;
-    let mut line_start = 0;
-    for line in body.split_inclusive('\n') {
-        let trimmed = line.trim_start_matches(' ');
-        let indent = line.len() - trimmed.len();
-        if indent <= 3 {
-            let marker = trimmed.as_bytes().first().copied();
-            if matches!(marker, Some(b'`' | b'~')) {
-                let marker = marker.unwrap_or_default();
-                let run = trimmed
-                    .as_bytes()
-                    .iter()
-                    .take_while(|byte| **byte == marker)
-                    .count();
-                if run >= 3 {
-                    match open {
-                        None if marker == b'~' || !trimmed[run..].contains('`') => {
-                            open = Some((line_start, marker, run));
-                        }
-                        Some((start, open_marker, open_run))
-                            if marker == open_marker
-                                && run >= open_run
-                                && trimmed[run..].trim().is_empty() =>
-                        {
-                            ranges.push((start, line_start + line.len()));
-                            open = None;
-                        }
-                        None | Some(_) => {}
-                    }
-                }
-            }
-        }
-        line_start += line.len();
-    }
-    if let Some((start, _, _)) = open {
-        ranges.push((start, body.len()));
-    }
-    ranges
 }
