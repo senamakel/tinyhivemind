@@ -92,6 +92,14 @@ fn generous() -> ExchangePolicy {
 }
 
 #[test]
+fn the_derived_default_is_the_named_one() {
+    // `Default` and `DEFAULT` must not drift apart: a host writing
+    // `ExchangePolicy::default()` and one writing `ExchangePolicy::DEFAULT`
+    // have to get the same disabled policy.
+    assert_eq!(ExchangePolicy::default(), ExchangePolicy::DEFAULT);
+}
+
+#[test]
 fn the_default_policy_opens_no_round() {
     // Off is the past, exactly: a host that has not asked for the mechanism
     // gets an episode indistinguishable from one taken before it existed.
