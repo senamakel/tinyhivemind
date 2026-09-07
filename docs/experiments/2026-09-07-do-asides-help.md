@@ -111,6 +111,16 @@ worth, it is worth the same whether one member reads the answer or five do.
 `hive+aside` to the decimal in every configuration. The peer it reaches is not
 what is wrong.
 
+**Retracted.** `View::grounded_by` returned the first `!evidence` author on the
+topic rather than the one grounding it, so under `--blind-evidence` the
+"aimed" check almost never reached the fact-holder — measured at 22% against
+25% for a peer drawn at random. This answer is measuring an arm that never
+aimed. [`2026-09-07-why-asides-lose.md`](2026-09-07-why-asides-lose.md) fixes
+the targeting and reruns it: aimed at the actual fact-holder, `hive+aside!`
+loses `-17.1`, *worse* than every matched-turn control including `hive+mute`.
+The peer it reaches turned out to be exactly what was wrong, once it actually
+reached one.
+
 ## A correction, and what it did not change
 
 The first published version of this note answered a check with
