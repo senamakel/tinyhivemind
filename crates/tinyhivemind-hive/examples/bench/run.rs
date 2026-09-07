@@ -486,6 +486,10 @@ pub(crate) fn run_episode_with(
 /// is what *one participant* has to carry, and a protocol whose cost is
 /// "everybody holds everything" is expensive per member precisely because the
 /// room is large.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "a room with more members than an f64 can count is not a room"
+)]
 fn mean_context_rows(agents: &[&mut dyn Participant]) -> f64 {
     if agents.is_empty() {
         return 0.0;
