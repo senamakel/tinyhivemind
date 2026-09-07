@@ -783,7 +783,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
     );
 
     let (totals, wall) = run_arms(options, rooms)?;
-    let arms: [(&str, &Aggregate); 16] = [
+    let arms: [(&str, &Aggregate); 17] = [
         ("ladder", &totals.ladder),
         ("vote", &totals.vote),
         ("hive", &totals.hive_default),
@@ -801,6 +801,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
         ("hive+ask", &totals.hive_ask),
         ("hive+aside!", &totals.hive_aside_informed),
         ("hive+fact", &totals.hive_aside_fact),
+        ("hive+mute", &totals.hive_aside_mute),
         ("hive+fact°", &totals.hive_aside_offfloor),
         ("hive+pooled", &totals.hive_pooled),
     ];
@@ -838,6 +839,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
         ("hive+ask", &totals.hive_ask),
         ("hive+aside!", &totals.hive_aside_informed),
         ("hive+fact", &totals.hive_aside_fact),
+        ("hive+mute", &totals.hive_aside_mute),
         ("hive+fact°", &totals.hive_aside_offfloor),
         ("hive+pooled", &totals.hive_pooled),
     ]
@@ -914,6 +916,8 @@ struct Totals {
     /// The aimed private exchange, carrying the fact that rules an option out
     /// rather than a reading of it to be averaged.
     hive_aside_fact: Aggregate,
+    /// The same exchange on the same turns, with the answer discarded.
+    hive_aside_mute: Aggregate,
     /// The aimed, fact-carrying exchange again, held off the floor: the same
     /// bounded number of contacts, spending no turn the room could have
     /// deliberated with.
@@ -1002,8 +1006,7 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
             0,
             AsideMode::Private,
             options.aside_cap,
-            false,
-            false,
+            CheckStyle::PLAIN,
         )?);
         totals.hive_ask.add(&run_episode_checking(
             room,
@@ -1013,8 +1016,7 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
             0,
             AsideMode::Public,
             options.aside_cap,
-            false,
-            false,
+            CheckStyle::PLAIN,
         )?);
         // The informed variant: the check goes to whoever the room has heard
         // ground this option. It exists to close the obvious objection to a
@@ -1027,8 +1029,7 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
             0,
             AsideMode::Private,
             options.aside_cap,
-            true,
-            false,
+            CheckStyle::AIMED,
         )?);
         // The same aimed exchange, carrying the fact rather than a number.
         // This is the arm that asks whether an aside is worth anything once
@@ -1041,8 +1042,21 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
             0,
             AsideMode::Private,
             options.aside_cap,
-            true,
-            true,
+            CheckStyle::FACT,
+        )?);
+        // The matched-turn control the comparison always needed: the same
+        // words on the same turns, with the answer thrown away. What it
+        // loses against `hive+` is what the turns cost; what any arm above
+        // gains over it is what the answer is worth.
+        totals.hive_aside_mute.add(&run_episode_checking(
+            room,
+            &tuned,
+            TASK,
+            false,
+            0,
+            AsideMode::Private,
+            options.aside_cap,
+            CheckStyle::MUTE,
         )?);
         // The ceiling. Every reading and every fact is already in every
         // member's hands when the episode opens, and the episode itself is
@@ -1051,7 +1065,7 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
         // The same bounded exchange as `hive+fact`, held off the floor. It
         // isolates what the check is worth from what its turns cost.
         totals.hive_aside_offfloor.add(&run_episode(
-            &room.pre_checked(options.aside_cap, std::env::var("BENCH_OFFFLOOR_READING_ONLY").is_err()),
+            &room.pre_checked(options.aside_cap, true),
             &tuned,
             TASK,
             false,
