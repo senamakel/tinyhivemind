@@ -102,10 +102,19 @@ pub fn exchange(
     // What the episode may still write in total, so a host can size a round
     // without recomputing the fold. Saturating because a host that exceeded
     // its authorization should read zero rather than wrap.
-    let remaining = members
+    //
+    // Clamped by the rounds still open: each remaining round authorizes at
+    // most one row per eligible member, so a generous `contact_cap` must not
+    // be reported as reachable when `round_cap` would close the episode
+    // first. Without this clamp a host sizing its remaining budget off this
+    // field alone would overallocate.
+    let by_contact_cap = members
         .iter()
         .map(|id| policy.contact_cap.saturating_sub(contacts_of(&spent, id)))
         .fold(0_u32, u32::saturating_add);
+    let rounds_left = policy.round_cap.saturating_sub(rounds);
+    let by_round_cap = rounds_left.saturating_mul(u32::try_from(members.len()).unwrap_or(u32::MAX));
+    let remaining = by_contact_cap.min(by_round_cap);
 
     Ok(ExchangeRound::Open {
         members: eligible,
