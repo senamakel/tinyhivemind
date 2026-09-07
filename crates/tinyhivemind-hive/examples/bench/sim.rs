@@ -1093,9 +1093,20 @@ impl SimAgent {
         true
     }
 
-    /// Give this member a window, and clear what it was holding in the old one.
+    /// Give this member a window to read what it holds through.
+    ///
+    /// Recomputes the favourite, and must. `Room::pooled` and
+    /// `Room::pre_checked` install what a member has absorbed *before* the
+    /// episode starts and `recompute_favourite` caches the argmax as they go —
+    /// so a budget applied afterwards would narrow `score` while leaving
+    /// `favourite` pointing at whatever the member preferred when it could
+    /// still read everything. Every turn reads `favourite`, so the window
+    /// would have been charged for and then ignored, which is exactly what the
+    /// first run of `--context-sweep` showed: `hive+pooled` scoring an
+    /// identical 89.4% at a four-row window as at an unbounded one.
     pub(crate) fn set_budget(&mut self, budget: ContextBudget) {
         self.budget = budget;
+        self.recompute_favourite();
     }
 
     /// Install a fact that rules an option out, occupying a row to do it.
