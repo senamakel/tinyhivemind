@@ -42,7 +42,9 @@ No new port, no waiting, no second journal, and no change to `step`.
 6. Wire the harness: `AsideMode::OffFloor`, `Participant::exchange`, one round
    between turns, and `--exchange-cap` as a knob separate from `--aside-cap`
    because it bounds model calls rather than the room's turns.
-7. Add the `private/ep` column, kept out of `cost/ep` — which is defined as each
+7. Add the `calls/ep` column, counting members *asked* rather than rows written
+   because a declined round costs the same call as a productive one, and kept
+   out of `cost/ep` — which is defined as each
    speaker's own cost times its turns and is asserted to be exactly that — so
    the price of an exchange cannot hide inside an existing number.
 8. Add the silence controls `hive+quiet` and `hive+hush`, which write the

@@ -222,7 +222,7 @@ what one oracle-aimed contact each reaches off the floor (`hive+fact°`, `+3.2`)
 is the version a host could actually run.
 
 **It is not free, and the table says so.** A round is *n* model calls, and the
-`private/ep` column exists so the price sits beside the gain rather than inside
+`calls/ep` column exists so the price sits beside the gain rather than inside
 `cost/ep`, which is defined as each speaker's own cost times its turns. The curve
 is the honest way to read the mechanism:
 
@@ -281,7 +281,8 @@ and **throw every answer away**:
 | `hive+quiet` | `hive+rounds`' rows, saying nothing | `+0.0 [+0.0, +0.0]` |
 
 Zero, exactly, in every configuration — including `hive+quiet`, which writes
-twenty rows an episode. The concern is a real mechanism and an empty one here:
+forty-five calls an episode. The concern is a real mechanism and an empty one
+here:
 **every point any exchange arm gains is information, not perturbation.**
 
 The reason differs between the two, which is why both were run. An exchange
