@@ -3,7 +3,8 @@
 **Date:** 2026-09-07
 **Status:** Recorded
 **Code:** `crates/tinyhivemind-hive/examples/bench` — arms `hive+mute`,
-`hive+fact`, `hive+fact°`, `hive+pooled`
+`hive+fact`, `hive+along`, `hive+share`, `hive+fact°`, `hive+pooled`
+**Decision:** [ADR 0011](../adr/0011-an-aside-rides-alongside-a-turn.md)
 **Follows:** [`2026-09-07-do-asides-help.md`](2026-09-07-do-asides-help.md)
 
 **Peer-to-peer information is worth +9 to +21 points. Spending a floor turn to
@@ -26,6 +27,8 @@ the explanation does not survive them.
 | --- | --- |
 | `hive+mute` | the identical check on the identical turns, with the answer **discarded**. What it loses against `hive+` is what the turns cost. |
 | `hive+fact` | the aimed check, carrying the fact that rules an option out rather than a number to be averaged. |
+| `hive+along` | the aimed, fact-carrying check again, **riding alongside** the member's floor move: one turn, two rows, the second of which the episode cannot see. |
+| `hive+share` | the same free row spent **continuously** — a contact on every turn, carrying a reading of every option rather than an answer to one. |
 | `hive+fact°` | the same bounded exchange, held **off the floor** — before the episode opens, spending no turn the room could have deliberated with. |
 | `hive+pooled` | the **ceiling**: every reading and every fact already in every member's hands, free. No protocol beats it. |
 
@@ -44,6 +47,8 @@ Paired bootstrap against `hive+` over the same rooms, 2000 resamples.
 | `hive+aside!` | 79.6 | 81.6 | 50.9 |
 | `hive+fact` | 79.6 | 81.6 | 53.0 |
 | `hive+mute` | 79.6 | 81.5 | 52.3 |
+| `hive+along` | 82.1 | 81.8 | 68.5 |
+| `hive+share` | 82.1 | 81.7 | 69.9 |
 | `hive+fact°` | 80.9 | 81.5 | 71.0 |
 | `hive+pooled` | **91.5** | **91.6** | **89.2** |
 
@@ -52,14 +57,18 @@ hidden profile, budget 40
   hive+mute   − hive+:   -15.7 [-17.6, -13.8]     the turns alone
   hive+aside  − hive+:   -15.4 [-17.1, -13.4]
   hive+fact   − hive+:   -15.0 [-16.9, -13.1]
-  hive+fact°  − hive+:    +3.0 [ +2.0,  +4.0]     the same exchange, off the floor
-  hive+pooled − hive+:   +21.2 [+19.2, +23.2]     the ceiling
+  hive+along  − hive+:    +0.5 [ +0.1,  +1.0]     the same exchange, riding along
+  hive+share  − hive+:    +1.9 [ +0.8,  +3.0]     a contact every turn, carrying everything
+  hive+fact°  − hive+:    +3.0 [ +2.1,  +4.0]     the same exchange, off the floor
+  hive+pooled − hive+:   +21.2 [+19.3, +23.3]     the ceiling
 
 uniform, budget 15
   hive+mute   − hive+:    -2.5 [-3.0, -2.1]
   hive+aside  − hive+:    -2.5 [-3.0, -2.0]
-  hive+fact°  − hive+:    -1.2 [-2.2, -0.1]
-  hive+pooled − hive+:    +9.4 [+8.5, +10.4]
+  hive+along  − hive+:    +0.0 [+0.0, +0.1]
+  hive+share  − hive+:    +0.0 [-0.1, +0.2]
+  hive+fact°  − hive+:    -1.2 [-2.2, -0.2]
+  hive+pooled − hive+:    +9.4 [+8.6, +10.4]
 ```
 
 ## What this settles
