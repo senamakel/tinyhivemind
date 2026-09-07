@@ -705,6 +705,37 @@ fn exchange_policy(contact_cap: u32, round_cap: u32) -> ExchangePolicy {
     }
 }
 
+/// Append one authorized turn, and the private row riding alongside it.
+///
+/// Durably append the turn, then the caller commits the state it returned:
+/// that ordering is what the `next_state` contract requires. The aside is
+/// appended *after* the floor move, so the desk-visible row is what a reader
+/// meets first, and it moves nothing the library counts — `spent` is already
+/// fixed in `turn.next_state`, and `live_traces` drops a non-desk row before it
+/// can reach a standing. See ADR 0011.
+fn append_turn(
+    host: &mut Host,
+    turn: &HiveTurn,
+    content: String,
+    private: Option<String>,
+    mode: AsideMode,
+    members: usize,
+) {
+    let policy = aside_policy(members);
+    let audience = audience_for(mode, host, &turn.agent_id, &content, policy);
+    host.agent_to(&turn.agent_id, content, audience);
+    let Some(line) = private else {
+        return;
+    };
+    let audience = audience_for(AsideMode::Alongside, host, &turn.agent_id, &line, policy);
+    // A refused audience would put the line on the desk, where it would be a
+    // second floor contribution on one turn. The safe direction here is the
+    // opposite one: drop it.
+    if !audience.is_desk() {
+        host.agent_to(&turn.agent_id, line, audience);
+    }
+}
+
 /// Ask the library for a round and run it, returning the rows written and the
 /// time spent inside the library.
 ///
@@ -857,27 +888,14 @@ pub(crate) fn drive_with(
                     None
                 };
                 tally.record(&turn, &content, agent.cost_unit(), turns);
-                let policy = aside_policy(member_ids.len());
-                let audience = audience_for(aside_mode, &host, &turn.agent_id, &content, policy);
-                // Durably append the turn, then commit the state it returned.
-                // That ordering is what the `next_state` contract requires.
-                host.agent_to(&turn.agent_id, content, audience);
-                // The aside rides along: one more row on the same turn, at the
-                // next sequence, addressed privately. It is appended *after*
-                // the floor move so the desk-visible row is what a reader meets
-                // first, and it moves nothing the library counts — `spent` is
-                // already fixed in `turn.next_state`, and `live_traces` drops a
-                // non-desk row before it can reach a standing. See ADR 0011.
-                if let Some(line) = private {
-                    let audience =
-                        audience_for(AsideMode::Alongside, &host, &turn.agent_id, &line, policy);
-                    // A refused audience would put the line on the desk, where
-                    // it would be a second floor contribution on one turn. The
-                    // safe direction here is the opposite one: drop it.
-                    if !audience.is_desk() {
-                        host.agent_to(&turn.agent_id, line, audience);
-                    }
-                }
+                append_turn(
+                    &mut host,
+                    &turn,
+                    content,
+                    private,
+                    aside_mode,
+                    member_ids.len(),
+                );
                 let last = HiveTurn {
                     next_state: turn.next_state.clone(),
                     ..turn.clone()
