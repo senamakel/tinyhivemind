@@ -7,13 +7,19 @@
 //! eligible member appends at most one private row, taking no floor and
 //! producing no turn.
 //!
-//! The whole safety argument is one property, and it belongs to the algebra
-//! rather than to this module: a private row is dropped by the episode's own
-//! fold before it can reach a trace, a standing, the sequence they fold at,
-//! the directory or the floor, and `EpisodeState::spent` counts turns rather
-//! than rows. [`crate::step`] therefore returns the same step — including the
-//! state it commits — whether an exchange happened or not, which
+//! The safety argument is one property of the algebra rather than of this
+//! module: a private row is dropped by the episode's own fold before it can
+//! reach a trace, a standing, the sequence they fold at, the directory or the
+//! floor, and `EpisodeState::spent` counts turns rather than rows.
+//! [`crate::step`] therefore returns the same step — including the state it
+//! commits — for the same desk rows at the same sequences, which
 //! `tests/fuzz_invariants.rs` asserts over arbitrary transcripts.
+//!
+//! The qualifier matters: a private row consumes a sequence, and both
+//! `QuorumPolicy::window` and salience decay read a raw sequence distance, so
+//! a host allocating sequences live can shift a later desk row out of a window
+//! it was inside. The fold ignores private rows; the numbering does not. See
+//! the README in this directory for what bounds that in practice.
 //!
 //! What a round spends is model calls, not turns. That is a real cost and a
 //! host's to authorize, so [`ExchangePolicy`] is off by default and carries

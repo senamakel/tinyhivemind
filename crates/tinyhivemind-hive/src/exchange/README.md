@@ -47,10 +47,10 @@ safety case:
   private `!propose`/`!support`/`!commit` are in the corpus, interleaved anywhere
   in an arbitrary transcript.
 
-Both go red if the audience filter is removed. Note what the second one is *not*:
-it holds desk sequence numbers fixed across the two transcripts it compares, so
-it says nothing about live per-episode sequence numbering. See "What it does
-spend", below.
+Both go red if the audience filter is removed. Both hold desk sequence numbers
+fixed across the two transcripts they compare, which is exactly the scope of the
+guarantee above — they prove the fold ignores private rows, not that live
+sequence allocation is neutral. The third test named above proves it is not.
 
 ## The public surface
 
