@@ -108,9 +108,22 @@ impl AgentRunner {
         if let Some(config) = &self.config {
             command.env("OPENCODE_CONFIG_CONTENT", config);
         }
-        let child = command.spawn()?;
+        let mut child = command.spawn()?;
+        // Keep stderr. A turn whose event stream is zero bytes said nothing and
+        // explained nothing; whatever the CLI complained about went here, and
+        // discarding it is how a crash reads as a quiet model.
+        let stderr = child.stderr.take();
+        let errors = std::thread::spawn(move || {
+            use std::io::Read as _;
+            let mut buffer = String::new();
+            if let Some(mut stderr) = stderr {
+                let _ = stderr.read_to_string(&mut buffer);
+            }
+            buffer
+        });
         let (output, timed_out) = wait_with_timeout(child, timeout)?;
         let raw = String::from_utf8_lossy(&output);
+        let complaints = errors.join().unwrap_or_default();
         // Keep the whole event stream. A turn that produced nothing postable is
         // exactly the turn whose transcript someone will want to read.
         if let Some(dir) = &self.raw_dir {
@@ -121,10 +134,18 @@ impl AgentRunner {
             if let Ok(mut file) = fs::File::create(dir.join(format!("{label}.prompt.txt"))) {
                 let _ = file.write_all(prompt.as_bytes());
             }
+            if !complaints.trim().is_empty()
+                && let Ok(mut file) = fs::File::create(dir.join(format!("{label}.stderr.txt")))
+            {
+                let _ = file.write_all(complaints.as_bytes());
+            }
         }
         let mut turn = parse_events(&raw);
         turn.elapsed = started.elapsed();
         turn.timed_out = timed_out;
+        if turn.error.is_none() && raw.trim().is_empty() && !complaints.trim().is_empty() {
+            turn.error = Some(complaints.trim().lines().last().unwrap_or("").to_string());
+        }
         Ok(turn)
     }
 
