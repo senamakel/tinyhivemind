@@ -9,6 +9,14 @@
 
 **No. A pairwise check is pure cost, and privacy is never the variable.**
 
+> **Superseded in part.**
+> [`2026-09-07-why-asides-lose.md`](2026-09-07-why-asides-lose.md) runs the
+> matched-turn control and the free ceiling this note lists as missing. The
+> results here stand; the *explanation* of the hidden-profile loss below does
+> not, and is retracted there. In short: the loss is the turns, the same
+> exchange held off the floor gains `+3.0 [+2.0, +4.0]`, and free peer
+> information is worth `+21.2 [+19.2, +23.2]`.
+
 The spec's acceptance criteria say the mechanism must be allowed to lose and
 that the loss must be published. It lost.
 
@@ -113,6 +121,14 @@ the `hive+aside − hive+ask` null on the hidden profile actually tightened, fro
 right on principle, and it happened not to be load-bearing at this cap.
 
 ## The hidden-profile result, and why it is worse than a wash
+
+**Retracted.** The reasoning in this section is wrong, and
+[`2026-09-07-why-asides-lose.md`](2026-09-07-why-asides-lose.md) shows why: an
+arm that spends the identical turns and *discards* the answer loses
+`-15.7 [-17.6, -13.8]`, marginally more than the arm that keeps it. The
+transfer is not what costs the room the fifteen points. It is left in place
+below rather than deleted, because a published explanation that turned out to
+be wrong is part of the record.
 
 Fifteen points, with the budget unconstrained and every arm deciding 100% of
 its rooms, is not a cost-of-turns effect. It is the mechanism doing harm.

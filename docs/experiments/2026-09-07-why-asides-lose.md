@@ -127,7 +127,7 @@ carried refutations in `!evidence`; an answered check could only ever hand back
 a scalar. `CheckStyle::FACT` lets a member holding the fact say so, and the
 asker discounts the option for itself at the same weight a desk-visible
 refutation carries in `View::posterior` — a belief, not a trace, so the room
-still counts nothing from an aside. It is worth +2.4 against the aimed
+still counts nothing from an aside. It is worth +2.1 against the aimed
 reading-only arm and does not come close to paying for the turn.
 
 ## What follows for the design
