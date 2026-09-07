@@ -971,10 +971,9 @@ pub(crate) fn drive_with(
                 tally.record(&turn, &content, agent.cost_unit(), turns);
                 let members = member_ids.len();
                 append_turn(&mut host, &turn, content, private, aside_mode, members);
-                let last = HiveTurn {
-                    next_state: turn.next_state.clone(),
-                    ..turn.clone()
-                };
+                // Kept for the exchange round below, which projects the
+                // journal for each named member at this turn's visibility.
+                let last = turn.clone();
                 state = turn.next_state;
                 turns = turns.saturating_add(1);
 
