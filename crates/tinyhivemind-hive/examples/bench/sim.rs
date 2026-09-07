@@ -856,6 +856,9 @@ pub(crate) struct CheckStyle {
     pub(crate) evidence: bool,
     /// Discard the answer. The matched-turn control.
     pub(crate) mute: bool,
+    /// Send the check **alongside** the member's floor move rather than in
+    /// place of it, so the exchange costs the room no turn at all.
+    pub(crate) alongside: bool,
 }
 
 impl CheckStyle {
@@ -864,24 +867,37 @@ impl CheckStyle {
         informed: false,
         evidence: false,
         mute: false,
+        alongside: false,
     };
     /// Aimed at whoever the room has heard ground the option.
     pub(crate) const AIMED: Self = Self {
         informed: true,
         evidence: false,
         mute: false,
+        alongside: false,
     };
     /// Aimed, and carrying the fact rather than a number.
     pub(crate) const FACT: Self = Self {
         informed: true,
         evidence: true,
         mute: false,
+        alongside: false,
     };
     /// The same turns, transferring nothing.
     pub(crate) const MUTE: Self = Self {
         informed: false,
         evidence: false,
         mute: true,
+        alongside: false,
+    };
+    /// Aimed, carrying the fact, and riding alongside the floor move rather
+    /// than replacing it. The mechanism the benchmark's scheduling result
+    /// points at.
+    pub(crate) const ALONGSIDE: Self = Self {
+        informed: true,
+        evidence: true,
+        mute: false,
+        alongside: true,
     };
 }
 
@@ -1249,7 +1265,15 @@ impl SimAgent {
         // and takes the same reading. That difference is the whole of what the
         // aside arms measure, and it is produced by the projection rather than
         // by anything here.
-        if let Some(line) = self.check(visible, &view) {
+        // Under `CheckStyle::alongside` the check does not compete with this
+        // turn: the member takes in whatever it can read — which costs
+        // nothing, and is the whole point — and then makes its ordinary floor
+        // move. The private half is asked for separately, in
+        // `Participant::aside`, and appended as a second row on this same
+        // turn.
+        if self.style.alongside {
+            self.absorb(visible);
+        } else if let Some(line) = self.check(visible, &view) {
             return line;
         }
 
