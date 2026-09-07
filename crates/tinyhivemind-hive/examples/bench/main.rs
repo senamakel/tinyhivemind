@@ -788,7 +788,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
     );
 
     let (totals, wall) = run_arms(options, rooms)?;
-    let arms: [(&str, &Aggregate); 17] = [
+    let arms: [(&str, &Aggregate); 18] = [
         ("ladder", &totals.ladder),
         ("vote", &totals.vote),
         ("hive", &totals.hive_default),
@@ -807,6 +807,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
         ("hive+aside!", &totals.hive_aside_informed),
         ("hive+fact", &totals.hive_aside_fact),
         ("hive+mute", &totals.hive_aside_mute),
+        ("hive+along", &totals.hive_aside_alongside),
         ("hive+fact°", &totals.hive_aside_offfloor),
         ("hive+pooled", &totals.hive_pooled),
     ];
@@ -948,6 +949,7 @@ fn check_arm_diffs(options: &Options, totals: &Totals) {
         ("hive+aside!", &totals.hive_aside_informed),
         ("hive+fact", &totals.hive_aside_fact),
         ("hive+mute", &totals.hive_aside_mute),
+        ("hive+along", &totals.hive_aside_alongside),
         ("hive+fact°", &totals.hive_aside_offfloor),
         ("hive+pooled", &totals.hive_pooled),
     ]
