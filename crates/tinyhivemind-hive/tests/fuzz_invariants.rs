@@ -4,7 +4,7 @@
 
 use tinyhivemind::aside::Audience;
 use tinyhivemind_hive::{
-    Conversation, DirectoryPolicy, EpisodePolicy, EpisodeState, ExchangePolicy, ExchangeRound,
+    Conversation, DirectoryPolicy, EpisodePolicy, EpisodeState, ExchangePolicy, ExchangeRound, ExchangeState,
     NoExchangeReason, QuorumPolicy, SalienceWeights, Sequence, SessionAuthor, SessionMessage,
     TRACE_CAP,
     attention::{BidContext, bids},
