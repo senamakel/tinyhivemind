@@ -67,8 +67,10 @@ variable either — the cost is the turns, in full, before a word changes hands.
 And `hive+pooled` beats `hive+` by `+21.2 [+19.2, +23.2]` in *fewer* turns: peer
 information is worth more here than anything else this benchmark measures, and
 buying it one floor turn at a time is what costs more than it is worth.
-[`docs/experiments/2026-09-07-do-asides-help.md`](../../../../docs/experiments/2026-09-07-do-asides-help.md)
-carries the numbers and the argument.
+[`docs/experiments/2026-09-07-why-asides-lose.md`](../../../../docs/experiments/2026-09-07-why-asides-lose.md)
+carries the numbers and the argument;
+[`2026-09-07-do-asides-help.md`](../../../../docs/experiments/2026-09-07-do-asides-help.md)
+is the first pass, whose explanation of the hidden-profile loss it retracts.
 
 `hive+ref` and `hive+ev` lose, reproducibly and by a lot, and the write-up in
 [`docs/experiments/2026-09-01-refutation-and-grounds.md`](../../../../docs/experiments/2026-09-01-refutation-and-grounds.md)
