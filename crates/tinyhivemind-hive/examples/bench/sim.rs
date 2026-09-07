@@ -467,6 +467,11 @@ impl Room {
                     agent.ruled_out.push(topic.clone());
                 }
             }
+            // A refutation installed after this agent's last `import` call
+            // above -- always true for whichever peer is processed last --
+            // would otherwise leave `favourite` pointing at an option this
+            // agent's own `ruled_out` has since discounted.
+            agent.recompute_favourite();
         }
         room
     }
@@ -509,14 +514,24 @@ impl Room {
                 let Some((evals, refutes)) = readings.get(peer) else {
                     break;
                 };
-                if evidence && refutes.as_ref() == Some(&topic) && !agent.ruled_out.contains(&topic)
-                {
-                    agent.ruled_out.push(topic.clone());
-                }
-                if let Some((_, reading)) = evals.iter().find(|(held, _)| *held == topic) {
+                // A fact-bearing peer hands over the fact *instead of* its
+                // reading, matching the on-floor `CheckStyle::FACT` exchange
+                // in `absorb` -- otherwise `hive+fact°` would carry both the
+                // fact and the reading `hive+fact` never gets to average in.
+                if evidence && refutes.as_ref() == Some(&topic) {
+                    if !agent.ruled_out.contains(&topic) {
+                        agent.ruled_out.push(topic.clone());
+                    }
+                } else if let Some((_, reading)) = evals.iter().find(|(held, _)| *held == topic) {
                     agent.import(&topic, *reading);
                 }
             }
+            // `import` already recomputes `favourite` on every reading taken,
+            // which covers today's data (every peer holds a reading for
+            // every topic). Recomputing again here is a cheap guarantee
+            // against the one case that would not: a `ruled_out` fact
+            // installed above with no matching `import` call to refresh it.
+            agent.recompute_favourite();
         }
         room
     }
@@ -882,6 +897,13 @@ pub(crate) enum Payload {
     /// A reading of *every* option, and any fact — what a contact transfers in
     /// the biology, and what only a row that costs no turn can afford.
     Everything,
+    /// [`Payload::Everything`] written and then thrown away by its reader.
+    ///
+    /// Byte-for-byte the same rows on the same rounds, consuming the same
+    /// sequence numbers, transferring nothing. The control that separates what
+    /// an off-floor exchange *says* from what merely writing its rows does to
+    /// a fold that reads recency off raw sequence distance.
+    Discarded,
 }
 
 /// What one arm's pairwise check does, beyond costing a turn.
@@ -940,6 +962,19 @@ impl CheckStyle {
         alongside: true,
         payload: Payload::Everything,
     };
+    /// The same rows on the same rounds, with every answer discarded.
+    ///
+    /// The control an off-floor exchange needs and an on-floor one does not.
+    /// A private row consumes a sequence number, and `salience::standing`
+    /// reads recency as a raw sequence distance — so writing twenty of them an
+    /// episode perturbs which member the attention market hands the floor to,
+    /// whatever they say. This arm writes them and says nothing, so whatever
+    /// it moves is that perturbation rather than information.
+    pub(crate) const QUIET: Self = Self {
+        informed: false,
+        alongside: true,
+        payload: Payload::Discarded,
+    };
 
     /// Whether an answer may carry the fact that rules an option out.
     pub(crate) const fn evidence(self) -> bool {
@@ -948,12 +983,16 @@ impl CheckStyle {
 
     /// Whether an answer is discarded rather than taken in.
     pub(crate) const fn mute(self) -> bool {
-        matches!(self.payload, Payload::Nothing)
+        matches!(self.payload, Payload::Nothing | Payload::Discarded)
     }
 
     /// Whether a contact happens every turn and carries every option.
+    ///
+    /// True of [`Payload::Discarded`] as well as [`Payload::Everything`]: the
+    /// control has to *write* the same rows to be a control, and differs only
+    /// in what its reader does with them.
     pub(crate) const fn exchange(self) -> bool {
-        matches!(self.payload, Payload::Everything)
+        matches!(self.payload, Payload::Everything | Payload::Discarded)
     }
 }
 
@@ -1048,13 +1087,28 @@ impl SimAgent {
             }
             None => self.imports.push((topic.clone(), i64::from(reading), 1)),
         }
+        self.recompute_favourite();
+        true
+    }
+
+    /// Recompute [`Self::favourite`] from every option this member holds a
+    /// current [`Self::score`] for.
+    ///
+    /// `import` calls this on every reading it takes, but a caller that
+    /// updates `ruled_out` directly -- `Room::pooled` and `Room::pre_checked`
+    /// both do, to install a fact rather than a number -- must call this
+    /// itself afterward. `score` reads `ruled_out`, so a ruled-out topic
+    /// installed after the last `import` call for a member would otherwise
+    /// leave `favourite` pointing at an option that member's own state has
+    /// since ruled out, and every turn that reads `favourite` would keep
+    /// advocating it.
+    fn recompute_favourite(&mut self) {
         self.favourite = self
             .evals
             .iter()
             .map(|(topic, _)| topic.clone())
             .max_by_key(|topic| self.score(topic))
             .unwrap_or_else(|| self.favourite.clone());
-        true
     }
 
     /// Tell the participant how many turns it may spend asking one peer for a
@@ -1063,12 +1117,18 @@ impl SimAgent {
     /// `Room::generate_with` leaves every member at `0`, so an arm that opens
     /// no check is bit-identical to one built before the move existed — the
     /// same discipline `set_defer_cap` follows.
+    ///
+    /// Resets only the exchange state a *floor* check creates — it must not
+    /// clear `ruled_out`, because `Room::pre_checked` and `Room::pooled`
+    /// write facts into it before the episode opens, and this is called on
+    /// that same freshly cloned agent right at `run_episode`'s start. Wiping
+    /// it here would silently discard every fact those off-floor controls
+    /// preload.
     pub(crate) fn set_aside_cap(&mut self, cap: u32, style: CheckStyle) {
         self.aside_cap = cap;
         self.style = style;
         self.asides_spent = 0;
         self.handled.clear();
-        self.ruled_out.clear();
         self.contacted.clear();
     }
 
@@ -1213,18 +1273,36 @@ impl SimAgent {
             if self.style.mute() {
                 continue;
             }
-            // A refutation names the option it rules out explicitly, because a
-            // full exchange carries several in one row and "the topic" would
-            // otherwise be ambiguous.
-            if self.style.evidence()
-                && let Some(refuted) = parse_ruled_out(body)
-                && !self.ruled_out.contains(&refuted)
+            // A refutation names the option it rules out explicitly, because
+            // a full exchange carries several readings in one row and "the
+            // topic" would otherwise be ambiguous.
+            let refuted = self
+                .style
+                .evidence()
+                .then(|| parse_ruled_out(body))
+                .flatten();
+            if let Some(topic) = refuted.clone()
+                && !self.ruled_out.contains(&topic)
             {
-                self.ruled_out.push(refuted);
+                self.ruled_out.push(topic);
             }
+            // The fact is carried *instead of* the number for the option it
+            // rules out, never in addition to it: `CheckStyle::FACT` exists to
+            // ask whether that substitution beats an averaged reading, so
+            // importing the refuted option's reading too would answer a
+            // different question than the arm is defined to ask. Every *other*
+            // reading in the row is still taken.
             for (held, reading) in readings {
+                if refuted.as_ref() == Some(&held) {
+                    continue;
+                }
                 self.import(&held, reading);
             }
+            // `import` recomputes `favourite` on every reading it takes, but a
+            // row carrying only a refutation takes none — so the discount has
+            // to be reflected here or the member keeps a favourite its own
+            // `ruled_out` has since discounted.
+            self.recompute_favourite();
         }
     }
 
@@ -2134,14 +2212,57 @@ pub(crate) fn check_selfcheck() -> bool {
                 .all(|topic| agent.ruled_out.contains(topic))
     });
 
-    // A muted check takes nothing in. The matched-turn control has to be
-    // exactly that: same turns, same words, no transfer.
+    // `run_episode_checking` -- the entry point `hive+fact°` and `hive+pooled`
+    // both run through -- clones the room and calls `set_aside_cap` on every
+    // agent before driving a single turn. That call must not discard what
+    // `pre_checked` and `pooled` just preloaded: the regression this guards
+    // was landing at exactly that step, silently wiping every ruled-out fact
+    // an off-floor control had just injected, so the arm executed the rest of
+    // the episode without the fact it was built to carry.
+    let checked = room.pre_checked(1, true);
+    ok &= checked
+        .agents
+        .iter()
+        .any(|agent| !agent.ruled_out.is_empty());
+    let mut after_reset = checked.clone();
+    for agent in &mut after_reset.agents {
+        agent.set_aside_cap(0, CheckStyle::PLAIN);
+    }
+    ok &= after_reset
+        .agents
+        .iter()
+        .zip(&checked.agents)
+        .all(|(after, before)| after.ruled_out == before.ruled_out);
+    let mut pooled_after_reset = pooled.clone();
+    for agent in &mut pooled_after_reset.agents {
+        agent.set_aside_cap(0, CheckStyle::PLAIN);
+    }
+    ok &= pooled_after_reset
+        .agents
+        .iter()
+        .zip(&pooled.agents)
+        .all(|(after, before)| after.ruled_out == before.ruled_out);
+
+    ok && payload_selfcheck(&room)
+}
+
+/// The half of the check self-check that is about an answer's **payload**:
+/// what a responder hands over, and what a reader does with it.
+///
+/// Split from [`check_selfcheck`] only to keep each function inside the line
+/// budget clippy holds every function to; the two run together behind
+/// `--stats-check` and neither is meaningful alone.
+fn payload_selfcheck(room: &Room) -> bool {
+    let mut ok = true;
     let Some(sample) = room.agents.first().cloned() else {
         return false;
     };
     let Some((topic, _)) = sample.evals.first().cloned() else {
         return false;
     };
+
+    // A muted check takes nothing in. The matched-turn control has to be
+    // exactly that: same turns, same words, no transfer.
     let answer = format!("{ASIDE_MARKER} @a #{topic} My own {ASIDE_READS} 7.");
     let heard = crate::run::one_agent_message("peer", &answer);
     let mut muted = sample.clone();
@@ -2153,8 +2274,10 @@ pub(crate) fn check_selfcheck() -> bool {
     listening.absorb(std::slice::from_ref(&heard));
     ok &= listening.imports.len() == 1 && listening.score(&topic) != sample.own_reading(&topic);
 
-    // A fact-carrying answer discounts the option for its reader, and a
-    // reading-only arm ignores the sentence entirely.
+    // A fact-carrying answer discounts the option for its reader instead of
+    // averaging in the number that came with it -- the fact is taken in
+    // place of the reading, not alongside it -- while a reading-only arm
+    // ignores the sentence entirely and only ever averages the number.
     let refutation = format!(
         "{ASIDE_MARKER} @a #{topic} My own {ASIDE_READS} 7. The reading I hold {RULES_OUT}."
     );
@@ -2162,10 +2285,18 @@ pub(crate) fn check_selfcheck() -> bool {
     let mut fact_reader = sample.clone();
     fact_reader.set_aside_cap(1, CheckStyle::FACT);
     fact_reader.absorb(std::slice::from_ref(&told));
+    ok &= fact_reader.imports.is_empty()
+        && fact_reader.ruled_out.contains(&topic)
+        && fact_reader.score(&topic)
+            == fact_reader
+                .own_reading(&topic)
+                .saturating_sub(GROUNDS_WEIGHT);
     let mut number_reader = sample.clone();
     number_reader.set_aside_cap(1, CheckStyle::AIMED);
     number_reader.absorb(std::slice::from_ref(&told));
-    ok &= fact_reader.score(&topic) == number_reader.score(&topic) - GROUNDS_WEIGHT;
+    ok &= number_reader.imports.len() == 1
+        && number_reader.ruled_out.is_empty()
+        && number_reader.score(&topic) != number_reader.own_reading(&topic);
 
     // The informed check aims at a depositor who argues *against* the topic,
     // even when a plain deposit on the same topic came first. Aiming at the

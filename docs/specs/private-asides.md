@@ -240,10 +240,17 @@ authorizes and stores; there is no new port and no new idempotency boundary.
 
 An aside costs no turn. One authorized turn produces the member's ordinary
 desk-visible contribution and, optionally, one aside row: a host appends both
-and commits the state the turn returned, exactly once. The episode cannot tell,
-because `live_traces` drops a non-desk row before it reaches a trace, a
-standing, the sequence they fold at, or the floor, and `spent` counts turns
-rather than rows.
+and commits the state the turn returned, exactly once. The episode cannot vote
+it, because `live_traces` drops a non-desk row before it reaches a trace or a
+standing, and `spent` counts turns rather than rows.
+
+It is not free of a sequence. Sequence numbers are unique across the one
+shared journal, so the aside row still takes the next one, and every later
+desk row lands at a higher raw sequence than it would have without the aside.
+`salience::standing` scores recency from that raw distance, and salience feeds
+the floor-holder choice — so "the episode cannot tell" covers votes, standings
+and `spent`, but not the decay a busier journal produces. See the "Known
+limitation" note on [ADR 0011](../adr/0011-an-aside-rides-alongside-a-turn.md).
 
 Three bounds hold, and they are what keep this inside the charter's third rule:
 
@@ -347,10 +354,12 @@ aside, every viewer projects what it projects today.
 - **An aside that does not ride on a turn at all** — now specified separately in
   [`off-floor-exchange.md`](off-floor-exchange.md) and
   [ADR 0012](../adr/0012-an-exchange-round-spends-model-calls-not-turns.md).
-  An aside riding alongside a turn is free but still rationed by the floor; an
-  exchange round lifts that at an explicit, finite, host-set price in model
-  calls. Measured at `+4.9 [+3.5, +6.2]` on a hidden profile, against a `+21.2`
-  ceiling.
+  An aside riding alongside a turn is free but still rationed by the floor: a
+  room converging in eleven turns writes at most eleven aside rows, and the arm
+  that stays inside the turn contract reaches `+1.4` against a `+30.8` ceiling.
+  An exchange round lifts the ration at an explicit, finite, host-set price in
+  model calls. See
+  [`../experiments/2026-09-07-why-asides-lose.md`](../experiments/2026-09-07-why-asides-lose.md).
 - **Whether an aside should reach its member during a blind round.** It does not
   today: `project_for` withholds every peer row under `Visibility::Blind`, so an
   exchange cannot begin until positions have formed. Letting an aside through

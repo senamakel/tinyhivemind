@@ -344,10 +344,14 @@ pub(crate) enum AsideMode {
     /// authored it rather than replacing one.
     ///
     /// One turn produces two rows: the member's ordinary desk-visible
-    /// contribution, and one aside. The episode cannot see the second — it
-    /// resolves no trace, folds into no standing, and `spent` counts turns
-    /// rather than rows — so the exchange costs the room nothing and cannot
-    /// outrun it.
+    /// contribution, and one aside. The episode cannot vote it — it resolves
+    /// no trace, folds into no standing, and `spent` counts turns rather than
+    /// rows — but it is not invisible to decay: the aside still takes the
+    /// next raw sequence in the one shared journal, so `salience::standing`'s
+    /// `at - trace.sequence` distance for every later desk trace is measured
+    /// against a journal one row longer than the same episode without the
+    /// aside would have reached. See the "Known limitation" note on
+    /// [ADR 0011][adr11].
     ///
     /// This is not the concurrency [ADR 0002][adr2] rules out: `HiveStep::Speak`
     /// still carries exactly one turn, no two participants ever hold the floor,
@@ -480,15 +484,22 @@ pub(crate) fn run_episode_with(
 /// bit-identical to a plain [`run_episode`]. The round cap is the turn budget,
 /// because the harness opens at most one round per turn.
 ///
+/// `style` is what an answer carries: [`CheckStyle::EXCHANGE`] hands over every
+/// reading its author holds, and [`CheckStyle::QUIET`] writes the identical
+/// rows on the identical rounds and throws every answer away — the control that
+/// separates what an exchange said from what merely writing its rows does to a
+/// fold that reads recency off raw sequence distance.
+///
 /// # Errors
 ///
 /// Returns the library's own error text if a snapshot or policy is malformed.
-pub(crate) fn run_episode_exchanging(
+pub(crate) fn run_episode_exchanging_with(
     room: &Room,
     policy: &EpisodePolicy,
     task: &str,
     keep_trace: bool,
     contact_cap: u32,
+    style: CheckStyle,
 ) -> Result<EpisodeReport, String> {
     let ids = room.member_ids();
     let mut agents: Vec<SimAgent> = room.agents.clone();
@@ -497,7 +508,7 @@ pub(crate) fn run_episode_exchanging(
         agent.set_defer_cap(0);
         // The cap on the participant side is the library's, so a member never
         // wants a row the round would not have authorized.
-        agent.set_aside_cap(contact_cap, CheckStyle::EXCHANGE);
+        agent.set_aside_cap(contact_cap, style);
         agent.set_peers(&ids);
     }
     let mut participants: Vec<&mut dyn Participant> = agents
@@ -722,9 +733,16 @@ fn trace_line(turn: &HiveTurn, content: &str, saw: usize) -> String {
 /// Durably append the turn, then the caller commits the state it returned:
 /// that ordering is what the `next_state` contract requires. The aside is
 /// appended *after* the floor move, so the desk-visible row is what a reader
-/// meets first, and it moves nothing the library counts — `spent` is already
-/// fixed in `turn.next_state`, and `live_traces` drops a non-desk row before it
-/// can reach a standing. See ADR 0011.
+/// meets first, and it cannot buy the room a vote — `spent` is already fixed in
+/// `turn.next_state`, and `live_traces` drops a non-desk row before it can
+/// reach a trace or a standing.
+///
+/// It does spend a **sequence**, though: the next desk turn lands one raw
+/// sequence higher than it would have without the row, and
+/// `salience::standing` reads recency as a raw sequence distance. So a private
+/// row does perturb which member the attention market hands the floor to next,
+/// even though it moves nothing the room counts. See the "Known limitation"
+/// note on ADR 0011, and `hive+quiet`, the control that measures it.
 fn append_turn(
     host: &mut Host,
     turn: &HiveTurn,

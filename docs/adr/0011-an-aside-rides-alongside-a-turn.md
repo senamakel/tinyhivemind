@@ -21,10 +21,10 @@ move. Three controls locate the cost precisely
   answer away**. It loses `-15.7 [-17.6, -13.8]` — *more* than the arms that
   keep the answer. The transfer is not what costs the room anything.
 - `hive+pooled` hands every member every peer's reading and every fact for free.
-  It gains `+21.2 [+19.3, +23.3]`, in fewer turns. The information is worth more
+  It gains `+30.8 [+28.8, +33.0]`, in fewer turns. The information is worth more
   than anything else this benchmark measures.
 - `hive+fact°` runs the same bounded exchange off the floor. It gains
-  `+3.0 [+2.1, +4.0]`.
+  `+3.2 [+2.1, +4.1]`.
 
 So the mechanism was never the problem. Under one message, one turn, a member
 asking a peer is a member not depositing, not objecting and not refuting, while
@@ -48,13 +48,14 @@ one.
 Three properties make this sound, and all three are already true of the algebra
 rather than newly asserted by it:
 
-1. **The episode cannot see it.** `live_traces` drops a non-desk row before it
-   reaches the traces, the standings, the sequence they fold at, the directory or
-   the floor, and `EpisodeState::spent` counts turns rather than rows. `step` is
-   therefore invariant under the *addition* of aside rows anywhere in a
-   transcript — a strictly stronger property than the idempotence under
-   redelivery and reordering the fuzz suite already asserted, and now asserted
-   beside it.
+1. **The episode cannot vote it.** `live_traces` drops a non-desk row before it
+   reaches the traces, the standings, the sequence they fold at, or the
+   directory, and `EpisodeState::spent` counts turns rather than rows. `step`
+   is therefore invariant under the *addition* of aside rows to a transcript
+   whose desk rows keep the sequence numbers they already had — a strictly
+   stronger property than the idempotence under redelivery and reordering the
+   fuzz suite already asserted, and now asserted beside it. That "already had"
+   is load-bearing: see the known limitation below for what it does not cover.
 2. **It starts no turn.** The peer answers on its own next turn, which the
    attention market was going to give it anyway. A host must not hand an aside
    row to `mention_dispatch` inside an episode; the exchange completes over the
@@ -77,24 +78,44 @@ the same rooms without the move:
 
 | configuration | on the floor | riding alongside |
 | --- | --- | --- |
-| hidden profile, budget 40 | `-15.0 [-16.9, -13.1]` | `+0.5 [+0.1, +1.0]` |
+| hidden profile, budget 40 | `-16.9 [-18.9, -15.1]` | `+0.5 [+0.1, +0.9]` |
 | uniform, budget 15 | `-2.5 [-3.0, -2.0]` | `+0.0 [+0.0, +0.1]` |
 | uniform, budget 40 | `-0.1 [-0.6, +0.5]` | `+0.1 [+0.0, +0.3]` |
 
-A 15.5-point swing on the hidden profile, bought by changing nothing about who
-reads the exchange, what it says, or who it is aimed at. The move stops being a
-tax and becomes free.
+A 17.4-point swing on the hidden profile, bought by changing nothing about who
+reads the exchange, what it says, or who it is aimed at. The move stops costing
+the room a vote and a turn.
+
+**Known limitation: a row still costs a sequence.** "The episode cannot see it"
+means no trace, standing, or `spent` count ever sees an aside row — it does
+*not* mean the aside is invisible to every fold. Sequence numbers are unique
+across the one shared journal (the runtime crate rejects a duplicate), so an
+aside row still takes the next one, and every later desk turn therefore lands
+at a higher raw sequence than the same episode without that aside would have
+reached. `salience::standing` scores recency from `at.0 - trace.sequence.0`
+(`crates/tinyhivemind-hive/src/salience/mod.rs`), and that score feeds
+`bids`/`floor_holder` — the fold that decides who speaks next. A run that fires
+more alongside asides therefore reaches any given desk-turn count at a larger
+raw sequence than a no-aside control, which very slightly speeds the apparent
+decay of older traces relative to that control. The fuzz invariant above holds
+this fixed by giving both transcripts it compares the same desk sequence
+numbers, so it correctly proves the aside cannot buy a vote; it does not, and
+was never meant to, prove the live per-episode sequence numbering is
+unaffected. The `hive+along` and `hive+share` figures below are real
+measurements of the code as it runs today, confound included; this note
+records the confound rather than correcting for it, because the size and
+direction of its effect on the reported gain have not been isolated.
 
 **A free row makes continuous exchange affordable, and that is worth more than
 one question.** Once a contact costs no turn, a member can contact a peer on
 every turn rather than once when it cannot separate two options, and hand over a
 reading of every option rather than an answer to one. That arm gains
-`+1.9 [+0.8, +3.0]` on the hidden profile — most of the way to the `+3.0` an
+`+1.4 [+0.4, +2.4]` on the hidden profile — much of the way to the `+3.2` an
 off-floor exchange with oracle targeting reaches, and the shape a colony's
 contacts actually have.
 
-**What remains unreached is not the accounting.** The ceiling is `+21.2` and the
-best on-contract arm reaches `+1.9`, because an aside still rides on a turn: a
+**What remains unreached is not the accounting.** The ceiling is `+30.8` and the
+best on-contract arm reaches `+1.4`, because an aside still rides on a turn: a
 room converging in 11 turns can write at most 11 aside rows, which is roughly two
 contacts per member in a room of five. Closing that would mean letting members
 the library did **not** authorize append rows between turns. The invariant above

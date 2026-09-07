@@ -19,9 +19,9 @@ The benchmark says that is nowhere near enough
 
 | arm | hidden profile, budget 40 |
 | --- | --- |
-| `hive+along` — one row per authorized turn | `+0.5 [+0.1, +1.0]` |
-| `hive+share` — the same row spent continuously | `+1.9 [+0.8, +3.0]` |
-| `hive+pooled` — every reading and every fact, free | `+21.2 [+19.3, +23.3]` |
+| `hive+along` — one row per authorized turn | `+0.5 [+0.1, +0.9]` |
+| `hive+share` — the same row spent continuously | `+1.4 [+0.4, +2.4]` |
+| `hive+pooled` — every reading and every fact, free | `+30.8 [+28.9, +32.9]` |
 
 Twenty-one points of peer information exist and a protocol tied to the floor
 reaches two of them. The gap is not privacy, not payload, not targeting and not
@@ -231,10 +231,10 @@ Recorded in
 
 | arm | hidden profile, budget 40 | private rows/ep |
 | --- | --- | --- |
-| `hive+along` — one row per authorized turn | `+0.5 [+0.1, +1.0]` | — |
-| `hive+share` — the same, spent continuously | `+1.9 [+0.8, +3.0]` | — |
-| `hive+rounds` — exchange rounds off the floor | **`+4.9 [+3.5, +6.2]`** | 20.0 |
-| `hive+pooled` — the ceiling | `+21.2 [+19.3, +23.3]` | — |
+| `hive+along` — one row per authorized turn | `+0.5 [+0.1, +0.9]` | — |
+| `hive+share` — the same, spent continuously | `+1.4 [+0.4, +2.4]` | — |
+| `hive+rounds` — exchange rounds off the floor | **`+3.2 [+1.8, +4.5]`** | 20.0 |
+| `hive+pooled` — the ceiling | `+30.8 [+28.9, +32.9]` | — |
 
 Uniform rooms are a null at every setting, as every exchange arm is: a room whose
 members differ only by independent noise holds no concentrated information for a

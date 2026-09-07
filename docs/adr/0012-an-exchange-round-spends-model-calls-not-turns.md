@@ -13,8 +13,8 @@ converging in eleven turns writes at most eleven private rows.
 
 The benchmark bounds what is being left on the table. `hive+pooled`, which hands
 every member every peer's reading and every fact for free, beats the tuned room
-by `+21.2 [+19.3, +23.3]` in *fewer* turns. The best arm tied to the floor
-reaches `+1.9 [+0.8, +3.0]`. Privacy, payload, targeting and accounting were each
+by `+30.8 [+28.9, +32.9]` in *fewer* turns. The best arm tied to the floor
+reaches `+1.4 [+0.4, +2.4]`. Privacy, payload, targeting and accounting were each
 isolated and measured, and none of them is the remaining constraint. Bandwidth
 is.
 
@@ -75,6 +75,19 @@ model calls. That is the honest price of the bandwidth, it is the reason the
 ceilings are explicit, and the benchmark reports private rows in a column of
 their own so a reader sees the spend beside the gain. A mechanism whose price a
 table hides would be worse than one that loses.
+
+**Writing the rows moves nothing by itself, and that was measured rather than
+argued.** A private row buys no trace, standing or budget, but it does consume a
+sequence number, and `salience::standing` reads recency as a raw sequence
+distance that feeds the attention market. So an exchange could in principle
+change who speaks next without a word of its content mattering. Two control arms
+write the identical rows on the identical schedule and discard every answer:
+`hive+quiet` for a round, `hive+hush` for an alongside row. Both are
+`+0.0 [+0.0, +0.0]` in every configuration, including at twenty rows an episode.
+Every point an exchange arm gains is information. This makes the
+sequence-distance decay harmless at these volumes rather than good design — a
+host writing far more rows should re-measure, and decaying over desk turns
+instead of raw sequences would be its own library change and its own ADR.
 
 **The audit guarantee carries the safety story, and it is weaker than
 prevention.** More private bandwidth is more room for covert coordination — the
