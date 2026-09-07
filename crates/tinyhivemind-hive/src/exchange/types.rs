@@ -50,7 +50,7 @@ impl Default for ExchangePolicy {
 /// participants decline can pay for asking each of them, without limit, while
 /// `round_cap` never closes.
 ///
-/// The host already knows how many times it called [`crate::exchange`]. It
+/// The host already knows how many times it called [`crate::exchange()`]. It
 /// carries this the same way it carries [`crate::EpisodeState`]: opened once,
 /// advanced by the value the last round returned, and never stored by this
 /// crate.
