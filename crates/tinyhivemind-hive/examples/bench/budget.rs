@@ -147,8 +147,8 @@ pub(crate) fn sweep(
                     arm,
                     capacity,
                     rot,
-                    correct: aggregate.correct_percent(),
-                    decided: aggregate.decided_percent(),
+                    correct: aggregate.accuracy(),
+                    decided: aggregate.decision_rate(),
                     rows: if count == 0 { 0.0 } else { rows / count as f64 },
                 });
             }

@@ -75,6 +75,7 @@
 //!
 //! See `live.rs` and `http.rs` for what the two live backends drive.
 
+mod budget;
 mod context;
 mod arms;
 mod federation;
