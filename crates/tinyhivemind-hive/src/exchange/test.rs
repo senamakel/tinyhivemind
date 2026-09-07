@@ -189,7 +189,10 @@ fn remaining_is_clamped_per_member_rather_than_in_aggregate() {
     // `planner` is out of contacts; `critic` and `scout` have ten each left on
     // paper and five rounds in which to spend them.
     assert_eq!(members, vec!["critic".to_owned(), "scout".to_owned()]);
-    assert_eq!(remaining, 10, "five remaining rounds for each of two members");
+    assert_eq!(
+        remaining, 10,
+        "five remaining rounds for each of two members"
+    );
 }
 
 #[test]
