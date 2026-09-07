@@ -10,8 +10,18 @@ use std::{
     io::Write,
     path::PathBuf,
     process::{Command, Stdio},
+    sync::{Arc, Mutex, PoisonError},
     time::{Duration, Instant},
 };
+
+/// How long a turn may produce nothing at all before it is treated as stalled.
+///
+/// A seat that is working emits an event every few seconds — a step, a tool
+/// call, a token. Silence for minutes means the agent CLI is waiting on a
+/// request that will never come back: one intermittent upstream failure ends
+/// its progress and it neither retries nor exits. Without this the only thing
+/// that notices is the turn deadline, so a provider blip costs a whole turn.
+const STALL_AFTER: Duration = Duration::from_secs(240);
 
 /// What one turn produced.
 #[derive(Clone, Debug, Default)]
@@ -26,6 +36,8 @@ pub(crate) struct TurnOutput {
     pub(crate) tools: Vec<String>,
     /// Whether the process was killed at its deadline rather than finishing.
     pub(crate) timed_out: bool,
+    /// Whether it was killed for going quiet long before its deadline.
+    pub(crate) stalled: bool,
     /// The agent CLI's own session id, so this seat can resume its own work.
     pub(crate) session: Option<String>,
     /// What the seat actually ran and saw, so a wrap-up summarizes evidence
@@ -121,7 +133,7 @@ impl AgentRunner {
             }
             buffer
         });
-        let (output, timed_out) = wait_with_timeout(child, timeout)?;
+        let (output, timed_out, stalled) = wait_with_timeout(child, timeout)?;
         let raw = String::from_utf8_lossy(&output);
         let complaints = errors.join().unwrap_or_default();
         // Keep the whole event stream. A turn that produced nothing postable is
@@ -143,6 +155,7 @@ impl AgentRunner {
         let mut turn = parse_events(&raw);
         turn.elapsed = started.elapsed();
         turn.timed_out = timed_out;
+        turn.stalled = stalled;
         if turn.error.is_none() && raw.trim().is_empty() && !complaints.trim().is_empty() {
             turn.error = Some(complaints.trim().lines().last().unwrap_or("").to_string());
         }
@@ -158,104 +171,59 @@ impl AgentRunner {
 fn wait_with_timeout(
     mut child: std::process::Child,
     timeout: Duration,
-) -> Result<(Vec<u8>, bool), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(Vec<u8>, bool, bool), Box<dyn std::error::Error + Send + Sync>> {
     let stdout = child.stdout.take().ok_or("child has no stdout")?;
+    // The buffer and the time it last grew, shared with the reader: a turn is
+    // alive because it is still saying something, not because it is still
+    // running.
+    let seen = Arc::new(Mutex::new((Vec::new(), Instant::now())));
+    let writer = Arc::clone(&seen);
     let reader = std::thread::spawn(move || {
         use std::io::Read;
-        let mut buffer = Vec::new();
         let mut stdout = stdout;
-        let _ = stdout.read_to_end(&mut buffer);
-        buffer
+        let mut chunk = [0_u8; 8192];
+        while let Ok(read) = stdout.read(&mut chunk) {
+            if read == 0 {
+                break;
+            }
+            let mut held = writer.lock().unwrap_or_else(PoisonError::into_inner);
+            held.0.extend_from_slice(&chunk[..read]);
+            held.1 = Instant::now();
+        }
     });
     let deadline = Instant::now() + timeout;
     let mut timed_out = false;
+    let mut stalled = false;
     loop {
         match child.try_wait()? {
             Some(_) => break,
-            None if Instant::now() >= deadline => {
-                timed_out = true;
-                let _ = child.kill();
-                break;
+            None => {
+                let quiet = seen
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .1
+                    .elapsed();
+                if Instant::now() >= deadline {
+                    timed_out = true;
+                    let _ = child.kill();
+                    break;
+                }
+                if quiet >= STALL_AFTER {
+                    stalled = true;
+                    let _ = child.kill();
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(250));
             }
-            None => std::thread::sleep(Duration::from_millis(200)),
         }
     }
-    Ok((reader.join().unwrap_or_default(), timed_out))
-}
-
-/// Fold one `--format json` event stream into a turn.
-///
-/// Text parts are concatenated in arrival order; a `<<<POST ... POST>>>` block
-/// wins over everything around it, because a model narrating its own reasoning
-/// into the shared transcript is noise every other seat then has to read.
-fn parse_events(stdout: &str) -> TurnOutput {
-    let mut text = String::new();
-    let mut turn = TurnOutput::default();
-    for line in stdout.lines() {
-        let Ok(event) = serde_json::from_str::<serde_json::Value>(line) else {
-            continue;
-        };
-        if turn.session.is_none()
-            && let Some(id) = event.get("sessionID").and_then(serde_json::Value::as_str)
-        {
-            turn.session = Some(id.to_string());
-        }
-        match event.get("type").and_then(serde_json::Value::as_str) {
-            Some("text") => {
-                if let Some(part) = event
-                    .pointer("/part/text")
-                    .and_then(serde_json::Value::as_str)
-                {
-                    if !text.is_empty() {
-                        text.push('\n');
-                    }
-                    text.push_str(part);
-                }
-            }
-            Some("tool" | "tool_use") => {
-                if let Some(name) = event
-                    .pointer("/part/tool")
-                    .and_then(serde_json::Value::as_str)
-                {
-                    turn.tools.push(name.to_string());
-                }
-                let input = event
-                    .pointer("/part/state/input")
-                    .map(serde_json::Value::to_string)
-                    .unwrap_or_default();
-                let result = event
-                    .pointer("/part/state/output")
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or_default();
-                turn.work_log.push_str("\n$ ");
-                turn.work_log.push_str(&truncate(&input, 1200));
-                turn.work_log.push('\n');
-                turn.work_log.push_str(&truncate(result, 1200));
-                turn.work_log.push('\n');
-            }
-            Some("error") => {
-                turn.error = Some(
-                    event
-                        .pointer("/error/data/message")
-                        .and_then(serde_json::Value::as_str)
-                        .unwrap_or("unknown agent error")
-                        .to_string(),
-                );
-            }
-            Some("step_finish") => {
-                if let Some(total) = event
-                    .pointer("/part/tokens/total")
-                    .and_then(serde_json::Value::as_u64)
-                {
-                    turn.tokens = turn.tokens.max(total);
-                }
-            }
-            _ => {}
-        }
-    }
-    turn.posted = text.contains("<<<POST");
-    turn.message = extract_post(&text);
-    turn
+    let _ = reader.join();
+    let buffer = seen
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .0
+        .clone();
+    Ok((buffer, timed_out, stalled))
 }
 
 /// Keep the head of a long string, marking what was dropped.
