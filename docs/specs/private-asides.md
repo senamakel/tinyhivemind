@@ -236,6 +236,40 @@ None. An aside is decided from arguments the caller already holds, and the row i
 produces is appended through the same path every other message uses. The host
 authorizes and stores; there is no new port and no new idempotency boundary.
 
+### Riding alongside a turn
+
+An aside costs no turn. One authorized turn produces the member's ordinary
+desk-visible contribution and, optionally, one aside row: a host appends both
+and commits the state the turn returned, exactly once. The episode cannot vote
+it, because `live_traces` drops a non-desk row before it reaches a trace or a
+standing, and `spent` counts turns rather than rows.
+
+It is not free of a sequence. Sequence numbers are unique across the one
+shared journal, so the aside row still takes the next one, and every later
+desk row lands at a higher raw sequence than it would have without the aside.
+`salience::standing` scores recency from that raw distance, and salience feeds
+the floor-holder choice — so "the episode cannot tell" covers votes, standings
+and `spent`, but not the decay a busier journal produces. See the "Known
+limitation" note on [ADR 0011](../adr/0011-an-aside-rides-alongside-a-turn.md).
+
+Three bounds hold, and they are what keep this inside the charter's third rule:
+
+- **At most one aside row per turn.** A room of *n* members writes at most *n*
+  aside rows per round, and each of them cost its author a turn it had won.
+- **An aside starts no turn.** A host does not hand an aside row authored inside
+  an episode to `mention_dispatch`. The peer answers on its own next turn, which
+  the attention market was going to give it; an exchange completes at the pace of
+  the floor or it does not complete.
+- **A refused audience is dropped, not published.** If the `aside` fold declines
+  to make the row private, the row is not written. Falling back to the desk would
+  put a second desk-visible contribution on one turn, which is the one thing a
+  turn may not produce.
+
+`HiveStep::Speak` still carries exactly one turn and no two participants ever
+hold the floor: what rides alongside a turn is a row, not a turn. See
+[ADR 0011](../adr/0011-an-aside-rides-alongside-a-turn.md), and the invariants
+pinned in `episode::test` and `crates/tinyhivemind-hive/tests/fuzz_invariants.rs`.
+
 ## Invariants and constraints
 
 - An audience is fixed at append time. Widening one later could never be
@@ -306,10 +340,33 @@ aside, every viewer projects what it projects today.
   attributed stub is chosen for auditability, latent asymmetry and citations. A
   host that wants a genuinely invisible exchange would need the row absent, and
   would then have to say what happens to a citation naming it.
+- **A settlement can arrive after its stub has shipped.** On the incremental
+  sharing path a stub delivered in one tick keeps the `settled_at: None` it was
+  sent with even when a participant settles the aside in a later tick, because
+  the watermark has already moved past the row and this crate cannot revise a
+  message it no longer holds. A re-seed shows it settled. Carrying pending-aside
+  state across ticks would be a second store to invalidate, so the field is
+  documented as a floor — "settled by here" — rather than made exact.
 - **Bound erosion is unaddressed.** `SCAN_LIMIT`, `PIN_SCAN`, `SEARCH_SCAN` and
   `THREAD_INDEX_SCAN` all count raw rows, so a viewer admitted to little of a
   desk gets proportionally less for the same cost. Stating the achieved window
   is honest but is not a fix, and a per-viewer multiplier was not attempted.
+- **An aside that does not ride on a turn at all** — now specified separately in
+  [`off-floor-exchange.md`](off-floor-exchange.md) and
+  [ADR 0012](../adr/0012-an-exchange-round-spends-model-calls-not-turns.md).
+  An aside riding alongside a turn is free but still rationed by the floor: a
+  room converging in eleven turns writes at most eleven aside rows, and the arm
+  that stays inside the turn contract reaches `+1.4` against a `+30.8` ceiling.
+  An exchange round lifts the ration at an explicit, finite, host-set price in
+  model calls. See
+  [`../experiments/2026-09-07-why-asides-lose.md`](../experiments/2026-09-07-why-asides-lose.md).
+- **Whether an aside should reach its member during a blind round.** It does not
+  today: `project_for` withholds every peer row under `Visibility::Blind`, so an
+  exchange cannot begin until positions have formed. Letting an aside through
+  would start the exchange earlier, and is worth `+0.5` — inside the noise, and
+  not enough to justify putting a channel the library cannot inspect through the
+  one filter [ADR 0005](../adr/0005-a-blind-round-may-be-concurrent.md) measures
+  24 points on. Measured and declined rather than assumed.
 - **`must_surface` is enforced at the next aside, not at the last turn.** Nothing
   compels a settlement before an episode ends, so a room can close with an aside
   unsettled. Making the episode refuse to converge on an unsettled aside was

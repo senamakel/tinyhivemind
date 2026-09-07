@@ -43,9 +43,18 @@ Every arm decides the same rooms from the same private evaluations.
 | `hive+dir` | The tuned policy with `directory: Some(DirectoryPolicy::DEFAULT)` — the folded transactive-memory directory on, so `BidReason::Knows` is reachable. |
 | `hive+defer` | The tuned policy with `defer_cap: Some(N)` and no directory: members may stand aside on a topic that is not theirs, with nothing routing the vacated turn. |
 | `hive+dir+defer` | Both at once, which is the arrangement `docs/specs/expert-delegation.md` describes end to end. |
-| `hive+aside` | The tuned policy with `--aside-cap`: a member that cannot separate its two best options spends a turn asking one peer for its reading, privately. Loses; see [the write-up](../../../../docs/experiments/2026-09-07-do-asides-help.md). |
+| `hive+aside` | The tuned policy with `--aside-cap`: a member that cannot separate its two best options spends a turn asking one peer for its reading, privately. Loses; see [the write-up](../../../../docs/experiments/2026-09-07-why-asides-lose.md). |
 | `hive+ask` | The identical exchange in the open — same turns, same words, every member reads it. The control that isolates *privacy* from *asking*. |
 | `hive+aside!` | The private check again, aimed at whoever the transcript shows has grounded the option rather than at whoever spoke first. |
+| `hive+fact` | The aimed check again, carrying the fact that rules an option out rather than a number to be averaged into an error the pair may share. |
+| `hive+mute` | The identical check on the identical turns, with the answer **discarded**. Targets the way `hive+aside`/`hive+ask` do — whoever spoke first — so it is a matched-turn control for those two: what it loses against `hive+` is what the turns cost. Against `hive+fact`/`hive+aside!`, which are aimed at the fact-holder, the comparison also carries a targeting difference, not content value alone. |
+| `hive+along` | The aimed, fact-carrying check again, **riding alongside** the member's floor move rather than replacing it: one authorized turn, two rows, and the episode unable to see the second. Unlike `hive+fact°` it picks its peer from the transcript exactly as `hive+fact` does, so it is the clean isolation of scheduling. See [ADR 0011](../../../../docs/adr/0011-an-aside-rides-alongside-a-turn.md). |
+| `hive+hush` | `hive+share` with the answers **discarded**: the same rows on the same turns, consuming the same sequence numbers, saying nothing. Alongside rows land unevenly, so this is the control that says whether that unevenness moves the room by itself. |
+| `hive+share` | The same free row spent **continuously** — a contact on every turn, to a peer not yet reached, carrying a reading of every option rather than an answer to one. What a colony's contacts actually look like, and what only a free row can afford. |
+| `hive+rounds` | The same continuous exchange run **off the floor**, in rounds between turns: nobody takes the floor for it, so its volume is set by `--exchange-cap` rather than by how many turns the room takes. Priced in the `calls/ep` column. See [ADR 0012](../../../../docs/adr/0012-an-exchange-round-spends-model-calls-not-turns.md). |
+| `hive+quiet` | `hive+rounds` with the answers **discarded**: the same rounds, the same rows, the same sequence numbers consumed, and no information transferred. The control that separates what an off-floor exchange *says* from what merely writing its rows does to salience decay. |
+| `hive+fact°` | The same bounded exchange as `hive+fact`, held **off the floor** — before the episode opens, spending no turn the room could have deliberated with. Its peer is chosen from private room state rather than the transcript, so it bounds what the exchange is worth off the floor rather than isolating scheduling alone. |
+| `hive+pooled` | The **ceiling for equal-weight pooling**: every private reading and every fact already in every member's hands, free, averaged with no regard for whose reading it is. No amount of pairwise exchange beats it on the rooms this benchmark measures (uniform and hidden-profile, where every peer's reading is equally reliable) — under `--specialists`, where readings genuinely differ in reliability, a protocol that could tell them apart could in principle beat indiscriminate averaging. |
 | `ladder+dir` | The responder ladder again, with a directory the room *earned* over `--history` prior episodes of `hive+` on the same room. The selector's candidates carry that directory's per-agent lines as their `description`, the request names the topic the call turns on, and a router that reads the descriptions picks the heaviest holder of it. Validated through the real `accept_selection`. |
 | `all-reasoning` | Only under `--cost-tiers`, in the cost table: `hive+dir+defer` (the delegating room) against a policy that puts every seat on the expensive tier. |
 
@@ -53,14 +62,47 @@ The six rows above `hive+dir` are the published table; the delegation arms are
 appended rather than interleaved, so `--seed 1 --episodes 5000` still prints
 them byte for byte.
 
-The three aside arms lose too, and the pair of them settles what the loss is
-made of: `hive+aside − hive+ask` spans zero in every configuration, so privacy
-is never the variable, and `hive+aside − hive+` goes to zero once the turn
-budget stops binding. On a hidden profile the loss is 15 points with the budget
-unconstrained, because averaging with a peer inside one correlated desk imports
-the shared bias rather than cancelling noise.
-[`docs/experiments/2026-09-07-do-asides-help.md`](../../../../docs/experiments/2026-09-07-do-asides-help.md)
-carries the numbers and the argument.
+Every aside arm that spends a turn loses, and the seven of them together
+settle what the loss is made of. `hive+aside − hive+ask` spans zero in every
+configuration, so privacy is never the variable. `hive+mute` discards the
+answer and loses *more* than `hive+aside` and `hive+ask` -- the two arms it is
+a clean matched-turn control for, since all three target the same way -- so
+against those two the content is never the variable either; the cost is the
+turns, in full, before a word changes hands. `hive+fact` lands within a point
+of `hive+mute` too (−16.9 against −15.7), but `hive+fact` is aimed at the
+fact-holder while `hive+mute` is not, so that particular gap also carries a
+targeting difference and should not be read as content value alone.
+`hive+aside!` is a sharper version of the same point: aimed at the actual
+fact-holder it loses `-17.1`, *more* than `hive+mute`, because conscripting the
+one member whose public turn matters into an audience of one is itself a cost.
+`hive+fact°` runs
+the same bounded exchange off the floor and moves from −16.9 to
+`+3.2 [+2.1, +4.2]` on a hidden profile, so scheduling accounts for most of the
+gap — though `hive+fact°` picks its peer from private room state rather than
+`hive+fact`'s transcript-only `View::grounded_by`, so this is an upper bound on
+the off-floor benefit, not a pure isolation of scheduling from targeting. And
+`hive+pooled` beats `hive+` by `+30.8 [+28.7, +32.9]` in *fewer* turns: peer
+information is worth more here than anything else this benchmark measures, and
+buying it one floor turn at a time is what costs more than it is worth.
+
+So the accounting changed. `hive+along` writes the identical exchange alongside
+each member's floor move instead of in place of one, and moves from `-16.9` to
+`+0.5 [+0.1, +0.9]` — a 17.4-point swing bought by charging the room nothing.
+`hive+share` then spends the free row continuously and reaches
+`+1.4 [+0.4, +2.4]`. Both stay inside the turn contract: only the member the
+library authorized ever writes, and it writes at most one private row per turn.
+
+`hive+rounds` takes the floor out of it altogether — members contact each other
+in rounds *between* turns, bounded by the library's `exchange` fold rather than
+by how talkative the room is — and reaches `+3.2 [+1.8, +4.5]` at forty-five model
+calls an episode. That is not free, and `calls/ep` is there so the price sits
+beside the gain. Every one of these arms is a null on uniform rooms: a room whose
+members differ only by independent noise has no concentrated information for a
+contact to move.
+[`docs/experiments/2026-09-07-why-asides-lose.md`](../../../../docs/experiments/2026-09-07-why-asides-lose.md)
+carries the numbers and the argument;
+[`2026-09-07-do-asides-help.md`](../../../../docs/experiments/2026-09-07-do-asides-help.md)
+is the first pass, whose explanation of the hidden-profile loss it retracts.
 
 `hive+ref` and `hive+ev` lose, reproducibly and by a lot, and the write-up in
 [`docs/experiments/2026-09-01-refutation-and-grounds.md`](../../../../docs/experiments/2026-09-01-refutation-and-grounds.md)
@@ -158,79 +200,10 @@ has the tables behind each of those, across desk sizes, plus what the benchmark 
 
 ## Statistics
 
-A second table is printed under the first, in `metrics.rs`:
-
-```text
-arm       correct %          95% CI  fact %  to-fact  knows %  defers/ep  route %  cost/ep    rho
-ladder         57.6       56.2–59.0       —        —        —          —        —     1.00      —
-vote           78.5       77.4–79.6       —        —        —          —        —    15.00      —
-hive           73.3       72.0–74.5       —        —      0.0        0.0        —     6.16   0.01
-hive+          82.1       81.0–83.1       —        —      0.0        0.0        —     6.75   0.19
-```
-
-`95% CI` is a Wilson score interval on `correct %`, chosen over the plain
-normal approximation because several arms here land near 0% or 100%, where the
-plain interval can cross outside `[0, 100]` and its coverage is worst. Under
-each row, a paired-bootstrap comparison line reports the same arm against
-`vote` at equal turns, e.g. `hive+ − vote: +3.6 [+2.1, +5.0]`: the accuracy
-difference and its 95% interval, resampling episode indices together for both
-arms because they decided the *same* rooms.
-
-`fact %` and `to-fact` report how often, and how late, the room's decisive
-member — a `--specialists` topic expert or the `--hidden-profile` fact-holder —
-put its knowledge on the floor **before the commit boundary**, over the
-episodes that *had* such a member. It counts a topiced `!evidence` deposit and
-nothing else: an earlier version of this column counted the member's opening
-`!propose`, read 100% on every arm of every run, and measured only that
-everybody gets a turn in the blind round. A deposit landing at or after the
-commit boundary is compute the room paid for and could not use, and is scored
-as a miss.
-
-`knows %` is the share of episodes in which a `BidReason::Knows` bid won the
-floor at least once — the directory's holder of the contested topic, brought
-out because the transcript says it knows something it has not said. Only an arm
-that folds a directory can reach it. `defers/ep` is turns spent on `!defer`.
-`route %` is the share of the scoreable episodes in which the responder ladder
-picked the decisive member as its one responder. `rho` is the
-circularity number `docs/specs/expert-delegation.md` obliges this benchmark to
-print: at the end of every episode the harness folds `directory()` over that
-episode's own journal — always at `DirectoryPolicy::DEFAULT`, whatever the arm
-asked for, so the number is comparable across arms — and takes Pearson's
-correlation on tie-averaged ranks, in exact integer arithmetic, between each
-member's total directory weight and the number of turns it took, averaged over
-the sample. A column reads `—` rather than `0.0` wherever the arm structurally
-cannot produce that number (a control arm never deliberates, so it never has
-an expert or a rho; a uniform room names no expert, so nothing can be routed
-right or wrong).
-
-**What `rho` means.** Near `1.0` the directory reproduces the speaking order
-and has learned nothing except who talked — the failure
-`docs/research/delegation.md` names *who spoke becomes who is thought to
-know*. At or below zero it is reading grounded deposits and other members'
-citations rather than turn count. It is printed to two decimals rather than
-one: on a hidden profile under `--blind-evidence`, `hive+defer` reads `-0.02`
-and `hive+dir+defer` reads `-0.00` — one fewer digit would collapse both to
-`0.0` and erase the boundary between weight that has been zeroed by deferral
-and weight that merely tracks turns weakly.
-
-Under the ordinary opening the default bench does not cluster: `hive` reads
-`0.01` and `hive+ref` reads `0.49`, with the directory arms in between at
-`0.19`. Under `--blind-evidence` the same bench moves higher and tighter,
-`0.61`–`0.72`. On a hidden profile it is lower again under the ordinary
-opening, `0.08`–`0.33`, and under `--blind-evidence` it separates by
-mechanism: `0.32` for `hive+`, `0.37` for `hive+dir`, and at or below zero
-once `!defer` is folded in — `-0.02` for `hive+defer`, falling to `-0.08` at
-`--defer-cap 2`. Depositing before arguing lifts weight off pure turn count;
-deferring is what pushes it to zero or below.
-
-`--json` prints one flat JSON object per arm, one per line, ahead of both
-tables, covering every column of both (as `fact_pct`, `to_fact`, `knows_pct`
-and `defers_per_episode`) plus `expert_led` — the share of
-episodes in which the decisive member authored the first `!propose` for the
-topic the room went on to decide, which the tables have no room for. `--stats-check` runs a small set of
-known cases through `wilson`, `paired_bootstrap` and `spearman_milli` — the
-statistics live in an example, so `cargo test` never exercises them — and
-exits `0` or `1`.
+The second table printed under the first — `correct %`, its confidence
+interval, `fact %`, `to-fact`, `knows %`, `defers/ep`, `route %`, `cost/ep`
+and `rho` — is documented in [`STATISTICS.md`](STATISTICS.md), together with
+the paired bootstrap and what its intervals do and do not license.
 
 ## The evidence-first opening
 
@@ -421,6 +394,78 @@ mention grammar and routed by the real `referral` fold, exactly as the
 simulated ask is. A run in which nothing crosses is a finding about the agents
 rather than a failure of the harness.
 
+## The context budget
+
+Every arm above moves information for free. `hive+pooled` is the extreme case:
+it copies every peer's reading straight into every member's state, and it wins
+by a distance because of it. That is a fair *information-theoretic* ceiling and
+a misleading *engineering* one — a participant is a language model with a
+window, "hand it everything" means putting everything in that window, and
+[`../../../../docs/research/long-context.md`](../../../../docs/research/long-context.md)
+is unkind about what that costs.
+
+`--context-sweep` charges for it. Each arm runs across a ladder of window
+capacities under [`context.rs`](context.rs), which models the two published
+effects and nothing else: rows past capacity are **evicted from the middle**,
+and surviving rows are discounted by a **U-curve** with the edges intact.
+`--context N` and `--rot F` set the two directly; `--context 0` is the default
+and is bit-identical to a build without any of this.
+
+### What it found
+
+On the hidden profile, 2000 rooms, `hive+pooled` — the arm that looked
+unbeatable:
+
+| window | rot 0.0 | rot 0.5 | rot 1.0 |
+| --- | --- | --- | --- |
+| unbounded | 91.7 | — | — |
+| 64 | 92.0 | 65.0 | 43.7 |
+| 32 | 92.0 | 65.0 | 43.7 |
+| 16 | 60.0 | 51.9 | 42.3 |
+| 8 | 28.6 | 28.2 | 28.9 |
+| 4 | 29.9 | 29.4 | 28.6 |
+
+It carries **16.8 rows per member**, and it needs a window about twice that to
+deliver what it promises. Give it a window the size of its own payload and it
+loses a third of its lead; halve that again and it loses nearly all of it. At
+64 rows there is *no eviction at all* — every row fits — so the whole fall from
+92.0 to 43.7 across that row is the U-curve alone: pooling buries its own
+decisive fact in the middle of the window it filled.
+
+`hive+` and `hive+along` are flat at 16.2 in every cell, because they carry
+0.0 and 0.1 extra rows. They are insensitive to the window because they barely
+use it.
+
+### What it did **not** find
+
+**A crossover.** `hive+pooled` at its worst (28.6) still beats `hive+` (16.2)
+everywhere, and at eight agents and eight topics — where pooling carries 56.9
+rows per member — it is 18.4 against 7.3. Squeezing the window never makes
+the deliberating room the better choice on this task.
+
+So the honest reading is narrower than "context economy vindicates
+deliberation":
+
+- The pooled ceiling is **soft and window-dependent**, not the fixed 89–92%
+  the other tables imply. Quoting it without a window is quoting telepathy.
+- Deliberation's **insensitivity** to the window is real and is a property
+  worth having.
+- Neither of those makes deliberation *good here*. `hive+` scores 7.3% on an
+  eight-seat hidden profile. The binding constraint on this task is not context
+  at all — it is that the protocol cannot surface a lone dissenting fact, which
+  is what `hive+fact°` (+27.6 over `hive+`) addresses and what a context budget
+  cannot.
+
+Fix the protocol first. Context economy is a second-order argument until the
+first-order one is answered.
+
+### Read the ordering, not the numbers
+
+`context.rs` is a model, not a measurement of any real model's retrieval. That
+is why `--context-sweep` sweeps `rot` rather than picking a value: an ordering
+that holds across the whole block is a claim about the protocols, and one that
+changes hands between blocks is a claim about the model. Both are reported.
+
 ## Flags
 
 | flag | meaning |
@@ -436,7 +481,12 @@ rather than a failure of the harness.
 | `--blind-evidence` | a member's first turn, while the room is blind, is a deposit rather than a position (off by default) |
 | `--directory` | fold the directory into the traced episode's own policy, so `--trace` can show a `knows` turn |
 | `--defer-cap N` | turns a member may spend deferring to a topic's expert instead of arguing outside its own specialty (default 1, minimum 1); read by `hive+defer` and `hive+dir+defer` |
-| `--aside-cap N` | pairwise checks one member may open (default 1); `0` makes `hive+aside`, `hive+ask` and `hive+aside!` bit-identical to `hive+` |
+| `--context N` | rows each member's window holds; `0` (default) disables the window model entirely |
+| `--rot F` | how hard the middle of that window is discounted, `0.0..=1.0` (default `0.0`) |
+| `--context-sweep` | run the window ladder instead of comparing arms once |
+| `--aside-cap N` | pairwise checks one member may open (default 1); under `hive+share` it caps distinct peers contacted instead; `0` makes every aside arm bit-identical to `hive+` |
+| `--aside-cap N` | pairwise checks one member may open (default 1); under `hive+share` it caps distinct peers contacted instead; `0` makes every on-floor and alongside aside arm bit-identical to `hive+` |
+| `--exchange-cap N` | private rows one member may write **off the floor** across an episode, read by `hive+rounds` (default 4); a separate knob because it bounds model calls rather than the room's turns; `0` makes `hive+rounds` bit-identical to `hive+` |
 | `--history N` | prior episodes of `hive+` the `ladder+dir` arm earns its directory from (default 3) |
 | `--budget N` `--quorum N` `--window N` | episode policy, overriding the tuned values |
 | `--dominance N` `--repetition N` `--no-blind` | episode policy |
@@ -450,7 +500,8 @@ rather than a failure of the harness.
 | `--scenario PATH` | give the live room a real problem with private facts |
 | `--repeat N` | run a live scenario N times and count both arms |
 | `--json` | print one flat JSON object per arm, ahead of the tables |
-| `--stats-check` | run the statistics module's self-check and exit `0` or `1` |
+| `--stats-check` | run the statistics module's self-check, and the check arms' own, and exit `0` or `1` |
+| `calls/ep` (column) | model calls made in off-floor exchange rounds per episode — members *asked*, not rows written, so a declined round costs what it actually cost. Kept out of `cost/ep`, which is each speaker's own cost times its turns |
 | `--timeout SECS` | per-turn deadline for a live agent or HTTP request (default 180) |
 | `--api-base URL` | drive seats directly over HTTP instead of a CLI |
 | `--api-key-env NAME` | env var carrying the HTTP backend's key (default `LADDER_API_KEY`) |

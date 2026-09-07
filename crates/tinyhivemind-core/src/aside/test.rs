@@ -519,3 +519,35 @@ fn a_retired_target_is_inactive() {
         },
     );
 }
+
+#[test]
+fn a_policy_rung_never_masks_an_unresolvable_audience() {
+    // The spec fixes the evaluation order: the audience is resolved and
+    // validated *before* the thread, budget and settlement rungs. A caller
+    // told `ThreadRequired` for a request that also names an inactive target
+    // would open a thread and be refused again for the reason it was never
+    // given, so each of these pairs must report the audience fault.
+    let mut threaded = policy();
+    threaded.require_thread = true;
+    let mut request = input(vec![mention("ghost", 0)]);
+    request.conversation.thread_root = None;
+    assert_eq!(refused(threaded, &request), NoAsideReason::TargetInactive);
+
+    let mut spent = policy();
+    spent.max_messages = 1;
+    let mut request = input(vec![mention("dave", 0)]);
+    request.spent = 4;
+    assert_eq!(refused(spent, &request), NoAsideReason::TargetNotOnDesk);
+
+    let mut surfacing = policy();
+    surfacing.must_surface = true;
+    let mut request = input(Vec::new());
+    request.unsettled = true;
+    assert_eq!(refused(surfacing, &request), NoAsideReason::NoAudience);
+
+    // And an author fault still outranks the audience, because a member that
+    // is not on this desk cannot address anybody on it.
+    let mut request = input(vec![mention("ghost", 0)]);
+    request.author_id = "dave".into();
+    assert_eq!(refused(policy(), &request), NoAsideReason::AuthorNotOnDesk);
+}

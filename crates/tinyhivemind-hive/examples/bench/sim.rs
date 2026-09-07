@@ -50,6 +50,7 @@ use tinyhivemind_hive::{
     trace::{TopicId, Trace, TraceKind, resolve},
 };
 
+use crate::context::{ContextBudget, ContextEntry, EntryKind};
 use crate::rng::{Rng, mix};
 use crate::run::ASIDE_MARKER;
 
@@ -261,6 +262,13 @@ pub(crate) struct Room {
     pub(crate) truth: TopicId,
     /// The participants.
     pub(crate) agents: Vec<SimAgent>,
+    /// The window every member in this room reads through.
+    ///
+    /// Carried on the room rather than threaded through `run_episode_checking`
+    /// so that `pooled` and `pre_checked`, which clone the room to install what
+    /// a member has absorbed, cannot install information into a room and then
+    /// forget what it costs to hold.
+    pub(crate) budget: ContextBudget,
     /// The member holding each specialised topic, one entry per topic that
     /// has an expert. Populated under `Expertise::Specialists` only; empty
     /// under `Expertise::Uniform`, which has no experts, and under
@@ -387,6 +395,7 @@ impl Room {
         Self {
             truth,
             agents: members,
+            budget: ContextBudget::UNBOUNDED,
             experts,
             decisive,
             planted,
@@ -427,6 +436,114 @@ impl Room {
         let mut room = self.clone();
         for agent in &mut room.agents {
             agent.cost_unit = unit;
+        }
+        room
+    }
+
+    /// The same room, with every private reading and every refuting fact
+    /// already in every member's hands, at no turn cost at all.
+    ///
+    /// This is the **ceiling** on pairwise exchange, and it is the control
+    /// the aside arms were missing. Those arms confound two things: what a
+    /// check is worth, and what the turns it spends cost. `swarm.rs` already
+    /// solves the same problem one level up with `pooled`, which hands every
+    /// desk every other desk's readings for free and bounds what crossing a
+    /// channel could ever buy. This is that arm for a pair inside one desk.
+    ///
+    /// It is deliberately more generous than any protocol could be: every
+    /// member absorbs every peer's own reading of every option, and every
+    /// refutation any peer holds, before the episode opens. No sequence of
+    /// asides can beat it, so if the room is no better here the mechanism is
+    /// not what is limiting the room.
+    /// The same room, read through a window of `budget`.
+    pub(crate) fn with_budget(&self, budget: ContextBudget) -> Self {
+        let mut room = self.clone();
+        room.budget = budget;
+        room
+    }
+
+    pub(crate) fn pooled(&self) -> Self {
+        let mut room = self.clone();
+        let readings: Vec<Holdings> = self
+            .agents
+            .iter()
+            .map(|agent| (agent.evals.clone(), agent.refutes.clone()))
+            .collect();
+        for (index, agent) in room.agents.iter_mut().enumerate() {
+            for (peer, (evals, refutes)) in readings.iter().enumerate() {
+                if peer == index {
+                    continue;
+                }
+                for (topic, reading) in evals {
+                    agent.import(topic, *reading);
+                }
+                if let Some(topic) = refutes {
+                    agent.note_fact(topic);
+                }
+            }
+            // A refutation installed after this agent's last `import` call
+            // above -- always true for whichever peer is processed last --
+            // would otherwise leave `favourite` pointing at an option this
+            // agent's own `ruled_out` has since discounted.
+            agent.recompute_favourite();
+        }
+        room
+    }
+
+    /// The same room, with each member having spent `cap` pairwise checks
+    /// **before the episode opens**, off the floor.
+    ///
+    /// [`Self::pooled`] bounds what any exchange could be worth; this bounds
+    /// what *the aside arms' own exchange* is worth once it stops competing
+    /// with the deliberation for turns. Same trigger as
+    /// [`SimAgent::open_check`] — a member that cannot separate its two best
+    /// options — same bounded number of contacts, same payload. The one
+    /// difference is that the contact does not consume a floor turn.
+    ///
+    /// The peer is chosen at least as well as the on-floor arm chooses one:
+    /// whoever actually holds the fact, and otherwise the next member round.
+    /// So an on-floor arm cannot be losing to worse targeting than this.
+    pub(crate) fn pre_checked(&self, cap: u32, evidence: bool) -> Self {
+        let mut room = self.clone();
+        let readings: Vec<Holdings> = self
+            .agents
+            .iter()
+            .map(|agent| (agent.evals.clone(), agent.refutes.clone()))
+            .collect();
+        let count = room.agents.len();
+        for (index, agent) in room.agents.iter_mut().enumerate() {
+            for spent in 0..cap {
+                let Some(topic) = agent.uncertain_about() else {
+                    break;
+                };
+                // Whoever holds the fact, and otherwise the next member round.
+                let peer = readings
+                    .iter()
+                    .position(|(_, refutes)| refutes.as_ref() == Some(&topic))
+                    .filter(|peer| *peer != index)
+                    .unwrap_or_else(|| (index + 1 + spent as usize) % count.max(1));
+                if peer == index {
+                    break;
+                }
+                let Some((evals, refutes)) = readings.get(peer) else {
+                    break;
+                };
+                // A fact-bearing peer hands over the fact *instead of* its
+                // reading, matching the on-floor `CheckStyle::FACT` exchange
+                // in `absorb` -- otherwise `hive+fact°` would carry both the
+                // fact and the reading `hive+fact` never gets to average in.
+                if evidence && refutes.as_ref() == Some(&topic) {
+                    agent.note_fact(&topic);
+                } else if let Some((_, reading)) = evals.iter().find(|(held, _)| *held == topic) {
+                    agent.import(&topic, *reading);
+                }
+            }
+            // `import` already recomputes `favourite` on every reading taken,
+            // which covers today's data (every peer holds a reading for
+            // every topic). Recomputing again here is a cheap guarantee
+            // against the one case that would not: a `ruled_out` fact
+            // installed above with no matching `import` call to refresh it.
+            agent.recompute_favourite();
         }
         room
     }
@@ -697,6 +814,14 @@ pub(crate) struct SimAgent {
     /// changes what a member *believes*, and it still has to spend a turn
     /// saying so before the room counts it.
     imports: Vec<(TopicId, i64, u32)>,
+    /// Everything this member has been told, in arrival order, one row each.
+    ///
+    /// Parallel to `imports` and `ruled_out` rather than replacing them: under
+    /// [`ContextBudget::UNBOUNDED`] nothing reads this and the arm is
+    /// bit-identical to one built before the window existed.
+    context: Vec<ContextEntry>,
+    /// How much of the above this member can still read.
+    budget: ContextBudget,
     /// Its own argmax over `evals`.
     favourite: TopicId,
     /// Drives noncompliance only; never the private evaluations.
@@ -735,12 +860,160 @@ pub(crate) struct SimAgent {
     aside_cap: u32,
     /// Checks this member has already opened.
     asides_spent: u32,
-    /// Whether a check goes to the member the transcript shows has grounded
-    /// the topic, rather than to whoever spoke first.
-    aside_informed: bool,
+    /// What this member's checks do beyond costing a turn: where they are
+    /// aimed, whether an answer may carry a fact, and whether the answer is
+    /// taken in at all.
+    style: CheckStyle,
+    /// Options a private exchange has told this member are ruled out. Read by
+    /// [`Self::score`], and by nothing the room counts.
+    ruled_out: Vec<TopicId>,
+    /// The other members of this member's desk, for a continuous exchange
+    /// that has to name a peer before it has seen one speak.
+    ///
+    /// Read only by [`CheckStyle::exchange`]. Every other arm finds its peer
+    /// in the transcript, which is what confines those arms to the turns
+    /// after the blind round.
+    peers: Vec<String>,
+    /// Peers this member has already contacted under
+    /// [`CheckStyle::exchange`], so a continuous exchange reaches each of them
+    /// once rather than the same one repeatedly.
+    contacted: Vec<String>,
+    /// Whether the turn this member has just composed was a real contribution
+    /// rather than [`NONCOMPLIANCE`] filler.
+    ///
+    /// Read only by the alongside arm, so a member drifting through a turn
+    /// does not also open a private check on it. Without it the two halves of
+    /// the same experiment would differ in a second way: an on-floor check
+    /// never happens on a noncompliant turn either, because `compose` returns
+    /// before reaching one.
+    complied: bool,
     /// Sequences of exchanges this member has already answered or folded in,
     /// so neither is done twice.
     handled: Vec<Sequence>,
+}
+
+/// One member's private evaluations and the fact it holds, if any.
+///
+/// What a peer could ever hand over, read once out of the room so the
+/// zero-cost arms do not clone a participant per contact.
+type Holdings = (Vec<(TopicId, i32)>, Option<TopicId>);
+
+/// What one answered check hands over.
+///
+/// Three of these vary the *content* of an exchange while leaving its turns,
+/// its words and its audience alone, which is what makes the arms that use
+/// them a matched set rather than four unrelated experiments.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) enum Payload {
+    /// The responder's own reading of the one option it was asked about.
+    #[default]
+    Reading,
+    /// That, and the fact that rules the option out when the responder holds
+    /// one — what the room's public `!evidence` grammar has always carried.
+    Fact,
+    /// Nothing at all: the answer is written and discarded. The matched-turn
+    /// control, whose loss against `hive+` is what the turns cost.
+    Nothing,
+    /// A reading of *every* option, and any fact — what a contact transfers in
+    /// the biology, and what only a row that costs no turn can afford.
+    Everything,
+    /// [`Payload::Everything`] written and then thrown away by its reader.
+    ///
+    /// Byte-for-byte the same rows on the same rounds, consuming the same
+    /// sequence numbers, transferring nothing. The control that separates what
+    /// an off-floor exchange *says* from what merely writing its rows does to
+    /// a fold that reads recency off raw sequence distance.
+    Discarded,
+}
+
+/// What one arm's pairwise check does, beyond costing a turn.
+///
+/// Bundled rather than passed as loose flags so a call site says which knob it
+/// is turning. [`CheckStyle::PLAIN`] is the original move: aimed at whoever
+/// spoke first, carrying a reading, in place of the member's floor turn.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct CheckStyle {
+    /// Aim the question at whoever the room has heard ground the option.
+    pub(crate) informed: bool,
+    /// Send the check **alongside** the member's floor move rather than in
+    /// place of it, so the exchange costs the room no turn at all.
+    pub(crate) alongside: bool,
+    /// What an answer hands over.
+    pub(crate) payload: Payload,
+}
+
+impl CheckStyle {
+    /// Aimed at whoever spoke first, carrying a reading, taken in, on the
+    /// floor.
+    pub(crate) const PLAIN: Self = Self {
+        informed: false,
+        alongside: false,
+        payload: Payload::Reading,
+    };
+    /// Aimed at whoever the room has heard ground the option.
+    pub(crate) const AIMED: Self = Self {
+        informed: true,
+        alongside: false,
+        payload: Payload::Reading,
+    };
+    /// Aimed, and carrying the fact rather than a number.
+    pub(crate) const FACT: Self = Self {
+        informed: true,
+        alongside: false,
+        payload: Payload::Fact,
+    };
+    /// The same turns, transferring nothing.
+    pub(crate) const MUTE: Self = Self {
+        informed: false,
+        alongside: false,
+        payload: Payload::Nothing,
+    };
+    /// Aimed, carrying the fact, and riding alongside the floor move rather
+    /// than replacing it. The mechanism the scheduling result points at.
+    pub(crate) const ALONGSIDE: Self = Self {
+        informed: true,
+        alongside: true,
+        payload: Payload::Fact,
+    };
+    /// The same free row, spent continuously and carrying everything the donor
+    /// holds rather than one answer to one question.
+    pub(crate) const EXCHANGE: Self = Self {
+        informed: false,
+        alongside: true,
+        payload: Payload::Everything,
+    };
+    /// The same rows on the same rounds, with every answer discarded.
+    ///
+    /// The control an off-floor exchange needs and an on-floor one does not.
+    /// A private row consumes a sequence number, and `salience::standing`
+    /// reads recency as a raw sequence distance — so writing twenty of them an
+    /// episode perturbs which member the attention market hands the floor to,
+    /// whatever they say. This arm writes them and says nothing, so whatever
+    /// it moves is that perturbation rather than information.
+    pub(crate) const QUIET: Self = Self {
+        informed: false,
+        alongside: true,
+        payload: Payload::Discarded,
+    };
+
+    /// Whether an answer may carry the fact that rules an option out.
+    pub(crate) const fn evidence(self) -> bool {
+        matches!(self.payload, Payload::Fact | Payload::Everything)
+    }
+
+    /// Whether an answer is discarded rather than taken in.
+    pub(crate) const fn mute(self) -> bool {
+        matches!(self.payload, Payload::Nothing | Payload::Discarded)
+    }
+
+    /// Whether a contact happens every turn and carries every option.
+    ///
+    /// True of [`Payload::Discarded`] as well as [`Payload::Everything`]: the
+    /// control has to *write* the same rows to be a control, and differs only
+    /// in what its reader does with them.
+    pub(crate) const fn exchange(self) -> bool {
+        matches!(self.payload, Payload::Everything | Payload::Discarded)
+    }
 }
 
 impl SimAgent {
@@ -792,7 +1065,13 @@ impl SimAgent {
             imports: Vec::new(),
             aside_cap: 0,
             asides_spent: 0,
-            aside_informed: false,
+            style: CheckStyle::PLAIN,
+            peers: Vec::new(),
+            contacted: Vec::new(),
+            complied: false,
+            ruled_out: Vec::new(),
+            context: Vec::new(),
+            budget: ContextBudget::UNBOUNDED,
             handled: Vec::new(),
             favourite,
             rng: Rng::seeded(mix(seed, 0x000A_11CE ^ index as u64)),
@@ -830,13 +1109,116 @@ impl SimAgent {
             }
             None => self.imports.push((topic.clone(), i64::from(reading), 1)),
         }
+        self.context.push(ContextEntry {
+            topic: topic.clone(),
+            kind: EntryKind::Reading(reading),
+        });
+        self.recompute_favourite();
+        true
+    }
+
+    /// Give this member a window to read what it holds through.
+    ///
+    /// Recomputes the favourite, and must. `Room::pooled` and
+    /// `Room::pre_checked` install what a member has absorbed *before* the
+    /// episode starts and `recompute_favourite` caches the argmax as they go —
+    /// so a budget applied afterwards would narrow `score` while leaving
+    /// `favourite` pointing at whatever the member preferred when it could
+    /// still read everything. Every turn reads `favourite`, so the window
+    /// would have been charged for and then ignored, which is exactly what the
+    /// first run of `--context-sweep` showed: `hive+pooled` scoring an
+    /// identical 89.4% at a four-row window as at an unbounded one.
+    pub(crate) fn set_budget(&mut self, budget: ContextBudget) {
+        self.budget = budget;
+        self.recompute_favourite();
+    }
+
+    /// Install a fact that rules an option out, occupying a row to do it.
+    ///
+    /// The single place a fact enters a member, so that a fact is subject to
+    /// the same window every reading is. That matters more than it sounds: on
+    /// a hidden profile the decisive fact is *one* row among many readings that
+    /// all agree with each other, and a model of context that charged the
+    /// readings but not the fact would make the fact free precisely where it is
+    /// load-bearing.
+    pub(crate) fn note_fact(&mut self, topic: &TopicId) {
+        if !self.ruled_out.contains(topic) {
+            self.ruled_out.push(topic.clone());
+        }
+        self.context.push(ContextEntry {
+            topic: topic.clone(),
+            kind: EntryKind::Fact,
+        });
+    }
+
+    /// Charge this member one row for an exchange it could see but not read.
+    pub(crate) fn note_stub(&mut self, topic: &TopicId) {
+        self.context.push(ContextEntry {
+            topic: topic.clone(),
+            kind: EntryKind::Stub,
+        });
+    }
+
+    /// This member's score for one option, read through its window.
+    ///
+    /// Only reached when a budget is set. Each surviving row contributes at the
+    /// weight its position earns, so a reading buried in the middle of a
+    /// crowded window is worth a fraction of the same reading at the edge of a
+    /// quiet one, and a row evicted by compaction is worth nothing at all.
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "a weighted mean of readings is bounded by the readings, which are i32"
+    )]
+    fn windowed_score(&self, topic: &TopicId, own: i32) -> i32 {
+        let kept = self.budget.retained(self.context.len());
+        let held = kept.len();
+        let mut total = f64::from(own);
+        let mut divisor = 1.0_f64;
+        let mut ruled_out = 0.0_f64;
+        for (position, index) in kept.into_iter().enumerate() {
+            let entry = &self.context[index];
+            if &entry.topic != topic {
+                continue;
+            }
+            let weight = self.budget.weight(position, held);
+            match entry.kind {
+                EntryKind::Reading(reading) => {
+                    total += weight * f64::from(reading);
+                    divisor += weight;
+                }
+                EntryKind::Fact => ruled_out = ruled_out.max(weight),
+                // A stub says an exchange happened and nothing about the
+                // option, so it moves no score. It has already cost its row.
+                EntryKind::Stub => {}
+            }
+        }
+        let pooled = if divisor > 0.0 {
+            total / divisor
+        } else {
+            f64::from(own)
+        };
+        let discounted = pooled - ruled_out * f64::from(GROUNDS_WEIGHT);
+        discounted.round() as i32
+    }
+
+    /// Recompute [`Self::favourite`] from every option this member holds a
+    /// current [`Self::score`] for.
+    ///
+    /// `import` calls this on every reading it takes, but a caller that
+    /// updates `ruled_out` directly -- `Room::pooled` and `Room::pre_checked`
+    /// both do, to install a fact rather than a number -- must call this
+    /// itself afterward. `score` reads `ruled_out`, so a ruled-out topic
+    /// installed after the last `import` call for a member would otherwise
+    /// leave `favourite` pointing at an option that member's own state has
+    /// since ruled out, and every turn that reads `favourite` would keep
+    /// advocating it.
+    fn recompute_favourite(&mut self) {
         self.favourite = self
             .evals
             .iter()
             .map(|(topic, _)| topic.clone())
             .max_by_key(|topic| self.score(topic))
             .unwrap_or_else(|| self.favourite.clone());
-        true
     }
 
     /// Tell the participant how many turns it may spend asking one peer for a
@@ -845,11 +1227,32 @@ impl SimAgent {
     /// `Room::generate_with` leaves every member at `0`, so an arm that opens
     /// no check is bit-identical to one built before the move existed — the
     /// same discipline `set_defer_cap` follows.
-    pub(crate) fn set_aside_cap(&mut self, cap: u32, informed: bool) {
+    ///
+    /// Resets only the exchange state a *floor* check creates — it must not
+    /// clear `ruled_out`, because `Room::pre_checked` and `Room::pooled`
+    /// write facts into it before the episode opens, and this is called on
+    /// that same freshly cloned agent right at `run_episode`'s start. Wiping
+    /// it here would silently discard every fact those off-floor controls
+    /// preload.
+    pub(crate) fn set_aside_cap(&mut self, cap: u32, style: CheckStyle) {
         self.aside_cap = cap;
-        self.aside_informed = informed;
+        self.style = style;
         self.asides_spent = 0;
         self.handled.clear();
+        self.contacted.clear();
+    }
+
+    /// Tell the participant who else is on its desk.
+    ///
+    /// A room's membership is not private, and a host hands it to every
+    /// participant already; a continuous exchange needs it so a member can
+    /// address a peer during the blind round, before anybody has been heard.
+    pub(crate) fn set_peers(&mut self, ids: &[&str]) {
+        self.peers = ids
+            .iter()
+            .filter(|id| **id != self.id)
+            .map(|id| (*id).to_owned())
+            .collect();
     }
 
     /// Tell the participant which quorum rule the room is running.
@@ -878,18 +1281,44 @@ impl SimAgent {
         &self.favourite
     }
 
+    /// This participant's own untouched evaluation of one option.
+    ///
+    /// Distinct from [`Self::score`], which averages in everything absorbed
+    /// since. What a member hands a peer has to be the independent signal, or
+    /// pooling double-counts.
+    pub(crate) fn own_reading(&self, topic: &TopicId) -> i32 {
+        self.evals
+            .iter()
+            .find(|(held, _)| held == topic)
+            .map_or(i32::MIN, |(_, own)| *own)
+    }
+
     /// This participant's score for one option: its own reading, averaged
     /// with every outside reading it has taken.
     pub(crate) fn score(&self, topic: &TopicId) -> i32 {
         let Some((_, own)) = self.evals.iter().find(|(held, _)| held == topic) else {
             return i32::MIN;
         };
-        let Some((_, sum, count)) = self.imports.iter().find(|(held, _, _)| held == topic) else {
-            return *own;
+        if !self.budget.is_unbounded() {
+            return self.windowed_score(topic, *own);
+        }
+        let pooled = match self.imports.iter().find(|(held, _, _)| held == topic) {
+            None => *own,
+            Some((_, sum, count)) => {
+                let total = i64::from(*own).saturating_add(*sum);
+                let divisor = i64::from(*count).saturating_add(1);
+                i32::try_from(total / divisor).unwrap_or(*own)
+            }
         };
-        let total = i64::from(*own).saturating_add(*sum);
-        let divisor = i64::from(*count).saturating_add(1);
-        i32::try_from(total / divisor).unwrap_or(*own)
+        // A fact learned in a private exchange discounts the option for this
+        // member exactly as a desk-visible one discounts it for every reader
+        // in `View::posterior`, at the same constant. The two channels are
+        // therefore worth the same per fact, and the arms differ in how far
+        // one fact reaches rather than in how loudly it is stated.
+        if self.ruled_out.contains(topic) {
+            return pooled.saturating_sub(GROUNDS_WEIGHT);
+        }
+        pooled
     }
 
     /// Spend this turn on a pairwise check, if this member wants one.
@@ -930,6 +1359,21 @@ impl SimAgent {
     fn absorb(&mut self, visible: &[SessionMessage]) {
         for message in visible {
             let Some(body) = message.readable() else {
+                // An exchange this member can see happened and cannot read.
+                // It costs a row and carries nothing, which is the whole
+                // trade an aside makes for everybody outside it: the
+                // projection collapses the exchange to one stub instead of
+                // showing its messages, so the non-member pays one row rather
+                // than however many were said.
+                //
+                // Charged once, by sequence, for the same reason a reading is:
+                // a stub that stayed in the window for four turns is one row,
+                // not four.
+                if !self.budget.is_unbounded() && !self.handled.contains(&message.sequence) {
+                    self.handled.push(message.sequence);
+                    let topic = self.favourite.clone();
+                    self.note_stub(&topic);
+                }
                 continue;
             };
             if self.handled.contains(&message.sequence) || !body.starts_with(ASIDE_MARKER) {
@@ -942,11 +1386,49 @@ impl SimAgent {
             if author == self.id {
                 continue;
             }
-            let Some((topic, reading)) = parse_reading(body) else {
+            let readings = parse_readings(body);
+            if readings.is_empty() {
                 continue;
-            };
+            }
             self.handled.push(message.sequence);
-            self.import(&topic, reading);
+            // A refutation is not a reading to be averaged. A member told
+            // privately that its best option is ruled out revises its own
+            // belief instead of pooling one more number into it — which is
+            // what a contact transfers in every biological analogue this
+            // workspace cites, and what the room's public grammar has always
+            // carried in `!evidence`. It stays a belief: no trace resolves
+            // out of an aside row, so the room still counts nothing.
+            if self.style.mute() {
+                continue;
+            }
+            // A refutation names the option it rules out explicitly, because
+            // a full exchange carries several readings in one row and "the
+            // topic" would otherwise be ambiguous.
+            let refuted = self
+                .style
+                .evidence()
+                .then(|| parse_ruled_out(body))
+                .flatten();
+            if let Some(topic) = refuted.clone() {
+                self.note_fact(&topic);
+            }
+            // The fact is carried *instead of* the number for the option it
+            // rules out, never in addition to it: `CheckStyle::FACT` exists to
+            // ask whether that substitution beats an averaged reading, so
+            // importing the refuted option's reading too would answer a
+            // different question than the arm is defined to ask. Every *other*
+            // reading in the row is still taken.
+            for (held, reading) in readings {
+                if refuted.as_ref() == Some(&held) {
+                    continue;
+                }
+                self.import(&held, reading);
+            }
+            // `import` recomputes `favourite` on every reading it takes, but a
+            // row carrying only a refutation takes none — so the discount has
+            // to be reflected here or the member keeps a favourite its own
+            // `ruled_out` has since discounted.
+            self.recompute_favourite();
         }
     }
 
@@ -963,12 +1445,60 @@ impl SimAgent {
             SessionAuthor::Agent { id, .. } => id.clone(),
             _ => return None,
         };
+        // A full exchange hands over everything this member holds rather than
+        // an answer to the one question asked, so its question names no option
+        // and this runs before the topic is read out of one. Same move as the
+        // pairwise answer below — this member's own untouched readings, never
+        // its pooled ones — over every option instead of one.
+        if self.style.exchange() {
+            self.handled.push(request.sequence);
+            let mut parts: Vec<String> = vec![format!("{ASIDE_MARKER} @{from}")];
+            parts.extend(self.evals.iter().map(|(held, _)| {
+                let reading = self.own_reading(held);
+                format!("#{held} {ASIDE_READS} {reading}.")
+            }));
+            if let Some(refuted) = self.refutes.clone() {
+                parts.push(format!("#{refuted} The reading I hold {RULES_OUT}."));
+            }
+            return Some(parts.join(" "));
+        }
         let topic = parse_topic(request.readable()?)?;
         self.handled.push(request.sequence);
-        let reading = self.score(&topic);
+        // The member's *own* reading, not `score()`. `score` averages in every
+        // reading this member has already absorbed, so answering with it would
+        // echo an already-pooled value back into the room: a later asker would
+        // count one peer's signal several times over, and the arm would stop
+        // modelling the experiment it documents — one private evaluation
+        // averaged with one independent peer's.
+        let reading = self.own_reading(&topic);
+        // A member holding the one fact that rules this option out says so,
+        // rather than handing over a number for the asker to average into an
+        // error they already share. Off unless the arm asked for it, so the
+        // reading-only arms are unchanged.
+        if self.style.evidence() && self.refutes.as_ref() == Some(&topic) {
+            return Some(format!(
+                "{ASIDE_MARKER} @{from} #{topic} My own {ASIDE_READS} {reading}. \
+                 The reading I hold {RULES_OUT}."
+            ));
+        }
         Some(format!(
             "{ASIDE_MARKER} @{from} #{topic} My own {ASIDE_READS} {reading}."
         ))
+    }
+
+    /// The option this member cannot separate from its runner-up, if there is
+    /// one. The trigger for a pairwise check, wherever the check happens.
+    pub(crate) fn uncertain_about(&self) -> Option<TopicId> {
+        let mut ranked: Vec<(&TopicId, i32)> = self
+            .evals
+            .iter()
+            .map(|(topic, _)| (topic, self.score(topic)))
+            .collect();
+        ranked.sort_by_key(|(_, score)| std::cmp::Reverse(*score));
+        let [(best, top), (_, second), ..] = ranked.as_slice() else {
+            return None;
+        };
+        (top.saturating_sub(*second) <= ASIDE_UNCERTAINTY).then(|| (*best).clone())
     }
 
     /// Ask one peer what they read, when this member cannot separate its own
@@ -976,6 +1506,18 @@ impl SimAgent {
     fn open_check(&mut self, visible: &[SessionMessage], view: &View) -> Option<String> {
         if self.asides_spent >= self.aside_cap {
             return None;
+        }
+        // A continuous exchange does not wait to be uncertain, and does not
+        // pick a peer for a question: it contacts whoever it has not reached
+        // yet. `aside_cap` bounds how many that is.
+        if self.style.exchange() {
+            let peer = self
+                .peers
+                .iter()
+                .find(|id| !self.contacted.contains(id))
+                .cloned()?;
+            self.contacted.push(peer.clone());
+            return Some(format!("{ASIDE_MARKER} @{peer} What do you make of these?"));
         }
         let mut ranked: Vec<(&TopicId, i32)> = self
             .evals
@@ -1000,7 +1542,7 @@ impl SimAgent {
         // Deterministic either way, and drawn from the transcript rather than
         // the roster, so a member asks somebody the room has actually heard
         // from rather than a name it was handed.
-        let peer = if self.aside_informed {
+        let peer = if self.style.informed {
             view.grounded_by(&topic, &self.id)
         } else {
             None
@@ -1025,11 +1567,13 @@ impl SimAgent {
         // that is the difference between benchmarking the protocol and
         // benchmarking a formatter.
         if self.rng.chance(NONCOMPLIANCE) {
+            self.complied = false;
             return format!(
                 "Thinking about this; {} still looks strongest to me.",
                 self.favourite
             );
         }
+        self.complied = true;
 
         // A pairwise check, and the three parts of it. Every one of them reads
         // the transcript the library authorized this turn to see, so under a
@@ -1038,7 +1582,15 @@ impl SimAgent {
         // and takes the same reading. That difference is the whole of what the
         // aside arms measure, and it is produced by the projection rather than
         // by anything here.
-        if let Some(line) = self.check(visible, &view) {
+        // Under `CheckStyle::alongside` the check does not compete with this
+        // turn: the member takes in whatever it can read — which costs
+        // nothing, and is the whole point — and then makes its ordinary floor
+        // move. The private half is asked for separately, in
+        // `Participant::aside`, and appended as a second row on this same
+        // turn.
+        if self.style.alongside {
+            self.absorb(visible);
+        } else if let Some(line) = self.check(visible, &view) {
             return line;
         }
 
@@ -1299,10 +1851,28 @@ impl View {
     /// from, taken directly because a participant here needs one name rather
     /// than a ranking.
     fn grounded_by(&self, topic: &TopicId, excluding: &str) -> Option<String> {
-        self.traces
-            .iter()
-            .filter(|trace| trace.topic.as_ref() == Some(topic))
-            .filter(|trace| matches!(trace.kind, TraceKind::Evidence))
+        // A deposit that *argues against* the topic first, and any deposit at
+        // all only after that.
+        //
+        // Taking the first depositor outright is what this did before, and it
+        // did not aim. Under `--blind-evidence` every lay member opens by
+        // depositing its own reading of whatever it rates highest, which
+        // under a hidden profile is the planted decoy: four such deposits and
+        // one refutation land on the same topic, the refutation is rarely
+        // first, and "whoever the room has heard ground this option" resolved
+        // to a member holding nothing but the error every member shares. The
+        // measured hit rate on the one member who knows something was 22%
+        // against 25% for drawing a peer at random, so the informed arm was
+        // not aiming at anything.
+        let depositors = || {
+            self.traces
+                .iter()
+                .filter(|trace| trace.topic.as_ref() == Some(topic))
+                .filter(|trace| matches!(trace.kind, TraceKind::Evidence))
+        };
+        depositors()
+            .filter(|trace| trace.text.contains(RULES_OUT))
+            .chain(depositors())
             .filter_map(|trace| match &trace.author {
                 SessionAuthor::Agent { id, .. } => Some(id.clone()),
                 _ => None,
@@ -1613,12 +2183,61 @@ impl View {
 }
 
 impl crate::run::Participant for SimAgent {
+    fn context_rows(&self) -> usize {
+        self.context.len()
+    }
+
     fn id(&self) -> &str {
         &self.id
     }
 
     fn speak(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Result<String, String> {
         Ok(self.compose(turn, visible))
+    }
+
+    fn exchange(&mut self, visible: &[SessionMessage]) -> Option<String> {
+        // No turn is being taken, so there is no `compose` to have absorbed
+        // first and no compliance draw to respect: a member asked in a round
+        // it is not otherwise part of reads what it can, then answers or asks.
+        if !self.style.alongside || self.aside_cap == 0 {
+            return None;
+        }
+        // A round during the blind phase shows this member no peer at all, so
+        // anything it wrote would sit unread until blindness lifted and every
+        // contact it spent doing so would be gone by then. Declining is what
+        // keeps a bounded budget for the turns that can actually use it —
+        // measured, not assumed: without this the arm spends its whole cap
+        // before the room can read a word of it.
+        if !visible.iter().any(
+            |message| matches!(&message.author, SessionAuthor::Agent { id, .. } if *id != self.id),
+        ) {
+            return None;
+        }
+        self.absorb(visible);
+        if let Some(line) = self.answer_check(visible) {
+            return Some(line);
+        }
+        let view = View::fold(visible, self.quorum);
+        let line = self.open_check(visible, &view)?;
+        self.asides_spent = self.asides_spent.saturating_add(1);
+        Some(line)
+    }
+
+    fn aside(&mut self, _turn: &HiveTurn, visible: &[SessionMessage]) -> Option<String> {
+        // The same three parts `check` runs, minus the absorb `compose` has
+        // already done on this turn: answer whoever asked, and otherwise ask.
+        // The difference is only where the line goes — a second row on this
+        // turn rather than this turn's only row.
+        if !self.style.alongside || !self.complied || self.aside_cap == 0 {
+            return None;
+        }
+        if let Some(line) = self.answer_check(visible) {
+            return Some(line);
+        }
+        let view = View::fold(visible, self.quorum);
+        let line = self.open_check(visible, &view)?;
+        self.asides_spent = self.asides_spent.saturating_add(1);
+        Some(line)
     }
 
     fn cost_unit(&self) -> u32 {
@@ -1637,13 +2256,232 @@ fn parse_topic(body: &str) -> Option<TopicId> {
 /// A question carries no number and parses to `None`, which is exactly how the
 /// two halves of an exchange are told apart.
 fn parse_reading(body: &str) -> Option<(TopicId, i32)> {
-    let topic = parse_topic(body)?;
-    let mut words = body.split_whitespace();
+    parse_readings(body).into_iter().next()
+}
+
+/// The option a row says it rules out, if it says so.
+///
+/// The refuted option is the last one named before the [`RULES_OUT`] phrase.
+/// A single-topic answer names only one option, so this reduces to it; a full
+/// exchange carries several readings and one refutation, and the phrase's
+/// position is what says which option the refutation is about.
+fn parse_ruled_out(body: &str) -> Option<TopicId> {
+    let stated = body.find(RULES_OUT)?;
+    body.get(..stated)?
+        .split_whitespace()
+        .filter_map(|word| word.strip_prefix('#'))
+        .next_back()
+        .map(TopicId::from)
+}
+
+/// Every topic and reading one answered check carries, in the order written.
+///
+/// A pairwise check answers about one option; a full exchange answers about
+/// all of them in one row, which is what a contact transfers in the biology
+/// and what the alongside arms can afford now that a row costs no turn. Both
+/// forms parse here: each `#topic` claims the next `reads N` after it, so the
+/// single-topic line is just the one-element case.
+fn parse_readings(body: &str) -> Vec<(TopicId, i32)> {
+    let mut readings = Vec::new();
+    let mut topic: Option<TopicId> = None;
+    let mut words = body.split_whitespace().peekable();
     while let Some(word) = words.next() {
-        if word == ASIDE_READS {
-            let reading = words.next()?.trim_end_matches('.').parse().ok()?;
-            return Some((topic, reading));
+        if let Some(name) = word.strip_prefix('#') {
+            topic = Some(TopicId::from(name));
+        } else if word == ASIDE_READS
+            && let Some(held) = topic.take()
+            && let Some(value) = words
+                .next()
+                .and_then(|word| word.trim_end_matches(['.', ',']).parse::<i32>().ok())
+        {
+            readings.push((held, value));
         }
     }
-    None
+    readings
+}
+
+/// The pairwise-check self-check: assert the properties the aside arms are
+/// defined to have, over rooms this file builds itself.
+///
+/// `sim.rs` is an example file, so `cargo test` never runs a `#[test]` placed
+/// in it. This is that coverage's stand-in for the check arms, and it runs in
+/// CI behind the same `--stats-check` flag the statistics module uses. Every
+/// case is a property the arm is defined to have rather than a fitted number,
+/// so a break here is always a real regression.
+pub(crate) fn check_selfcheck() -> bool {
+    let mut ok = true;
+    let room = Room::generate_with(1, 5, 4, 90, Expertise::HiddenProfile, false);
+
+    // `pre_checked(0, ..)` opens no contact, so it is the identity. This is
+    // what underwrites `--aside-cap 0` leaving every check arm bit-identical
+    // to `hive+`.
+    let untouched = room.pre_checked(0, true);
+    ok &= untouched
+        .agents
+        .iter()
+        .zip(&room.agents)
+        .all(|(after, before)| after.favourite == before.favourite && after.imports.is_empty());
+
+    // The ceiling hands every member every peer's reading of every option, so
+    // each member holds exactly one import entry per option it evaluates, and
+    // every fact any peer holds.
+    let pooled = room.pooled();
+    let topics = room.agents.first().map_or(0, |agent| agent.evals.len());
+    let facts: Vec<TopicId> = room
+        .agents
+        .iter()
+        .filter_map(|a| a.refutes.clone())
+        .collect();
+    ok &= pooled.agents.iter().enumerate().all(|(index, agent)| {
+        agent.imports.len() == topics
+            && facts
+                .iter()
+                .filter(|topic| {
+                    room.agents.get(index).and_then(|a| a.refutes.as_ref()) != Some(*topic)
+                })
+                .all(|topic| agent.ruled_out.contains(topic))
+    });
+
+    // `run_episode_checking` -- the entry point `hive+fact°` and `hive+pooled`
+    // both run through -- clones the room and calls `set_aside_cap` on every
+    // agent before driving a single turn. That call must not discard what
+    // `pre_checked` and `pooled` just preloaded: the regression this guards
+    // was landing at exactly that step, silently wiping every ruled-out fact
+    // an off-floor control had just injected, so the arm executed the rest of
+    // the episode without the fact it was built to carry.
+    let checked = room.pre_checked(1, true);
+    ok &= checked
+        .agents
+        .iter()
+        .any(|agent| !agent.ruled_out.is_empty());
+    let mut after_reset = checked.clone();
+    for agent in &mut after_reset.agents {
+        agent.set_aside_cap(0, CheckStyle::PLAIN);
+    }
+    ok &= after_reset
+        .agents
+        .iter()
+        .zip(&checked.agents)
+        .all(|(after, before)| after.ruled_out == before.ruled_out);
+    let mut pooled_after_reset = pooled.clone();
+    for agent in &mut pooled_after_reset.agents {
+        agent.set_aside_cap(0, CheckStyle::PLAIN);
+    }
+    ok &= pooled_after_reset
+        .agents
+        .iter()
+        .zip(&pooled.agents)
+        .all(|(after, before)| after.ruled_out == before.ruled_out);
+
+    ok && payload_selfcheck(&room)
+}
+
+/// The half of the check self-check that is about an answer's **payload**:
+/// what a responder hands over, and what a reader does with it.
+///
+/// Split from [`check_selfcheck`] only to keep each function inside the line
+/// budget clippy holds every function to; the two run together behind
+/// `--stats-check` and neither is meaningful alone.
+fn payload_selfcheck(room: &Room) -> bool {
+    let mut ok = true;
+    let Some(sample) = room.agents.first().cloned() else {
+        return false;
+    };
+    let Some((topic, _)) = sample.evals.first().cloned() else {
+        return false;
+    };
+
+    // A muted check takes nothing in. The matched-turn control has to be
+    // exactly that: same turns, same words, no transfer.
+    let answer = format!("{ASIDE_MARKER} @a #{topic} My own {ASIDE_READS} 7.");
+    let heard = crate::run::one_agent_message("peer", &answer);
+    let mut muted = sample.clone();
+    muted.set_aside_cap(1, CheckStyle::MUTE);
+    muted.absorb(std::slice::from_ref(&heard));
+    ok &= muted.imports.is_empty() && muted.score(&topic) == sample.own_reading(&topic);
+    let mut listening = sample.clone();
+    listening.set_aside_cap(1, CheckStyle::PLAIN);
+    listening.absorb(std::slice::from_ref(&heard));
+    ok &= listening.imports.len() == 1 && listening.score(&topic) != sample.own_reading(&topic);
+
+    // A fact-carrying answer discounts the option for its reader instead of
+    // averaging in the number that came with it -- the fact is taken in
+    // place of the reading, not alongside it -- while a reading-only arm
+    // ignores the sentence entirely and only ever averages the number.
+    let refutation = format!(
+        "{ASIDE_MARKER} @a #{topic} My own {ASIDE_READS} 7. The reading I hold {RULES_OUT}."
+    );
+    let told = crate::run::one_agent_message("peer", &refutation);
+    let mut fact_reader = sample.clone();
+    fact_reader.set_aside_cap(1, CheckStyle::FACT);
+    fact_reader.absorb(std::slice::from_ref(&told));
+    ok &= fact_reader.imports.is_empty()
+        && fact_reader.ruled_out.contains(&topic)
+        && fact_reader.score(&topic)
+            == fact_reader
+                .own_reading(&topic)
+                .saturating_sub(GROUNDS_WEIGHT);
+    let mut number_reader = sample.clone();
+    number_reader.set_aside_cap(1, CheckStyle::AIMED);
+    number_reader.absorb(std::slice::from_ref(&told));
+    ok &= number_reader.imports.len() == 1
+        && number_reader.ruled_out.is_empty()
+        && number_reader.score(&topic) != number_reader.own_reading(&topic);
+
+    // The informed check aims at a depositor who argues *against* the topic,
+    // even when a plain deposit on the same topic came first. Aiming at the
+    // first depositor is the defect this replaced.
+    let plain = crate::run::one_agent_message(
+        "early",
+        &format!("!evidence #{topic} My own read of it is 9."),
+    );
+    let against = crate::run::one_agent_message(
+        "holder",
+        &format!("!evidence #{topic} My own read of it is 1. The reading I hold {RULES_OUT}."),
+    );
+    let view = View::fold(&[plain, against], QuorumPolicy::DEFAULT);
+    ok &= view.grounded_by(&topic, "asker").as_deref() == Some("holder");
+
+    // A full exchange answers about every option in one row, and every reading
+    // in it is the responder's own rather than a pooled one. The reader takes
+    // all of them.
+    let mut donor = sample.clone();
+    donor.set_aside_cap(1, CheckStyle::EXCHANGE);
+    donor.import(&topic, 999);
+    let asked =
+        crate::run::one_agent_message("peer", &format!("{ASIDE_MARKER} @{} Well?", donor.id));
+    let Some(offered) = donor.answer_check(std::slice::from_ref(&asked)) else {
+        return false;
+    };
+    let carried = parse_readings(&offered);
+    ok &= carried.len() == sample.evals.len()
+        && carried
+            .iter()
+            .all(|(held, reading)| *reading == sample.own_reading(held));
+    let mut taker = sample.clone();
+    taker.set_aside_cap(1, CheckStyle::EXCHANGE);
+    taker.absorb(std::slice::from_ref(&crate::run::one_agent_message(
+        "peer", &offered,
+    )));
+    ok &= taker.imports.len() == sample.evals.len();
+
+    // A refutation inside a multi-option row names the option it rules out,
+    // and the reader discounts that one rather than whichever was written
+    // first.
+    let Some((other, _)) = sample.evals.get(1).cloned() else {
+        return false;
+    };
+    let mixed = format!(
+        "{ASIDE_MARKER} @a #{topic} {ASIDE_READS} 7. #{other} {ASIDE_READS} 9. \
+         #{other} The reading I hold {RULES_OUT}."
+    );
+    ok &= parse_ruled_out(&mixed).as_ref() == Some(&other);
+    // And the single-option form still reads as being about its one option.
+    ok &= parse_ruled_out(&format!(
+        "{ASIDE_MARKER} @a #{topic} My own {ASIDE_READS} 7. The reading I hold {RULES_OUT}."
+    ))
+    .as_ref()
+        == Some(&topic);
+
+    ok
 }

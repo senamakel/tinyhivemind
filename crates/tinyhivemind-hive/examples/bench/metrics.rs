@@ -29,8 +29,18 @@ pub(crate) struct Aggregate {
     pub(crate) turns: u64,
     /// Calls into the library across the sample.
     pub(crate) step_calls: u64,
-    /// Time spent inside the library.
+    /// Time spent inside the library, including an off-floor exchange
+    /// round's own library time. What [`Aggregate::episodes_per_second`]
+    /// divides by, since that column is the full library cost a host would
+    /// pay per second, exchange included.
     pub(crate) library_time: Duration,
+    /// Time spent inside `step` calls alone, excluding an exchange round's
+    /// own library time. What [`Aggregate::nanos_per_step`] divides by
+    /// [`Self::step_calls`], so an off-floor arm's exchange rounds do not
+    /// inflate its `ns/step` against arms that never call `exchange` — see
+    /// the `ns/step` glossary entry, "one call to `step`... participant time
+    /// excluded".
+    pub(crate) step_time: Duration,
     /// Episodes in which the room's decisive member -- its expert, or the
     /// hidden-profile member who held the deciding fact -- put its knowledge
     /// on the floor before the commit boundary.
@@ -66,6 +76,14 @@ pub(crate) struct Aggregate {
     /// Total cost, in [`crate::run::Participant::cost_unit`] units, spent
     /// across the sample.
     pub(crate) cost_units: u64,
+    /// Model calls made in off-floor exchange rounds, summed across the
+    /// sample.
+    ///
+    /// Each one is a model call the room paid for and the deliberation's turn
+    /// count does not show. The spec for the mechanism requires it be
+    /// displayed rather than folded into `cost/ep`, which is defined as each
+    /// speaker's own cost times its turns and would stop meaning that.
+    pub(crate) contacts: u64,
     /// Sum, in thousandths, of each episode's rank correlation between a
     /// member's folded directory weight and the number of turns it took --
     /// see [`Aggregate::mean_rho`].
@@ -97,8 +115,10 @@ impl Aggregate {
         self.turns = self.turns.saturating_add(u64::from(report.turns));
         self.step_calls = self.step_calls.saturating_add(u64::from(report.step_calls));
         self.library_time += report.library_time;
+        self.step_time += report.step_time;
         self.correct_flags.push(report.correct);
         self.cost_units = self.cost_units.saturating_add(report.cost_units);
+        self.contacts = self.contacts.saturating_add(u64::from(report.contacts));
         self.defers = self.defers.saturating_add(u64::from(report.defers));
         if report.knows_turns > 0 {
             self.knows = self.knows.saturating_add(1);
@@ -135,6 +155,9 @@ impl Aggregate {
         self.turns = self.turns.saturating_add(u64::from(report.turns));
         self.step_calls = self.step_calls.saturating_add(1);
         self.library_time += report.library_time;
+        // A control arm never opens an exchange round, so all of its library
+        // time is step time.
+        self.step_time += report.library_time;
         self.correct_flags.push(report.correct);
         // A control arm charges what its own speakers cost, which is one unit
         // per turn unless the room was generated with `--cost-tiers` and a
@@ -165,7 +188,7 @@ impl Aggregate {
 
     /// Mean time inside the library per call to the state machine.
     pub(crate) fn nanos_per_step(&self) -> f64 {
-        let nanos = u64::try_from(self.library_time.as_nanos()).unwrap_or(u64::MAX);
+        let nanos = u64::try_from(self.step_time.as_nanos()).unwrap_or(u64::MAX);
         ratio(nanos, self.step_calls)
     }
 
@@ -227,6 +250,15 @@ impl Aggregate {
     /// Mean cost, in `Participant::cost_unit` units, per episode.
     pub(crate) fn cost_per_episode(&self) -> f64 {
         ratio(self.cost_units, self.episodes.into())
+    }
+
+    /// Model calls made in off-floor exchange rounds per episode.
+    ///
+    /// The price of an off-floor exchange, in calls the turn count does not
+    /// show. Counted as members *asked*, not rows written: a member that
+    /// declines costs the same call as one that answers.
+    pub(crate) fn contacts_per_episode(&self) -> f64 {
+        ratio(self.contacts, self.episodes.into())
     }
 
     /// Correct decisions per thousand cost units spent -- a cost-normalised
@@ -337,7 +369,7 @@ fn deliberates(name: &str) -> bool {
 /// directory-circularity proxy.
 pub(crate) fn detail_header() -> String {
     format!(
-        "{:<8}{:>11}{:>16}{:>8}{:>9}{:>9}{:>11}{:>9}{:>9}{:>7}",
+        "{:<8}{:>11}{:>16}{:>8}{:>9}{:>9}{:>11}{:>9}{:>9}{:>10}{:>7}",
         "arm",
         "correct %",
         "95% CI",
@@ -347,6 +379,7 @@ pub(crate) fn detail_header() -> String {
         "defers/ep",
         "route %",
         "cost/ep",
+        "calls/ep",
         "rho",
     )
 }
@@ -380,7 +413,7 @@ pub(crate) fn detail_row(name: &str, totals: &Aggregate) -> String {
         totals.mean_rho() / 1000.0
     });
     let rest = format!(
-        "{:>11.1}{:>16}{:>8}{:>9}{:>9}{:>11}{:>9}{:>9.2}{:>7}",
+        "{:>11.1}{:>16}{:>8}{:>9}{:>9}{:>11}{:>9}{:>9.2}{:>10}{:>7}",
         totals.accuracy(),
         ci,
         fact_pct,
@@ -389,6 +422,10 @@ pub(crate) fn detail_row(name: &str, totals: &Aggregate) -> String {
         defers,
         route_pct,
         totals.cost_per_episode(),
+        // `—` rather than `0.0` for an arm that runs no exchange at all: the
+        // column is about a mechanism most arms do not have, not a count they
+        // scored zero on.
+        dash_unless(totals.contacts > 0, || totals.contacts_per_episode()),
         rho,
     );
     row(name, &rest)
@@ -494,7 +531,7 @@ pub(crate) fn json_line(name: &str, totals: &Aggregate) -> String {
          \"episodes_per_second\":{},\"fact_pct\":{},\"to_fact\":{},\
          \"knows_pct\":{},\"defers_per_episode\":{},\
          \"expert_led\":{},\"route_pct\":{},\"cost_per_episode\":{},\
-         \"accuracy_per_kilo_unit\":{},\"rho\":{}}}",
+         \"accuracy_per_kilo_unit\":{},\"rho\":{},\"exchange_calls_per_episode\":{}}}",
         json_f64(totals.turns_per_episode()),
         json_f64(totals.decision_rate()),
         json_f64(totals.accuracy()),
@@ -517,6 +554,16 @@ pub(crate) fn json_line(name: &str, totals: &Aggregate) -> String {
             hive_like && totals.rank_rho_count > 0,
             totals.mean_rho() / 1000.0
         ),
+        // Model calls made in off-floor exchange rounds, per episode -- the
+        // same figure the `calls/ep` column reports, dashed there when no arm
+        // in the run made any. Members *asked*, not rows written: a member
+        // that declines costs the same call as one that answers, so counting
+        // rows would report a price below the one paid. `0.0` here rather
+        // than `null` when nothing was spent, matching `cost_per_episode`'s
+        // zero rather than every other `hive_like`-gated field's `null`,
+        // since this is a total rather than a rate only a hive-like arm can
+        // attempt.
+        json_f64(totals.contacts_per_episode()),
     );
     line
 }

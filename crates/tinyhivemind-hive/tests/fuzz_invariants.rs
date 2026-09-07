@@ -4,11 +4,12 @@
 
 use tinyhivemind::aside::Audience;
 use tinyhivemind_hive::{
-    Conversation, DirectoryPolicy, EpisodePolicy, EpisodeState, QuorumPolicy, SalienceWeights,
-    Sequence, SessionAuthor, SessionMessage, TRACE_CAP,
+    Conversation, DirectoryPolicy, EpisodePolicy, EpisodeState, ExchangePolicy, ExchangeRound,
+    ExchangeState, NoExchangeReason, QuorumPolicy, SalienceWeights, Sequence, SessionAuthor,
+    SessionMessage, TRACE_CAP,
     attention::{BidContext, bids},
     desk::{Desk, DeskSet, ResponderMode},
-    directory, read,
+    directory, exchange, read,
     roster::{Roster, RosterMember},
     standings, step,
 };
@@ -177,6 +178,196 @@ fn arbitrary_transcripts_have_stable_well_formed_and_idempotent_folds() {
         );
 
         assert!(traces.len() <= messages.len() * TRACE_CAP);
+    }
+}
+
+/// An aside interleaved anywhere in an arbitrary transcript leaves `step`
+/// exactly where it was.
+///
+/// The order-independence above is idempotence under redelivery and
+/// reordering. This is a different property and the one a concurrent aside
+/// rests on: **addition**. A host that appends a private row alongside the
+/// turn that authored it must not be able to move the floor, the standings,
+/// the sequence they fold at, the phase, or the budget — whatever that row
+/// says, and however many of them there are. `live_traces` drops a non-desk
+/// row before any of that, and `spent` counts turns rather than rows.
+///
+/// The aside rows carry the *same* fuzzed grammar as the desk rows, so the
+/// corpus includes private `!propose`, `!support` and `!commit` lines that
+/// would carry real weight if the filter ever slipped.
+#[test]
+fn asides_interleaved_into_an_arbitrary_transcript_do_not_move_the_episode() {
+    let mut state = 0xc0ff_eea5_1de5_u64;
+    let people = roster_members();
+    let rooms = desks();
+    let retired: Vec<String> = Vec::new();
+    let roster = Roster::new(&people, &[], &retired);
+    let desk_set = DeskSet::new(&rooms, &[], &[], &[], &retired);
+    let episode = EpisodePolicy {
+        directory: Some(DirectoryPolicy::DEFAULT),
+        defer_cap: Some(2),
+        ..EpisodePolicy::DEFAULT
+    };
+
+    for case in 0..256_u64 {
+        // Desk rows on even sequences, so an aside always has an odd sequence
+        // of its own to land on between two of them.
+        let desk: Vec<SessionMessage> = (0..8_u64)
+            .map(|index| SessionMessage {
+                sequence: Sequence(case * 32 + index * 2),
+                author: author(index),
+                content: content(&mut state),
+                audience: Audience::Desk,
+                elided: None,
+            })
+            .collect();
+
+        let mut interleaved: Vec<SessionMessage> = Vec::new();
+        for (index, message) in desk.iter().enumerate() {
+            interleaved.push(message.clone());
+            // Not every turn carries one, so runs of desk rows are covered
+            // too.
+            if next(&mut state).is_multiple_of(3) {
+                continue;
+            }
+            let members: Vec<String> = MEMBERS
+                .iter()
+                .skip(usize::try_from(next(&mut state) % 4).expect("bounded index"))
+                .take(2)
+                .map(|id| (*id).to_owned())
+                .collect();
+            interleaved.push(SessionMessage {
+                sequence: Sequence(case * 32 + index as u64 * 2 + 1),
+                author: message.author.clone(),
+                content: content(&mut state),
+                audience: Audience::Aside { members },
+                elided: None,
+            });
+        }
+
+        assert_eq!(
+            step(&opened(), &desk, &roster, &desk_set, &episode).expect("valid policy"),
+            step(&opened(), &interleaved, &roster, &desk_set, &episode).expect("valid policy"),
+        );
+    }
+}
+
+/// Driving exchange rounds to exhaustion terminates, stays inside the policy's
+/// worst case, and never moves the episode.
+///
+/// The three properties the mechanism is sold on, asserted together against a
+/// host that runs every round it is offered and writes a row for every member
+/// the round names — the most a well-behaved host can spend.
+#[test]
+fn exchange_rounds_terminate_inside_their_budget_without_moving_the_episode() {
+    let people = roster_members();
+    let rooms = desks();
+    let retired: Vec<String> = Vec::new();
+    let roster = Roster::new(&people, &[], &retired);
+    let desk_set = DeskSet::new(&rooms, &[], &[], &[], &retired);
+    let episode = EpisodePolicy::DEFAULT;
+    let floor: Vec<SessionMessage> = (0..4_u64)
+        .map(|index| SessionMessage {
+            sequence: Sequence(index * 2),
+            author: author(index),
+            content: "!propose #stage".to_owned(),
+            audience: Audience::Desk,
+            elided: None,
+        })
+        .collect();
+    let before = step(&opened(), &floor, &roster, &desk_set, &episode).expect("valid policy");
+
+    for contact_cap in 1..4_u32 {
+        for round_cap in 1..4_u32 {
+            let policy = ExchangePolicy {
+                enabled: true,
+                contact_cap,
+                round_cap,
+            };
+            let mut transcript = floor.clone();
+            let mut written = 0_u32;
+            let mut next = 1_u64;
+            let mut opened_rounds = ExchangeState::opened();
+            // A bound well above any legitimate one, so a fold that failed to
+            // charge spend fails this test rather than hanging it.
+            for _ in 0..64 {
+                let round = exchange(
+                    &policy,
+                    &opened(),
+                    opened_rounds,
+                    &transcript,
+                    &roster,
+                    &desk_set,
+                )
+                .expect("valid snapshots");
+                let ExchangeRound::Open {
+                    members,
+                    remaining,
+                    next: carried,
+                } = round
+                else {
+                    break;
+                };
+                opened_rounds = carried;
+                assert!(remaining > 0, "an open round must have budget left");
+                for member in &members {
+                    transcript.push(SessionMessage {
+                        sequence: Sequence(next * 2 + 1),
+                        author: SessionAuthor::Agent {
+                            id: member.clone(),
+                            label: member.clone(),
+                        },
+                        content: format!("!aside @peer !support #stage ^0 {member}"),
+                        audience: Audience::Aside {
+                            members: vec!["agent-0".to_owned()],
+                        },
+                        elided: None,
+                    });
+                    next += 1;
+                    written += 1;
+                }
+                transcript.sort_by_key(|message| message.sequence);
+            }
+
+            let seats = u32::try_from(MEMBERS.len()).expect("small");
+            let worst = seats.saturating_mul(contact_cap).min(round_cap * seats);
+            assert!(
+                written <= worst,
+                "wrote {written} rows against a worst case of {worst}",
+            );
+            assert!(written > 0, "a policy with budget must open one round");
+            assert_eq!(
+                exchange(
+                    &policy,
+                    &opened(),
+                    opened_rounds,
+                    &transcript,
+                    &roster,
+                    &desk_set,
+                )
+                .expect("valid snapshots"),
+                ExchangeRound::Closed {
+                    // A host writing one row per named member each round takes
+                    // `min(contact_cap, round_cap)` rounds to exhaust itself,
+                    // so the round cap is what bit whenever it is the smaller
+                    // of the two — and the fold checks it first on a tie.
+                    reason: if round_cap <= contact_cap {
+                        NoExchangeReason::RoundsSpent
+                    } else {
+                        NoExchangeReason::ContactsSpent
+                    },
+                },
+                "the round must close once the budget is gone",
+            );
+
+            // And the whole point: the episode cannot tell any of it happened,
+            // even though every private row carries a `!support` that would
+            // carry real weight on the desk.
+            assert_eq!(
+                step(&opened(), &transcript, &roster, &desk_set, &episode).expect("valid policy"),
+                before,
+            );
+        }
     }
 }
 
