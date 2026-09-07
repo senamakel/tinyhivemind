@@ -1904,12 +1904,18 @@ pub(crate) fn check_selfcheck() -> bool {
     // every fact any peer holds.
     let pooled = room.pooled();
     let topics = room.agents.first().map_or(0, |agent| agent.evals.len());
-    let facts: Vec<TopicId> = room.agents.iter().filter_map(|a| a.refutes.clone()).collect();
+    let facts: Vec<TopicId> = room
+        .agents
+        .iter()
+        .filter_map(|a| a.refutes.clone())
+        .collect();
     ok &= pooled.agents.iter().enumerate().all(|(index, agent)| {
         agent.imports.len() == topics
             && facts
                 .iter()
-                .filter(|topic| room.agents.get(index).and_then(|a| a.refutes.as_ref()) != Some(*topic))
+                .filter(|topic| {
+                    room.agents.get(index).and_then(|a| a.refutes.as_ref()) != Some(*topic)
+                })
                 .all(|topic| agent.ruled_out.contains(topic))
     });
 
@@ -1934,8 +1940,9 @@ pub(crate) fn check_selfcheck() -> bool {
 
     // A fact-carrying answer discounts the option for its reader, and a
     // reading-only arm ignores the sentence entirely.
-    let refutation =
-        format!("{ASIDE_MARKER} @a #{topic} My own {ASIDE_READS} 7. The reading I hold {RULES_OUT}.");
+    let refutation = format!(
+        "{ASIDE_MARKER} @a #{topic} My own {ASIDE_READS} 7. The reading I hold {RULES_OUT}."
+    );
     let told = crate::run::one_agent_message("peer", &refutation);
     let mut fact_reader = sample.clone();
     fact_reader.set_aside_cap(1, CheckStyle::FACT);
@@ -1948,7 +1955,10 @@ pub(crate) fn check_selfcheck() -> bool {
     // The informed check aims at a depositor who argues *against* the topic,
     // even when a plain deposit on the same topic came first. Aiming at the
     // first depositor is the defect this replaced.
-    let plain = crate::run::one_agent_message("early", &format!("!evidence #{topic} My own read of it is 9."));
+    let plain = crate::run::one_agent_message(
+        "early",
+        &format!("!evidence #{topic} My own read of it is 9."),
+    );
     let against = crate::run::one_agent_message(
         "holder",
         &format!("!evidence #{topic} My own read of it is 1. The reading I hold {RULES_OUT}."),
