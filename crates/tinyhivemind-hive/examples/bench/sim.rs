@@ -835,12 +835,60 @@ pub(crate) struct SimAgent {
     /// Whether an answered check may carry the fact that rules an option out,
     /// rather than only a reading of it.
     aside_evidence: bool,
+    /// Whether an answered check is *discarded* rather than taken in. The
+    /// matched-turn control: the same words, on the same turns, transferring
+    /// nothing. What it costs against `hive+` is what the turns cost, and
+    /// what an arm that keeps the answer gains over it is what the answer is
+    /// worth.
+    aside_mute: bool,
     /// Options a private exchange has told this member are ruled out. Read by
     /// [`Self::score`], and by nothing the room counts.
     ruled_out: Vec<TopicId>,
     /// Sequences of exchanges this member has already answered or folded in,
     /// so neither is done twice.
     handled: Vec<Sequence>,
+}
+
+/// What one arm's pairwise check does, beyond costing a turn.
+///
+/// Bundled rather than passed as three booleans so a call site says which
+/// knob it is turning. [`CheckStyle::PLAIN`] is the original move: aimed at
+/// whoever spoke first, carrying a reading, and taken in.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct CheckStyle {
+    /// Aim the question at whoever the room has heard ground the option.
+    pub(crate) informed: bool,
+    /// Let a member holding the fact that rules an option out say so.
+    pub(crate) evidence: bool,
+    /// Discard the answer. The matched-turn control.
+    pub(crate) mute: bool,
+}
+
+impl CheckStyle {
+    /// Aimed at whoever spoke first, carrying a reading, taken in.
+    pub(crate) const PLAIN: Self = Self {
+        informed: false,
+        evidence: false,
+        mute: false,
+    };
+    /// Aimed at whoever the room has heard ground the option.
+    pub(crate) const AIMED: Self = Self {
+        informed: true,
+        evidence: false,
+        mute: false,
+    };
+    /// Aimed, and carrying the fact rather than a number.
+    pub(crate) const FACT: Self = Self {
+        informed: true,
+        evidence: true,
+        mute: false,
+    };
+    /// The same turns, transferring nothing.
+    pub(crate) const MUTE: Self = Self {
+        informed: false,
+        evidence: false,
+        mute: true,
+    };
 }
 
 impl SimAgent {
@@ -894,6 +942,7 @@ impl SimAgent {
             asides_spent: 0,
             aside_informed: false,
             aside_evidence: false,
+            aside_mute: false,
             ruled_out: Vec::new(),
             handled: Vec::new(),
             favourite,
@@ -947,10 +996,11 @@ impl SimAgent {
     /// `Room::generate_with` leaves every member at `0`, so an arm that opens
     /// no check is bit-identical to one built before the move existed — the
     /// same discipline `set_defer_cap` follows.
-    pub(crate) fn set_aside_cap(&mut self, cap: u32, informed: bool, evidence: bool) {
+    pub(crate) fn set_aside_cap(&mut self, cap: u32, style: CheckStyle) {
         self.aside_cap = cap;
-        self.aside_informed = informed;
-        self.aside_evidence = evidence;
+        self.aside_informed = style.informed;
+        self.aside_evidence = style.evidence;
+        self.aside_mute = style.mute;
         self.asides_spent = 0;
         self.handled.clear();
         self.ruled_out.clear();
@@ -1080,6 +1130,9 @@ impl SimAgent {
             // workspace cites, and what the room's public grammar has always
             // carried in `!evidence`. It stays a belief: no trace resolves
             // out of an aside row, so the room still counts nothing.
+            if self.aside_mute {
+                continue;
+            }
             if self.aside_evidence && body.contains(RULES_OUT) && !self.ruled_out.contains(&topic) {
                 self.ruled_out.push(topic.clone());
             }
