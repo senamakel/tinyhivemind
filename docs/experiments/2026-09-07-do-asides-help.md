@@ -14,7 +14,7 @@
 > matched-turn control and the free ceiling this note lists as missing. The
 > results here stand; the *explanation* of the hidden-profile loss below does
 > not, and is retracted there. In short: the loss is the turns, the same
-> exchange held off the floor gains `+4.9 [+3.7, +6.0]`, and free peer
+> exchange held off the floor gains `+3.2 [+2.1, +4.2]`, and free peer
 > information is worth `+30.8 [+28.7, +32.9]`.
 >
 > **Q3's answer below is also superseded.** `View::grounded_by` did not aim at

@@ -72,7 +72,7 @@ fact-holder it loses `-17.1`, *more* than `hive+mute`, because conscripting the
 one member whose public turn matters into an audience of one is itself a cost.
 `hive+fact°` runs
 the same bounded exchange off the floor and moves from −15.0 to
-`+4.9 [+3.7, +6.0]` on a hidden profile, so scheduling accounts for most of the
+`+3.2 [+2.1, +4.2]` on a hidden profile, so scheduling accounts for most of the
 gap — though `hive+fact°` picks its peer from private room state rather than
 `hive+fact`'s transcript-only `View::grounded_by`, so this is an upper bound on
 the off-floor benefit, not a pure isolation of scheduling from targeting. And
