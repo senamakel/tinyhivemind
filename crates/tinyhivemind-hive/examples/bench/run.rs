@@ -45,6 +45,22 @@ pub(crate) trait Participant {
     /// answer.
     fn speak(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Result<String, String>;
 
+    /// One private line this participant sends **alongside** the floor move it
+    /// just made, under [`AsideMode::Concurrent`].
+    ///
+    /// Called once per turn, immediately after [`Participant::speak`] and over
+    /// the same projection. Returning `None` — the default, and what every
+    /// arm that is not a concurrent one does — leaves the turn exactly as it
+    /// was.
+    ///
+    /// At most one row: the exchange is bounded by the floor it rides on, so a
+    /// room of `n` members writes at most `n` aside rows per round and each of
+    /// them cost its author a turn it had won anyway.
+    fn aside(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Option<String> {
+        let _ = (turn, visible);
+        None
+    }
+
     /// What one of this participant's turns costs, for the vote arm's charge
     /// and a deliberation's own `cost_units` total. A live agent costs the
     /// same as any other by default.
@@ -296,6 +312,16 @@ pub(crate) enum AsideMode {
     Private,
     /// The identical exchange, in the open, where every member reads it.
     Public,
+    /// The private exchange again, **riding along** with the floor move that
+    /// authored it rather than replacing one.
+    ///
+    /// One turn produces two rows: the member's ordinary desk-visible
+    /// contribution, and one aside. The episode cannot see the second — it
+    /// resolves no trace, folds into no standing, and `spent` counts turns
+    /// rather than rows — so the exchange costs the room nothing and cannot
+    /// outrun it. See ADR 0011, and the invariants pinned in
+    /// `episode::test` and `tests/fuzz_invariants.rs`.
+    Concurrent,
 }
 
 /// The audience one authored line is committed under.
@@ -312,7 +338,9 @@ fn audience_for(
     content: &str,
     policy: AsidePolicy,
 ) -> Audience {
-    if mode != AsideMode::Private || !content.trim_start().starts_with(ASIDE_MARKER) {
+    if !matches!(mode, AsideMode::Private | AsideMode::Concurrent)
+        || !content.trim_start().starts_with(ASIDE_MARKER)
+    {
         return Audience::Desk;
     }
     let roster = host.roster();
