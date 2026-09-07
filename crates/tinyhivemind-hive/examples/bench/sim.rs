@@ -959,7 +959,9 @@ impl SimAgent {
             };
             self.handled.push(message.sequence);
             let before = self.favourite.clone();
-            self.import(&topic, reading);
+            if std::env::var("TINYHIVEMIND_ASIDE_NOIMPORT").is_err() {
+                self.import(&topic, reading);
+            }
             if probe::on() {
                 probe::bump(&probe::IMPORTS);
                 if let Some(t) = probe::truth() {
