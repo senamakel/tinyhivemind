@@ -504,7 +504,14 @@ async fn main() -> Result<(), BoxError> {
             resumed.as_deref(),
         )?;
         tokens += output.tokens;
-        if let Some(id) = output.session.clone() {
+        if output.timed_out || output.stalled {
+            // The process was killed, so its session is spent. A killed
+            // session cannot be resumed — the next run on it exits at once
+            // having emitted nothing — so keeping the id would make every
+            // later turn resume into silence. That is what turned a room
+            // which had been working into one that stalled on every turn.
+            sessions.remove(&seat.id);
+        } else if let Some(id) = output.session.clone() {
             sessions.insert(seat.id.clone(), id);
         }
         if let Some(error) = output.error.clone() {
