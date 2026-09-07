@@ -958,18 +958,7 @@ impl SimAgent {
                 continue;
             };
             self.handled.push(message.sequence);
-            let before = self.favourite.clone();
-            if std::env::var("TINYHIVEMIND_ASIDE_NOIMPORT").is_err() {
-                self.import(&topic, reading);
-            }
-            if probe::on() {
-                probe::bump(&probe::IMPORTS);
-                if let Some(t) = probe::truth() {
-                    if before != t && self.favourite == t { probe::bump(&probe::FAV_TO_TRUTH); }
-                    else if before == t && self.favourite != t { probe::bump(&probe::FAV_FROM_TRUTH); }
-                    else { probe::bump(&probe::FAV_SAME); }
-                }
-            }
+            self.import(&topic, reading);
         }
     }
 
@@ -988,12 +977,6 @@ impl SimAgent {
         };
         let topic = parse_topic(request.readable()?)?;
         self.handled.push(request.sequence);
-        if probe::on() {
-            probe::bump(&probe::ANSWERED);
-            if probe::decisive().as_deref() == Some(self.id.as_str()) {
-                probe::bump(&probe::ANSWER_BY_DECISIVE);
-            }
-        }
         // The member's *own* reading, not `score()`. `score` averages in every
         // reading this member has already absorbed, so answering with it would
         // echo an already-pooled value back into the room: a later asker would
@@ -1047,12 +1030,6 @@ impl SimAgent {
                 _ => None,
             })?,
         };
-        if probe::on() {
-            probe::bump(&probe::OPENED);
-            if probe::decisive().as_deref() == Some(peer.as_str()) { probe::bump(&probe::ASK_DECISIVE); }
-            if probe::truth().as_ref() == Some(&topic) { probe::bump(&probe::ASK_ABOUT_TRUTH); }
-            if probe::planted().as_ref() == Some(&topic) { probe::bump(&probe::ASK_ABOUT_DECOY); }
-        }
         Some(format!(
             "{ASIDE_MARKER} @{peer} #{topic} What do you make of this one?"
         ))
@@ -1072,19 +1049,6 @@ impl SimAgent {
             );
         }
 
-        if std::env::var("TINYHIVEMIND_ASIDE_DEPOSIT_FIRST").is_ok() {
-        // The evidence-first opening: while nobody can read anybody, say what
-            // you know rather than what you want. This is the whole of
-            // `--blind-evidence` on the writing side, and the module docs say why
-            // it is a participant policy rather than something the library could
-            // impose.
-            if self.blind_evidence
-                && turn.visibility == Visibility::Blind
-                && let Some(line) = self.opening_deposit(&view)
-            {
-                return line;
-            }
-        }
         // A pairwise check, and the three parts of it. Every one of them reads
         // the transcript the library authorized this turn to see, so under a
         // private exchange a member outside it parses a stub and takes
@@ -1701,49 +1665,3 @@ fn parse_reading(body: &str) -> Option<(TopicId, i32)> {
     }
     None
 }
-
-// ---- SCRATCH PROBE (remove before commit) ----
-pub(crate) mod probe {
-    use std::cell::RefCell;
-    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
-    use tinyhivemind_hive::trace::TopicId;
-    pub(crate) static OPENED: AtomicU64 = AtomicU64::new(0);
-    pub(crate) static ANSWERED: AtomicU64 = AtomicU64::new(0);
-    pub(crate) static IMPORTS: AtomicU64 = AtomicU64::new(0);
-    pub(crate) static ASK_DECISIVE: AtomicU64 = AtomicU64::new(0);
-    pub(crate) static ASK_ABOUT_DECOY: AtomicU64 = AtomicU64::new(0);
-    pub(crate) static ASK_ABOUT_TRUTH: AtomicU64 = AtomicU64::new(0);
-    pub(crate) static ANSWER_BY_DECISIVE: AtomicU64 = AtomicU64::new(0);
-    pub(crate) static FAV_TO_TRUTH: AtomicU64 = AtomicU64::new(0);
-    pub(crate) static FAV_FROM_TRUTH: AtomicU64 = AtomicU64::new(0);
-    pub(crate) static FAV_SAME: AtomicU64 = AtomicU64::new(0);
-    thread_local! {
-        pub(crate) static TRUTH: RefCell<Option<TopicId>> = const { RefCell::new(None) };
-        pub(crate) static PLANTED: RefCell<Option<TopicId>> = const { RefCell::new(None) };
-        pub(crate) static DECISIVE: RefCell<Option<String>> = const { RefCell::new(None) };
-    }
-    pub(crate) fn on() -> bool { std::env::var("TINYHIVEMIND_ASIDE_PROBE").is_ok() }
-    pub(crate) fn bump(c: &AtomicU64) { c.fetch_add(1, Relaxed); }
-    pub(crate) fn truth() -> Option<TopicId> { TRUTH.with(|t| t.borrow().clone()) }
-    pub(crate) fn planted() -> Option<TopicId> { PLANTED.with(|t| t.borrow().clone()) }
-    pub(crate) fn decisive() -> Option<String> { DECISIVE.with(|t| t.borrow().clone()) }
-    pub(crate) fn set(truth: &TopicId, planted: Option<&TopicId>, decisive: Option<&String>) {
-        if !on() { return; }
-        TRUTH.with(|t| *t.borrow_mut() = Some(truth.clone()));
-        PLANTED.with(|t| *t.borrow_mut() = planted.cloned());
-        DECISIVE.with(|t| *t.borrow_mut() = decisive.cloned());
-    }
-    pub(crate) fn dump(label: &str) {
-        if !on() { return; }
-        eprintln!("PROBE[{label}] opened={} answered={} imports={} ask_decisive={} about_decoy={} about_truth={} answer_by_decisive={} fav_to_truth={} fav_from_truth={} fav_same={}",
-            OPENED.load(Relaxed), ANSWERED.load(Relaxed), IMPORTS.load(Relaxed),
-            ASK_DECISIVE.load(Relaxed), ASK_ABOUT_DECOY.load(Relaxed), ASK_ABOUT_TRUTH.load(Relaxed),
-            ANSWER_BY_DECISIVE.load(Relaxed), FAV_TO_TRUTH.load(Relaxed), FAV_FROM_TRUTH.load(Relaxed), FAV_SAME.load(Relaxed));
-    }
-    pub(crate) fn reset() {
-        for c in [&OPENED,&ANSWERED,&IMPORTS,&ASK_DECISIVE,&ASK_ABOUT_DECOY,&ASK_ABOUT_TRUTH,&ANSWER_BY_DECISIVE,&FAV_TO_TRUTH,&FAV_FROM_TRUTH,&FAV_SAME] {
-            c.store(0, Relaxed);
-        }
-    }
-}
-// ---- END SCRATCH PROBE ----
