@@ -2,6 +2,7 @@
 
 **Status:** Draft
 **Owner:** tinyhivemind maintainers
+- **Plan:** [`../plans/off-floor-exchange.md`](../plans/off-floor-exchange.md)
 
 ## Problem
 
