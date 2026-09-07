@@ -977,6 +977,7 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
         // The pair that isolates privacy. Both spend a turn asking and a turn
         // answering; they differ in who may read the answer, and in nothing
         // else. `--aside-cap 0` leaves both bit-identical to `hive+`.
+        crate::sim::probe::reset();
         totals.hive_aside.add(&run_episode_checking(
             room,
             &tuned,
@@ -987,6 +988,8 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
             options.aside_cap,
             false,
         )?);
+        crate::sim::probe::dump("aside");
+        crate::sim::probe::reset();
         totals.hive_ask.add(&run_episode_checking(
             room,
             &tuned,
@@ -1000,6 +1003,8 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
         // The informed variant: the check goes to whoever the room has heard
         // ground this option. It exists to close the obvious objection to a
         // negative result — that the question went to the wrong peer.
+        crate::sim::probe::dump("ask");
+        crate::sim::probe::reset();
         totals.hive_aside_informed.add(&run_episode_checking(
             room,
             &tuned,
@@ -1010,6 +1015,7 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
             options.aside_cap,
             true,
         )?);
+        crate::sim::probe::dump("aside!");
         let seed = mix(options.seed, u64::try_from(index).unwrap_or(0));
         totals.ladder.add_arm(&arms::run_ladder(room, seed)?);
         let earned = earn_directory(room, &tuned, options.history, mix(seed, 0x6869_7374))?;
