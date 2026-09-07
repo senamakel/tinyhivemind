@@ -21,10 +21,10 @@ move. Three controls locate the cost precisely
   answer away**. It loses `-15.7 [-17.6, -13.8]` — *more* than the arms that
   keep the answer. The transfer is not what costs the room anything.
 - `hive+pooled` hands every member every peer's reading and every fact for free.
-  It gains `+21.2 [+19.3, +23.3]`, in fewer turns. The information is worth more
+  It gains `+30.8 [+28.8, +33.0]`, in fewer turns. The information is worth more
   than anything else this benchmark measures.
 - `hive+fact°` runs the same bounded exchange off the floor. It gains
-  `+3.0 [+2.1, +4.0]`.
+  `+3.2 [+2.1, +4.1]`.
 
 So the mechanism was never the problem. Under one message, one turn, a member
 asking a peer is a member not depositing, not objecting and not refuting, while
@@ -77,11 +77,11 @@ the same rooms without the move:
 
 | configuration | on the floor | riding alongside |
 | --- | --- | --- |
-| hidden profile, budget 40 | `-15.0 [-16.9, -13.1]` | `+0.5 [+0.1, +1.0]` |
+| hidden profile, budget 40 | `-16.9 [-18.9, -15.1]` | `+0.5 [+0.1, +0.9]` |
 | uniform, budget 15 | `-2.5 [-3.0, -2.0]` | `+0.0 [+0.0, +0.1]` |
 | uniform, budget 40 | `-0.1 [-0.6, +0.5]` | `+0.1 [+0.0, +0.3]` |
 
-A 15.5-point swing on the hidden profile, bought by changing nothing about who
+A 17.4-point swing on the hidden profile, bought by changing nothing about who
 reads the exchange, what it says, or who it is aimed at. The move stops being a
 tax and becomes free.
 
@@ -89,12 +89,12 @@ tax and becomes free.
 one question.** Once a contact costs no turn, a member can contact a peer on
 every turn rather than once when it cannot separate two options, and hand over a
 reading of every option rather than an answer to one. That arm gains
-`+1.9 [+0.8, +3.0]` on the hidden profile — most of the way to the `+3.0` an
+`+1.4 [+0.4, +2.4]` on the hidden profile — much of the way to the `+3.2` an
 off-floor exchange with oracle targeting reaches, and the shape a colony's
 contacts actually have.
 
-**What remains unreached is not the accounting.** The ceiling is `+21.2` and the
-best on-contract arm reaches `+1.9`, because an aside still rides on a turn: a
+**What remains unreached is not the accounting.** The ceiling is `+30.8` and the
+best on-contract arm reaches `+1.4`, because an aside still rides on a turn: a
 room converging in 11 turns can write at most 11 aside rows, which is roughly two
 contacts per member in a room of five. Closing that would mean letting members
 the library did **not** authorize append rows between turns. The invariant above

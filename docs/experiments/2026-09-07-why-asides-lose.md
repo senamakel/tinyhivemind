@@ -7,7 +7,7 @@
 **Decision:** [ADR 0011](../adr/0011-an-aside-rides-alongside-a-turn.md)
 **Follows:** [`2026-09-07-do-asides-help.md`](2026-09-07-do-asides-help.md)
 
-**Peer-to-peer information is worth +9 to +21 points. Spending a floor turn to
+**Peer-to-peer information is worth +9 to +31 points. Spending a floor turn to
 buy it costs more than it is worth. The loss was never the privacy, the
 payload, or the peer — it was the scheduling.**
 
@@ -30,7 +30,7 @@ the explanation does not survive them.
 | `hive+along` | the aimed, fact-carrying check again, **riding alongside** the member's floor move: one turn, two rows, the second of which the episode cannot see. |
 | `hive+share` | the same free row spent **continuously** — a contact on every turn, carrying a reading of every option rather than an answer to one. |
 | `hive+fact°` | the same bounded exchange, held **off the floor** — before the episode opens, spending no turn the room could have deliberated with. |
-| `hive+pooled` | the **ceiling**: every reading and every fact already in every member's hands, free. No protocol beats it. |
+| `hive+pooled` | the **ceiling** *for equal-weight pooling*: every reading and every fact already in every member's hands, free, averaged with no regard for whose reading it is. No protocol that treats every peer's reading as equally reliable beats it; a protocol that could tell a specialist's reading from a lay guess (`--specialists`, not measured here) could in principle do better by weighting instead of averaging. |
 
 `--aside-cap 0` leaves all four bit-identical to `hive+`, and every number in
 the published six-row table is unchanged to the decimal.
@@ -45,22 +45,22 @@ Paired bootstrap against `hive+` over the same rooms, 2000 resamples.
 | `hive+aside` | 79.6 | 81.6 | 52.6 |
 | `hive+ask` | 79.7 | 81.8 | 52.5 |
 | `hive+aside!` | 79.6 | 81.6 | 50.9 |
-| `hive+fact` | 79.6 | 81.6 | 53.0 |
+| `hive+fact` | 79.6 | 81.6 | 51.1 |
 | `hive+mute` | 79.6 | 81.5 | 52.3 |
 | `hive+along` | 82.1 | 81.8 | 68.5 |
-| `hive+share` | 82.1 | 81.7 | 69.9 |
-| `hive+fact°` | 80.9 | 81.5 | 71.0 |
-| `hive+pooled` | **91.5** | **91.6** | **89.2** |
+| `hive+share` | 82.1 | 81.7 | 69.4 |
+| `hive+fact°` | 80.9 | 81.5 | 71.2 |
+| `hive+pooled` | **91.5** | **91.6** | **98.8** |
 
 ```text
 hidden profile, budget 40
   hive+mute   − hive+:   -15.7 [-17.6, -13.8]     the turns alone
   hive+aside  − hive+:   -15.4 [-17.1, -13.4]
-  hive+fact   − hive+:   -15.0 [-16.9, -13.1]
-  hive+along  − hive+:    +0.5 [ +0.1,  +1.0]     the same exchange, riding along
-  hive+share  − hive+:    +1.9 [ +0.8,  +3.0]     a contact every turn, carrying everything
-  hive+fact°  − hive+:    +3.0 [ +2.1,  +4.0]     the same exchange, off the floor
-  hive+pooled − hive+:   +21.2 [+19.3, +23.3]     the ceiling
+  hive+fact   − hive+:   -16.9 [-18.9, -15.1]
+  hive+along  − hive+:    +0.5 [ +0.1,  +0.9]     the same exchange, riding along
+  hive+share  − hive+:    +1.4 [ +0.4,  +2.4]     a contact every turn, carrying everything
+  hive+fact°  − hive+:    +3.2 [ +2.1,  +4.1]     the same exchange, off the floor
+  hive+pooled − hive+:   +30.8 [+28.8, +33.0]     the ceiling
 
 uniform, budget 15
   hive+mute   − hive+:    -2.5 [-3.0, -2.1]
@@ -73,31 +73,53 @@ uniform, budget 15
 
 ## What this settles
 
-**The loss is the turns, entirely.** `hive+mute` transfers nothing and loses
-*more* than the arms that transfer something (−15.7 against −15.0 for
-`hive+fact`). Every informative arm sits inside a point of the mute control in
-every configuration. Whatever an aside costs, it costs it before a single word
-of content has changed hands.
+**The loss is the turns, mostly.** `hive+mute` (`CheckStyle::MUTE`) targets the
+same way `hive+aside`/`hive+ask` do — whoever spoke first, `informed: false` —
+and against those two it is a clean matched-turn control: same turns, same
+words, no transfer, and it loses *more* than both (−15.7 against −15.4 and
+−15.5). For those two, taking the answer in is worth a few tenths of a point
+against not taking it in — small, and in the *helpful* direction.
+
+`hive+fact` and `hive+aside!` are `informed: true`, aimed at the fact-holder
+rather than at whoever spoke first, and *both* lose more than `hive+mute`
+(−16.9 and −17.1). Aiming the question, not muting the answer, is what costs
+more here: conscripting the one member whose public turn matters into an
+audience of one is itself a floor cost, on top of the turns every arm already
+pays. So `hive+mute` is not a uniform upper bound on every informative arm's
+loss — it bounds the untargeted ones, and the targeted ones cost more still.
 
 **So the pooling explanation is wrong.** The first note argued that averaging a
 peer's reading imports the room's shared bias and moves a member toward the
 decoy. If that were the mechanism, muting the answer would recover the loss. It
-does not; it deepens it slightly. Taking the answer in is worth about +0.7
-points against not taking it in — small, and in the *helpful* direction. That
-paragraph of the earlier note is retracted below.
+does not; among the untargeted arms it deepens it slightly (`hive+mute` at
+−15.7 against −15.4/−15.5 for `hive+aside`/`hive+ask`). Taking the answer in is
+worth a few tenths of a point against not taking it in — small, and in the
+*helpful* direction. That paragraph of the earlier note is retracted below.
 
 **The information is worth a great deal.** `hive+pooled` beats `hive+` by
-**+21.2** on the hidden profile and by **+9.4 to +10.0** on uniform rooms, and
-does it in *fewer* turns (10.22 against 10.98). This is the largest effect
+**+30.8** on the hidden profile and by **+9.4 to +10.0** on uniform rooms, and
+does it in *fewer* turns (10.15 against 10.98). This is the largest effect
 anywhere in this benchmark. A room whose members can read each other's private
 evaluations is a substantially better room. The intuition that peer-to-peer
 exchange should make a hive mind smarter is correct, and this is the size of it.
 
-**The whole gap is scheduling.** `hive+fact°` runs the *same* bounded exchange,
-with the same payload, the same targeting and the same number of contacts as
-`hive+fact` — and differs only in that it does not spend a floor turn. It moves
-from **−15.0 to +3.0**, an interval clear of zero. Eighteen points of the
-difference between the two is nothing but when the exchange happens.
+**Most of the gap is scheduling.** `hive+fact°` runs the same bounded exchange,
+with the same payload and the same number of contacts as `hive+fact` — off the
+floor rather than on it. It moves from **−16.9 to +3.2**, an interval clear of
+zero. Twenty points of the difference between the two is when the exchange
+happens.
+
+One caveat on "the same targeting": `hive+fact°` chooses its peer from private
+room state — it always reaches the actual fact-holder. `hive+fact` chooses its
+peer through `View::grounded_by`, reading only the transcript built so far, and
+falls back to the first peer that has spoken when the holder has not deposited
+yet. The two are not guaranteed to resolve to the same peer on a given episode,
+so `hive+fact°` is better read as an upper bound on what the exchange is worth
+off the floor with at-least-as-good targeting, not as a comparison that varies
+scheduling alone. Matching the two exactly would mean deriving `hive+fact°`'s
+peer from the transcript a live episode would have produced by that point,
+which this benchmark does not attempt because `pre_checked` runs before any
+transcript exists.
 
 ## Why, in one paragraph
 
@@ -136,8 +158,14 @@ carried refutations in `!evidence`; an answered check could only ever hand back
 a scalar. `CheckStyle::FACT` lets a member holding the fact say so, and the
 asker discounts the option for itself at the same weight a desk-visible
 refutation carries in `View::posterior` — a belief, not a trace, so the room
-still counts nothing from an aside. It is worth +2.1 against the aimed
-reading-only arm and does not come close to paying for the turn.
+still counts nothing from an aside. A fact-bearing answer replaces the
+reading rather than adding to it (a second defect, caught the same way: the
+first cut of `CheckStyle::FACT` recorded the discount and still averaged in
+the number that came with it, so `hive+fact` was measuring both channels at
+once). Corrected, `hive+fact` (−16.9) and the aimed reading-only arm,
+`hive+aside!` (−17.1), are within their intervals of each other — carrying
+the fact instead of a number does not measurably change what the aimed check
+is worth, and neither comes close to paying for the turn.
 
 ## The fix, and what it recovered
 
@@ -158,7 +186,7 @@ filter is removed.
 
 `hive+along` is the same check as `hive+fact` — same words, same targeting, same
 bound — differing only in that the room is not charged for it. It moves from
-`-15.0 [-16.9, -13.1]` to `+0.5 [+0.1, +1.0]`. **A 15.5-point swing, bought by
+`-16.9 [-18.9, -15.1]` to `+0.5 [+0.1, +0.9]`. **A 17.4-point swing, bought by
 changing nothing about the exchange itself.** On uniform rooms the −2.5 becomes
 ±0.0: the move stops being a tax everywhere.
 
@@ -168,12 +196,12 @@ One question when you cannot separate two options is the shape a *charged* row
 forces. A colony's contacts are continuous and carry whatever the donor holds.
 `hive+share` is that: a contact on every turn, to a peer not yet reached,
 handing over a reading of every option and any fact its author holds. It gains
-`+1.9 [+0.8, +3.0]` on the hidden profile — most of the way to the `+3.0` that an
+`+1.4 [+0.4, +2.4]` on the hidden profile — much of the way to the `+3.2` that an
 off-floor exchange with oracle targeting reaches.
 
 ## What is still unreached, and why it is not the accounting
 
-The ceiling is `+21.2` and the best arm inside the turn contract reaches `+1.9`.
+The ceiling is `+30.8` and the best arm inside the turn contract reaches `+1.4`.
 The remaining constraint is that an aside still *rides* on a turn: a room
 converging in eleven turns can write at most eleven aside rows, which in a room
 of five is about two contacts each, against the twenty full exchanges `pooled`
@@ -201,8 +229,12 @@ value on, and it does not pay for that risk. `project_for` is unchanged.
 Everything the first note listed, still: conformity (arithmetic participants
 cannot be sycophantic), the settlement pointer (no simulated participant acts on
 one), and rooms whose members are wrong in *different* directions. And now the
-off-floor exchange above, which `hive+pooled` bounds at `+21.2` and no arm here
-implements.
+off-floor exchange above, which `hive+pooled` bounds at `+30.8` and no arm here
+implements. Note also that `hive+fact°`'s peer selection is an oracle rather
+than a transcript-matched replica of `hive+fact`'s, so its `+3.2` is an upper
+bound on the off-floor benefit rather than an isolation of scheduling from
+targeting alone — `hive+along`, which *is* transcript-matched, is the clean
+comparison.
 
 ## Retraction
 

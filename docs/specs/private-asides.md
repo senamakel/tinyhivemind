@@ -347,12 +347,13 @@ aside, every viewer projects what it projects today.
 - **An aside that does not ride on a turn at all.** An aside now rides alongside
   the turn that authored it, which is what makes it free; but it still rides on
   one, so a room converging in eleven turns can write at most eleven aside rows.
-  The ceiling on peer information is `+21.2` and the best arm that stays inside
-  the turn contract reaches `+1.9`. Closing that gap means letting members the
+  The ceiling on peer information is `+30.8` and the best arm that stays inside
+  the turn contract reaches `+1.4`. Closing that gap means letting members the
   library did not authorize append rows between turns. `step` provably could not
   tell — but a host running *n* participants per authorized turn is what the
   charter's third rule exists to prevent, and the cost in model calls is real and
   is not the library's to hide. Not taken; `hive+pooled` bounds what it is worth.
+  See [`../experiments/2026-09-07-why-asides-lose.md`](../experiments/2026-09-07-why-asides-lose.md).
 - **Whether an aside should reach its member during a blind round.** It does not
   today: `project_for` withholds every peer row under `Visibility::Blind`, so an
   exchange cannot begin until positions have formed. Letting an aside through

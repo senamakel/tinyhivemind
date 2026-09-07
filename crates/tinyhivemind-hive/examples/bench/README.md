@@ -47,11 +47,11 @@ Every arm decides the same rooms from the same private evaluations.
 | `hive+ask` | The identical exchange in the open — same turns, same words, every member reads it. The control that isolates *privacy* from *asking*. |
 | `hive+aside!` | The private check again, aimed at whoever the transcript shows has grounded the option rather than at whoever spoke first. |
 | `hive+fact` | The aimed check again, carrying the fact that rules an option out rather than a number to be averaged into an error the pair may share. |
-| `hive+mute` | The identical check on the identical turns, with the answer **discarded**. The matched-turn control: what it loses against `hive+` is what the turns cost, and what any arm above gains over it is what the answer is worth. |
-| `hive+along` | The aimed, fact-carrying check again, **riding alongside** the member's floor move rather than replacing it: one authorized turn, two rows, and the episode unable to see the second. See [ADR 0011](../../../../docs/adr/0011-an-aside-rides-alongside-a-turn.md). |
+| `hive+mute` | The identical check on the identical turns, with the answer **discarded**. Targets the way `hive+aside`/`hive+ask` do — whoever spoke first — so it is a matched-turn control for those two: what it loses against `hive+` is what the turns cost. Against `hive+fact`/`hive+aside!`, which are aimed at the fact-holder, the comparison also carries a targeting difference, not content value alone. |
+| `hive+along` | The aimed, fact-carrying check again, **riding alongside** the member's floor move rather than replacing it: one authorized turn, two rows, and the episode unable to see the second. Unlike `hive+fact°` it picks its peer from the transcript exactly as `hive+fact` does, so it is the clean isolation of scheduling. See [ADR 0011](../../../../docs/adr/0011-an-aside-rides-alongside-a-turn.md). |
 | `hive+share` | The same free row spent **continuously** — a contact on every turn, to a peer not yet reached, carrying a reading of every option rather than an answer to one. What a colony's contacts actually look like, and what only a free row can afford. |
-| `hive+fact°` | The same bounded exchange as `hive+fact`, held **off the floor** — before the episode opens, spending no turn the room could have deliberated with. It isolates the scheduling from everything else. |
-| `hive+pooled` | The **ceiling**: every private reading and every fact already in every member's hands, free. No amount of pairwise exchange beats it, so it bounds the whole question. |
+| `hive+fact°` | The same bounded exchange as `hive+fact`, held **off the floor** — before the episode opens, spending no turn the room could have deliberated with. Its peer is chosen from private room state rather than the transcript, so it bounds what the exchange is worth off the floor rather than isolating scheduling alone. |
+| `hive+pooled` | The **ceiling for equal-weight pooling**: every private reading and every fact already in every member's hands, free, averaged with no regard for whose reading it is. No amount of pairwise exchange beats it on the rooms this benchmark measures (uniform and hidden-profile, where every peer's reading is equally reliable) — under `--specialists`, where readings genuinely differ in reliability, a protocol that could tell them apart could in principle beat indiscriminate averaging. |
 | `ladder+dir` | The responder ladder again, with a directory the room *earned* over `--history` prior episodes of `hive+` on the same room. The selector's candidates carry that directory's per-agent lines as their `description`, the request names the topic the call turns on, and a router that reads the descriptions picks the heaviest holder of it. Validated through the real `accept_selection`. |
 | `all-reasoning` | Only under `--cost-tiers`, in the cost table: `hive+dir+defer` (the delegating room) against a policy that puts every seat on the expensive tier. |
 
@@ -62,19 +62,31 @@ them byte for byte.
 Every aside arm that spends a turn loses, and the seven of them together
 settle what the loss is made of. `hive+aside − hive+ask` spans zero in every
 configuration, so privacy is never the variable. `hive+mute` discards the
-answer and loses *more* than the arms that keep it, so the content is never the
-variable either — the cost is the turns, in full, before a word changes hands.
-`hive+fact°` runs the identical exchange off the floor and moves from −15.0 to
-`+3.0 [+2.0, +4.0]` on a hidden profile, so the scheduling is the whole of it.
-And `hive+pooled` beats `hive+` by `+21.2 [+19.3, +23.3]` in *fewer* turns: peer
+answer and loses *more* than `hive+aside` and `hive+ask` -- the two arms it is
+a clean matched-turn control for, since all three target the same way -- so
+against those two the content is never the variable either; the cost is the
+turns, in full, before a word changes hands. `hive+fact` lands within a point
+of `hive+mute` too (−16.9 against −15.7), but `hive+fact` is aimed at the
+fact-holder while `hive+mute` is not, so that particular gap also carries a
+targeting difference and should not be read as content value alone.
+`hive+aside!` is a sharper version of the same point: aimed at the actual
+fact-holder it loses `-17.1`, *more* than `hive+mute`, because conscripting the
+one member whose public turn matters into an audience of one is itself a cost.
+`hive+fact°` runs
+the same bounded exchange off the floor and moves from −16.9 to
+`+3.2 [+2.1, +4.2]` on a hidden profile, so scheduling accounts for most of the
+gap — though `hive+fact°` picks its peer from private room state rather than
+`hive+fact`'s transcript-only `View::grounded_by`, so this is an upper bound on
+the off-floor benefit, not a pure isolation of scheduling from targeting. And
+`hive+pooled` beats `hive+` by `+30.8 [+28.7, +32.9]` in *fewer* turns: peer
 information is worth more here than anything else this benchmark measures, and
 buying it one floor turn at a time is what costs more than it is worth.
 
 So the accounting changed. `hive+along` writes the identical exchange alongside
-each member's floor move instead of in place of one, and moves from `-15.0` to
-`+0.5 [+0.1, +1.0]` — a 15.5-point swing bought by charging the room nothing.
+each member's floor move instead of in place of one, and moves from `-16.9` to
+`+0.5 [+0.1, +0.9]` — a 17.4-point swing bought by charging the room nothing.
 `hive+share` then spends the free row continuously and reaches
-`+1.9 [+0.8, +3.0]`. Both stay inside the turn contract: only the member the
+`+1.4 [+0.4, +2.4]`. Both stay inside the turn contract: only the member the
 library authorized ever writes, and it writes at most one private row per turn.
 [`docs/experiments/2026-09-07-why-asides-lose.md`](../../../../docs/experiments/2026-09-07-why-asides-lose.md)
 carries the numbers and the argument;
