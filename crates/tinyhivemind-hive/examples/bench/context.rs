@@ -196,7 +196,11 @@ mod test {
         let held = 5;
         assert_eq!(budget.weight(0, held), 1.0, "the first row is all edge");
         assert_eq!(budget.weight(4, held), 1.0, "so is the last");
-        assert_eq!(budget.weight(2, held), 0.0, "the exact centre is worth nothing");
+        assert_eq!(
+            budget.weight(2, held),
+            0.0,
+            "the exact centre is worth nothing"
+        );
         assert!(
             budget.weight(1, held) > budget.weight(2, held),
             "and the curve is monotone towards the centre"
@@ -250,7 +254,10 @@ mod test {
         };
         // Share of rows worth less than half their face value.
         let buried = |held: usize| {
-            (0..held).filter(|at| budget.weight(*at, held) < 0.5).count() as f64 / held as f64
+            (0..held)
+                .filter(|at| budget.weight(*at, held) < 0.5)
+                .count() as f64
+                / held as f64
         };
         assert_eq!(buried(1), 0.0, "a lone row is all edge");
         assert!(

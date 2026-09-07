@@ -103,7 +103,10 @@ fn arms(
         ),
         // Everybody holds everybody's readings. Free under the old model; here
         // it pays for every row it takes.
-        ("hive+pooled", run_episode(&room.pooled(), policy, task, false)?),
+        (
+            "hive+pooled",
+            run_episode(&room.pooled(), policy, task, false)?,
+        ),
     ])
 }
 

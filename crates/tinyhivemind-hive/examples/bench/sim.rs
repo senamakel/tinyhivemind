@@ -1164,7 +1164,11 @@ impl SimAgent {
                 EntryKind::Stub => {}
             }
         }
-        let pooled = if divisor > 0.0 { total / divisor } else { f64::from(own) };
+        let pooled = if divisor > 0.0 {
+            total / divisor
+        } else {
+            f64::from(own)
+        };
         let discounted = pooled - ruled_out * f64::from(GROUNDS_WEIGHT);
         discounted.round() as i32
     }
@@ -1377,8 +1381,7 @@ impl SimAgent {
                 .evidence()
                 .then(|| parse_ruled_out(body))
                 .flatten();
-            if let Some(topic) = refuted.clone()
-                {
+            if let Some(topic) = refuted.clone() {
                 self.note_fact(&topic);
             }
             // The fact is carried *instead of* the number for the option it
