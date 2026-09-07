@@ -169,7 +169,10 @@ Everything the first note listed, still: conformity (arithmetic participants
 cannot be sycophantic), the settlement pointer (no simulated participant acts on
 one), and rooms whose members are wrong in *different* directions. It also does
 not demonstrate the concurrent-aside scheduling it points at — `hive+fact°`
-bounds what that would be worth, at +3.0, and does not implement it.
+bounds what that would be worth, at +4.9, and does not implement it. And, as
+noted above, `hive+fact°`'s peer selection is an oracle rather than a
+transcript-matched replica of `hive+fact`'s, so +4.9 is an upper bound on the
+off-floor benefit rather than an isolation of scheduling from targeting.
 
 ## Retraction
 
