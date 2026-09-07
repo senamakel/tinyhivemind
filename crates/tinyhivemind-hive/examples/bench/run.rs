@@ -567,12 +567,20 @@ pub(crate) fn run_episode_checking(
         task,
         keep_trace,
         aside_mode,
-        exchange_policy(aside_cap, policy.turn_budget),
+        // The checking arms take no off-floor round; their private rows ride
+        // alongside a turn or replace one.
+        ExchangePolicy::DEFAULT,
     )?;
 
-    // `drive` stays ignorant of which member is an expert or a decisive
-    // hidden-profile holder; only the room knows that, and only after the
-    // episode has already ended is it safe to ask.
+    Ok(scored(room, report))
+}
+
+/// Fill in the fields only the room can answer, once the episode has ended.
+///
+/// `drive` stays ignorant of which member is an expert or a decisive
+/// hidden-profile holder; only the room knows that, and only after the episode
+/// has already decided is it safe to ask.
+fn scored(room: &Room, report: EpisodeReport) -> EpisodeReport {
     let expert = room.deciding_expert();
     // In time, or not at all. A deposit at or after the commit boundary is
     // compute the room paid for and could not use, and scoring it as a hit
@@ -595,8 +603,8 @@ pub(crate) fn run_episode_checking(
         fact_at,
         ..report
     };
-    debug_check(&report, &ids, room);
-    Ok(report)
+    debug_check(&report, &room.member_ids(), room);
+    report
 }
 
 /// Cheap consistency checks over a freshly built report, active only in
