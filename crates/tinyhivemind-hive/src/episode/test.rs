@@ -1258,5 +1258,14 @@ fn shifting_desk_sequences_past_a_private_row_can_change_the_step() {
         run(&room, &state(), &unshifted, &policy),
         run(&room, &state(), &shifted, &policy),
     );
+
+    // And the difference is the *shift*, not the row: the same aside parked at
+    // a sequence that displaces nothing leaves the step exactly as it was.
+    let mut parked = unshifted.clone();
+    parked.push(aside(9, "planner", &["scout"], "!aside @scout Between us."));
+    assert_eq!(
+        run(&room, &state(), &unshifted, &policy),
+        run(&room, &state(), &parked, &policy),
+    );
 }
 
