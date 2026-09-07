@@ -522,6 +522,26 @@ async fn main() -> Result<(), BoxError> {
                 tokens += output.tokens;
             }
         }
+        if output.stalled {
+            // Killed for going quiet, not for running long. One intermittent
+            // upstream failure ends the CLI's progress without ending the CLI,
+            // so the turn is recoverable: start it again rather than spend the
+            // rest of the budget watching a process that has stopped asking.
+            println!(
+                "   !! stalled after {:?} of silence - restarting the turn",
+                output.elapsed
+            );
+            output = runner.run(
+                &prompt,
+                &format!("turn-{turns:03}-{}-restart", seat.id),
+                runner.timeout(),
+                output.session.as_deref().or(resumed.as_deref()),
+            )?;
+            tokens += output.tokens;
+            if let Some(id) = output.session.clone() {
+                sessions.insert(seat.id.clone(), id);
+            }
+        }
         if output.timed_out || output.message.trim().is_empty() {
             // Two phases, because the failure has two halves. First ask the
             // seat to land what it has: same session, tools still attached, so
