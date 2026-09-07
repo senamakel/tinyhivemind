@@ -58,13 +58,16 @@ sequence allocation is neutral. The third test named above proves it is not.
 pub fn exchange(
     policy: &ExchangePolicy,
     state: &EpisodeState,
+    opened: ExchangeState,
     transcript: &[SessionMessage],
     roster: &Roster<'_>,
     desks: &DeskSet<'_>,
 ) -> Result<ExchangeRound>;
 ```
 
-A fold over what the caller already holds. It answers whether a round is open,
+A fold over what the caller already holds, including `opened` — the round count
+the host carries and advances from each open round's `next`. See "Contacts are
+folded; rounds are carried", below, for why that one cannot come out of the log. It answers whether a round is open,
 which members it names, and how many rows the episode may still write. It does
 no waiting and **chooses no peer**: who a member wants to contact is that
 member's judgement, and the audience it writes is validated by

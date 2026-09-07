@@ -531,7 +531,7 @@ pub(crate) fn json_line(name: &str, totals: &Aggregate) -> String {
          \"episodes_per_second\":{},\"fact_pct\":{},\"to_fact\":{},\
          \"knows_pct\":{},\"defers_per_episode\":{},\
          \"expert_led\":{},\"route_pct\":{},\"cost_per_episode\":{},\
-         \"accuracy_per_kilo_unit\":{},\"rho\":{},\"private_rows_per_episode\":{}}}",
+         \"accuracy_per_kilo_unit\":{},\"rho\":{},\"exchange_calls_per_episode\":{}}}",
         json_f64(totals.turns_per_episode()),
         json_f64(totals.decision_rate()),
         json_f64(totals.accuracy()),
@@ -554,12 +554,15 @@ pub(crate) fn json_line(name: &str, totals: &Aggregate) -> String {
             hive_like && totals.rank_rho_count > 0,
             totals.mean_rho() / 1000.0
         ),
-        // Private rows written off the floor, per episode -- the same figure
-        // the `private/ep` column reports, dashed there when no arm in the
-        // run wrote any. `0.0` here rather than `null` when nothing was
-        // written, matching `cost_per_episode`'s zero rather than every
-        // other `hive_like`-gated field's `null`, since this is a total
-        // rather than a rate that only a hive-like arm can even attempt.
+        // Model calls made in off-floor exchange rounds, per episode -- the
+        // same figure the `calls/ep` column reports, dashed there when no arm
+        // in the run made any. Members *asked*, not rows written: a member
+        // that declines costs the same call as one that answers, so counting
+        // rows would report a price below the one paid. `0.0` here rather
+        // than `null` when nothing was spent, matching `cost_per_episode`'s
+        // zero rather than every other `hive_like`-gated field's `null`,
+        // since this is a total rather than a rate only a hive-like arm can
+        // attempt.
         json_f64(totals.contacts_per_episode()),
     );
     line
