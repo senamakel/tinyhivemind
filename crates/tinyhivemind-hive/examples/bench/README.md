@@ -48,6 +48,8 @@ Every arm decides the same rooms from the same private evaluations.
 | `hive+aside!` | The private check again, aimed at whoever the transcript shows has grounded the option rather than at whoever spoke first. |
 | `hive+fact` | The aimed check again, carrying the fact that rules an option out rather than a number to be averaged into an error the pair may share. |
 | `hive+mute` | The identical check on the identical turns, with the answer **discarded**. The matched-turn control: what it loses against `hive+` is what the turns cost, and what any arm above gains over it is what the answer is worth. |
+| `hive+along` | The aimed, fact-carrying check again, **riding alongside** the member's floor move rather than replacing it: one authorized turn, two rows, and the episode unable to see the second. See [ADR 0011](../../../../docs/adr/0011-an-aside-rides-alongside-a-turn.md). |
+| `hive+share` | The same free row spent **continuously** — a contact on every turn, to a peer not yet reached, carrying a reading of every option rather than an answer to one. What a colony's contacts actually look like, and what only a free row can afford. |
 | `hive+fact°` | The same bounded exchange as `hive+fact`, held **off the floor** — before the episode opens, spending no turn the room could have deliberated with. It isolates the scheduling from everything else. |
 | `hive+pooled` | The **ceiling**: every private reading and every fact already in every member's hands, free. No amount of pairwise exchange beats it, so it bounds the whole question. |
 | `ladder+dir` | The responder ladder again, with a directory the room *earned* over `--history` prior episodes of `hive+` on the same room. The selector's candidates carry that directory's per-agent lines as their `description`, the request names the topic the call turns on, and a router that reads the descriptions picks the heaviest holder of it. Validated through the real `accept_selection`. |
@@ -64,9 +66,16 @@ answer and loses *more* than the arms that keep it, so the content is never the
 variable either — the cost is the turns, in full, before a word changes hands.
 `hive+fact°` runs the identical exchange off the floor and moves from −15.0 to
 `+3.0 [+2.0, +4.0]` on a hidden profile, so the scheduling is the whole of it.
-And `hive+pooled` beats `hive+` by `+21.2 [+19.2, +23.2]` in *fewer* turns: peer
+And `hive+pooled` beats `hive+` by `+21.2 [+19.3, +23.3]` in *fewer* turns: peer
 information is worth more here than anything else this benchmark measures, and
 buying it one floor turn at a time is what costs more than it is worth.
+
+So the accounting changed. `hive+along` writes the identical exchange alongside
+each member's floor move instead of in place of one, and moves from `-15.0` to
+`+0.5 [+0.1, +1.0]` — a 15.5-point swing bought by charging the room nothing.
+`hive+share` then spends the free row continuously and reaches
+`+1.9 [+0.8, +3.0]`. Both stay inside the turn contract: only the member the
+library authorized ever writes, and it writes at most one private row per turn.
 [`docs/experiments/2026-09-07-why-asides-lose.md`](../../../../docs/experiments/2026-09-07-why-asides-lose.md)
 carries the numbers and the argument;
 [`2026-09-07-do-asides-help.md`](../../../../docs/experiments/2026-09-07-do-asides-help.md)
@@ -377,7 +386,7 @@ rather than a failure of the harness.
 | `--blind-evidence` | a member's first turn, while the room is blind, is a deposit rather than a position (off by default) |
 | `--directory` | fold the directory into the traced episode's own policy, so `--trace` can show a `knows` turn |
 | `--defer-cap N` | turns a member may spend deferring to a topic's expert instead of arguing outside its own specialty (default 1, minimum 1); read by `hive+defer` and `hive+dir+defer` |
-| `--aside-cap N` | pairwise checks one member may open (default 1); `0` makes every aside arm bit-identical to `hive+` |
+| `--aside-cap N` | pairwise checks one member may open (default 1); under `hive+share` it caps distinct peers contacted instead; `0` makes every aside arm bit-identical to `hive+` |
 | `--history N` | prior episodes of `hive+` the `ladder+dir` arm earns its directory from (default 3) |
 | `--budget N` `--quorum N` `--window N` | episode policy, overriding the tuned values |
 | `--dominance N` `--repetition N` `--no-blind` | episode policy |
