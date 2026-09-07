@@ -9,6 +9,23 @@
 
 **No. A pairwise check is pure cost, and privacy is never the variable.**
 
+> **Superseded in part.**
+> [`2026-09-07-why-asides-lose.md`](2026-09-07-why-asides-lose.md) runs the
+> matched-turn control and the free ceiling this note lists as missing. The
+> results here stand; the *explanation* of the hidden-profile loss below does
+> not, and is retracted there. In short: the loss is the turns, the same
+> exchange held off the floor gains `+3.2 [+2.1, +4.2]`, and free peer
+> information is worth `+30.8 [+28.7, +32.9]`.
+>
+> **Q3's answer below is also superseded.** `View::grounded_by` did not aim at
+> anything at the time this note measured `hive+aside!` — it returned the
+> first `!evidence` author on the topic rather than the one grounding it. Fixed
+> to prefer a refuting depositor, aiming changes the result: `hive+aside!`
+> reaches the fact-holder and loses `-17.1`, worse than every matched-turn
+> arm including `hive+mute`. "Aiming it changes nothing" was measuring an arm
+> that never aimed; see the "Two defects found on the way" section of the
+> linked note.
+
 The spec's acceptance criteria say the mechanism must be allowed to lose and
 that the loss must be published. It lost.
 
@@ -94,6 +111,16 @@ worth, it is worth the same whether one member reads the answer or five do.
 `hive+aside` to the decimal in every configuration. The peer it reaches is not
 what is wrong.
 
+**Retracted.** `View::grounded_by` returned the first `!evidence` author on the
+topic rather than the one grounding it, so under `--blind-evidence` the
+"aimed" check almost never reached the fact-holder — measured at 22% against
+25% for a peer drawn at random. This answer is measuring an arm that never
+aimed. [`2026-09-07-why-asides-lose.md`](2026-09-07-why-asides-lose.md) fixes
+the targeting and reruns it: aimed at the actual fact-holder, `hive+aside!`
+loses `-17.1`, *worse* than every matched-turn control including `hive+mute`.
+The peer it reaches turned out to be exactly what was wrong, once it actually
+reached one.
+
 ## A correction, and what it did not change
 
 The first published version of this note answered a check with
@@ -113,6 +140,14 @@ the `hive+aside − hive+ask` null on the hidden profile actually tightened, fro
 right on principle, and it happened not to be load-bearing at this cap.
 
 ## The hidden-profile result, and why it is worse than a wash
+
+**Retracted.** The reasoning in this section is wrong, and
+[`2026-09-07-why-asides-lose.md`](2026-09-07-why-asides-lose.md) shows why: an
+arm that spends the identical turns and *discards* the answer loses
+`-15.7 [-17.6, -13.8]`, marginally more than the arm that keeps it. The
+transfer is not what costs the room the fifteen points. It is left in place
+below rather than deleted, because a published explanation that turned out to
+be wrong is part of the record.
 
 Fifteen points, with the budget unconstrained and every arm deciding 100% of
 its rooms, is not a cost-of-turns effect. It is the mechanism doing harm.

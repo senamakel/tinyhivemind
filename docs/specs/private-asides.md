@@ -317,6 +317,17 @@ aside, every viewer projects what it projects today.
   `THREAD_INDEX_SCAN` all count raw rows, so a viewer admitted to little of a
   desk gets proportionally less for the same cost. Stating the achieved window
   is honest but is not a fix, and a per-viewer multiplier was not attempted.
+- **An aside is charged a floor turn, and that is what it loses on.** It resolves
+  no trace, adds no supporter and moves no standing, so it is not a floor move by
+  construction — but under one message, one turn it still spends one, and a member
+  asking is a member not depositing while the room accumulates support around it.
+  The benchmark separates the two: the same bounded exchange held off the floor
+  moves from `-15.0` to `+3.2 [+2.1, +4.2]` on a hidden profile, and free peer
+  information is worth `+30.8 [+28.7, +32.9]`. Letting a private exchange run
+  concurrently with the deliberation rather than in place of a turn of it is the
+  change those numbers point at; it is not attempted here, and it is a
+  scheduling question for a host rather than a change to this algebra. See
+  [`../experiments/2026-09-07-why-asides-lose.md`](../experiments/2026-09-07-why-asides-lose.md).
 - **`must_surface` is enforced at the next aside, not at the last turn.** Nothing
   compels a settlement before an episode ends, so a room can close with an aside
   unsettled. Making the episode refuse to converge on an unsettled aside was

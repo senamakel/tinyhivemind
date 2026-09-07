@@ -106,7 +106,7 @@ use crate::run::{
     AsideMode, Participant, drive, run_episode, run_episode_checking, run_episode_with,
 };
 use crate::scenario::{Scenario, ScenarioAgent};
-use crate::sim::{Expertise, Room, SPECIALIST_COST_UNIT};
+use crate::sim::{CheckStyle, Expertise, Room, SPECIALIST_COST_UNIT};
 use crate::swarm::{Channel, SwarmMember, SwarmReport, pooled, run_swarm};
 use tinyhivemind_hive::referral::ReferralPolicy;
 
@@ -720,6 +720,11 @@ fn stats_check() -> bool {
     let (diff_low, diff_high) = paired_bootstrap(&flags, &flags, 7, 256);
     ok &= diff_low == 0.0 && diff_high == 0.0;
 
+    // The check arms have properties of their own, and `sim.rs` is an example
+    // file too. Folded in here rather than behind a second flag so CI keeps
+    // running one command.
+    ok &= crate::sim::check_selfcheck();
+
     ok
 }
 
@@ -783,7 +788,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
     );
 
     let (totals, wall) = run_arms(options, rooms)?;
-    let arms: [(&str, &Aggregate); 13] = [
+    let arms: [(&str, &Aggregate); 17] = [
         ("ladder", &totals.ladder),
         ("vote", &totals.vote),
         ("hive", &totals.hive_default),
@@ -800,6 +805,10 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
         ("hive+aside", &totals.hive_aside),
         ("hive+ask", &totals.hive_ask),
         ("hive+aside!", &totals.hive_aside_informed),
+        ("hive+fact", &totals.hive_aside_fact),
+        ("hive+mute", &totals.hive_aside_mute),
+        ("hive+fact°", &totals.hive_aside_offfloor),
+        ("hive+pooled", &totals.hive_pooled),
     ];
 
     if options.json {
@@ -827,32 +836,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
         }
     }
 
-    // The aside arms against the room they modify, rather than against the
-    // poll. Seeded off a tag of their own so the published bootstraps above
-    // keep their streams.
-    for (index, (name, arm)) in [
-        ("hive+aside", &totals.hive_aside),
-        ("hive+ask", &totals.hive_ask),
-        ("hive+aside!", &totals.hive_aside_informed),
-    ]
-    .iter()
-    .enumerate()
-    {
-        let seed = mix(options.seed, 0xA51D_E000_u64.wrapping_add(index as u64));
-        if let Some(line) = paired_against(name, "hive+", arm, &totals.hive_tuned, seed, 2000) {
-            println!("{line}");
-        }
-    }
-    if let Some(line) = paired_against(
-        "hive+aside",
-        "hive+ask",
-        &totals.hive_aside,
-        &totals.hive_ask,
-        mix(options.seed, 0xA51D_E100),
-        2000,
-    ) {
-        println!("{line}");
-    }
+    check_arm_diffs(options, &totals);
 
     if options.cost {
         cost_table(&[
@@ -905,6 +889,19 @@ struct Totals {
     /// The private exchange again, aimed at whoever the room has heard ground
     /// the option rather than at whoever spoke first.
     hive_aside_informed: Aggregate,
+    /// The aimed private exchange, carrying the fact that rules an option out
+    /// rather than a reading of it to be averaged.
+    hive_aside_fact: Aggregate,
+    /// The same exchange on the same turns, with the answer discarded.
+    hive_aside_mute: Aggregate,
+    /// The aimed, fact-carrying exchange again, held off the floor: the same
+    /// bounded number of contacts, spending no turn the room could have
+    /// deliberated with.
+    hive_aside_offfloor: Aggregate,
+    /// The ceiling: every reading and every fact already in every member's
+    /// hands before the episode opens, at no turn cost. Nothing a protocol
+    /// could do beats it.
+    hive_pooled: Aggregate,
     /// Both delegation mechanisms at once.
     hive_both: Aggregate,
     /// The tuned policy in a room that puts every seat on the expensive
@@ -923,6 +920,118 @@ struct Totals {
 /// # Errors
 ///
 /// Returns the library's own error text from any arm.
+/// Run every arm that turns on a pairwise check, over one room.
+///
+/// Split out of [`run_arms`] because there are now seven of them and they
+/// form one experiment: three that vary who reads the answer and where the
+/// question is aimed, one matched-turn control that throws the answer away,
+/// one that holds the same exchange off the floor, and one free ceiling. Read
+/// together they separate what an exchange is worth from what its turns cost;
+/// read one at a time they do not.
+///
+/// # Errors
+///
+/// Returns the library's own error text from any arm.
+/// Print the check arms against the room they modify, rather than against the
+/// poll.
+///
+/// Seeded off a tag of their own so the published bootstraps keep their
+/// streams.
+fn check_arm_diffs(options: &Options, totals: &Totals) {
+    for (index, (name, arm)) in [
+        ("hive+aside", &totals.hive_aside),
+        ("hive+ask", &totals.hive_ask),
+        ("hive+aside!", &totals.hive_aside_informed),
+        ("hive+fact", &totals.hive_aside_fact),
+        ("hive+mute", &totals.hive_aside_mute),
+        ("hive+fact°", &totals.hive_aside_offfloor),
+        ("hive+pooled", &totals.hive_pooled),
+    ]
+    .iter()
+    .enumerate()
+    {
+        let seed = mix(options.seed, 0xA51D_E000_u64.wrapping_add(index as u64));
+        if let Some(line) = paired_against(name, "hive+", arm, &totals.hive_tuned, seed, 2000) {
+            println!("{line}");
+        }
+    }
+    if let Some(line) = paired_against(
+        "hive+aside",
+        "hive+ask",
+        &totals.hive_aside,
+        &totals.hive_ask,
+        mix(options.seed, 0xA51D_E100),
+        2000,
+    ) {
+        println!("{line}");
+    }
+}
+
+fn run_check_arms(
+    options: &Options,
+    room: &Room,
+    tuned: &EpisodePolicy,
+    totals: &mut Totals,
+) -> Result<(), String> {
+    let check = |mode: AsideMode, style: CheckStyle| {
+        run_episode_checking(room, tuned, TASK, false, 0, mode, options.aside_cap, style)
+    };
+    // The pair that isolates privacy. Both spend a turn asking and a turn
+    // answering; they differ in who may read the answer, and in nothing
+    // else. `--aside-cap 0` leaves both bit-identical to `hive+`.
+    totals
+        .hive_aside
+        .add(&check(AsideMode::Private, CheckStyle::PLAIN)?);
+    totals
+        .hive_ask
+        .add(&check(AsideMode::Public, CheckStyle::PLAIN)?);
+    // The informed variant: the check goes to whoever the room has heard
+    // ground this option. It exists to close the obvious objection to a
+    // negative result — that the question went to the wrong peer.
+    totals
+        .hive_aside_informed
+        .add(&check(AsideMode::Private, CheckStyle::AIMED)?);
+    // The same aimed exchange, carrying the fact rather than a number.
+    // This is the arm that asks whether an aside is worth anything once
+    // it carries what the room's public grammar has always carried.
+    totals
+        .hive_aside_fact
+        .add(&check(AsideMode::Private, CheckStyle::FACT)?);
+    // The matched-turn control the comparison always needed: the same
+    // words on the same turns, with the answer thrown away. What it
+    // loses against `hive+` is what the turns cost; what any arm above
+    // gains over it is what the answer is worth.
+    totals
+        .hive_aside_mute
+        .add(&check(AsideMode::Private, CheckStyle::MUTE)?);
+    // The ceiling. Every reading and every fact is already in every
+    // member's hands when the episode opens, and the episode itself is
+    // an ordinary `hive+` run that opens no check and spends no turn on
+    // one. It bounds what any amount of pairwise exchange could buy.
+    // The same bounded exchange as `hive+fact`, held off the floor. It
+    // isolates what the check is worth from what its turns cost.
+    totals.hive_aside_offfloor.add(&run_episode(
+        &room.pre_checked(options.aside_cap, true),
+        tuned,
+        TASK,
+        false,
+    )?);
+    // `Room::pooled` is not gated by `cap` -- unlike the check arms above, it
+    // has no notion of a bounded number of contacts. But `--aside-cap 0` is
+    // documented and used as the kill switch that leaves every aside arm
+    // bit-identical to `hive+`, `hive+pooled` included, so honor it here by
+    // skipping the pool rather than silently pooling regardless of the cap.
+    let ceiling = if options.aside_cap == 0 {
+        room.clone()
+    } else {
+        room.pooled()
+    };
+    totals
+        .hive_pooled
+        .add(&run_episode(&ceiling, tuned, TASK, false)?);
+    Ok(())
+}
+
 fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Duration), String> {
     let tuned = options.policy;
     let default = default_policy();
@@ -974,42 +1083,7 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
                 false,
             )?);
         }
-        // The pair that isolates privacy. Both spend a turn asking and a turn
-        // answering; they differ in who may read the answer, and in nothing
-        // else. `--aside-cap 0` leaves both bit-identical to `hive+`.
-        totals.hive_aside.add(&run_episode_checking(
-            room,
-            &tuned,
-            TASK,
-            false,
-            0,
-            AsideMode::Private,
-            options.aside_cap,
-            false,
-        )?);
-        totals.hive_ask.add(&run_episode_checking(
-            room,
-            &tuned,
-            TASK,
-            false,
-            0,
-            AsideMode::Public,
-            options.aside_cap,
-            false,
-        )?);
-        // The informed variant: the check goes to whoever the room has heard
-        // ground this option. It exists to close the obvious objection to a
-        // negative result — that the question went to the wrong peer.
-        totals.hive_aside_informed.add(&run_episode_checking(
-            room,
-            &tuned,
-            TASK,
-            false,
-            0,
-            AsideMode::Private,
-            options.aside_cap,
-            true,
-        )?);
+        run_check_arms(options, room, &tuned, &mut totals)?;
         let seed = mix(options.seed, u64::try_from(index).unwrap_or(0));
         totals.ladder.add_arm(&arms::run_ladder(room, seed)?);
         let earned = earn_directory(room, &tuned, options.history, mix(seed, 0x6869_7374))?;

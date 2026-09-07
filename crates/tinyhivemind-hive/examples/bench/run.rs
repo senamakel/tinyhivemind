@@ -18,7 +18,7 @@ use tinyhivemind_hive::{
 };
 
 use crate::metrics::spearman_milli;
-use crate::sim::{Room, SimAgent};
+use crate::sim::{CheckStyle, Room, SimAgent};
 use tinyhivemind_hive::aside::{AsideDecision, AsideInput, AsidePolicy, Audience, aside};
 use tinyhivemind_hive::dispatch::DispatchConversation;
 use tinyhivemind_hive::mention::{MentionAuthor, resolve as resolve_mentions};
@@ -344,6 +344,23 @@ fn audience_for(
     }
 }
 
+/// One desk-visible agent message, for the self-checks in `sim.rs`.
+///
+/// Sequence `1` and no thread: the checks that use it read the author and the
+/// body and nothing else.
+pub(crate) fn one_agent_message(author: &str, body: &str) -> SessionMessage {
+    SessionMessage {
+        sequence: Sequence(1),
+        author: SessionAuthor::Agent {
+            id: author.to_owned(),
+            label: author.to_owned(),
+        },
+        content: body.to_owned(),
+        audience: Audience::Desk,
+        elided: None,
+    }
+}
+
 /// Run one full episode over a simulated room.
 ///
 /// # Errors
@@ -385,16 +402,18 @@ pub(crate) fn run_episode_with(
         defer_cap,
         AsideMode::Off,
         0,
-        false,
+        CheckStyle::PLAIN,
     )
 }
 
 /// Run one full episode, letting every member spend up to `aside_cap` turns
 /// asking one peer for a second reading before it commits to a position.
 ///
-/// `mode` decides who may read that exchange, and nothing else: the two
-/// settings cost the same turns and write the same words. That is what makes
-/// them a matched pair, and it is the whole of what the aside arms measure.
+/// `mode` decides who may read that exchange: the two settings cost the same
+/// turns and write the same words, which is what makes them a matched pair.
+/// `style` decides what the check does beyond costing a turn: where it is
+/// aimed, whether the answer may carry a fact rather than a number, and
+/// whether the answer is taken in at all. See [`CheckStyle`].
 ///
 /// `AsideMode::Off` with `aside_cap: 0` is what every other arm passes, and a
 /// member that opens no check behaves exactly as it did before the move
@@ -412,14 +431,14 @@ pub(crate) fn run_episode_checking(
     defer_cap: u32,
     aside_mode: AsideMode,
     aside_cap: u32,
-    aside_informed: bool,
+    style: CheckStyle,
 ) -> Result<EpisodeReport, String> {
     let ids = room.member_ids();
     let mut agents: Vec<SimAgent> = room.agents.clone();
     for agent in &mut agents {
         agent.set_quorum(policy.quorum);
         agent.set_defer_cap(defer_cap);
-        agent.set_aside_cap(aside_cap, aside_informed);
+        agent.set_aside_cap(aside_cap, style);
     }
     let mut participants: Vec<&mut dyn Participant> = agents
         .iter_mut()
