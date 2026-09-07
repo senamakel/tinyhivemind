@@ -470,6 +470,20 @@ pub(crate) fn run_episode_with(
 ///
 /// Returns the library's own error text if a snapshot or policy is malformed.
 #[allow(clippy::too_many_arguments)]
+/// Mean rows the room's members were holding when the episode ended.
+///
+/// Averaged over members rather than summed: the question a window budget asks
+/// is what *one participant* has to carry, and a protocol whose cost is
+/// "everybody holds everything" is expensive per member precisely because the
+/// room is large.
+fn mean_context_rows(agents: &[SimAgent]) -> f64 {
+    if agents.is_empty() {
+        return 0.0;
+    }
+    let total: usize = agents.iter().map(SimAgent::context_rows).sum();
+    total as f64 / agents.len() as f64
+}
+
 pub(crate) fn run_episode_checking(
     room: &Room,
     policy: &EpisodePolicy,
@@ -745,6 +759,7 @@ pub(crate) fn drive_with(
             decided,
             correct: false,
             turns,
+            context_rows: mean_context_rows(&agents),
             step_calls,
             library_time,
             trace,
