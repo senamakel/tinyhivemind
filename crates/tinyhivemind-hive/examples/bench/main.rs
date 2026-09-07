@@ -986,6 +986,7 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
             AsideMode::Private,
             options.aside_cap,
             false,
+            false,
         )?);
         totals.hive_ask.add(&run_episode_checking(
             room,
@@ -995,6 +996,7 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
             0,
             AsideMode::Public,
             options.aside_cap,
+            false,
             false,
         )?);
         // The informed variant: the check goes to whoever the room has heard
@@ -1009,6 +1011,7 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
             AsideMode::Private,
             options.aside_cap,
             true,
+            false,
         )?);
         let seed = mix(options.seed, u64::try_from(index).unwrap_or(0));
         totals.ladder.add_arm(&arms::run_ladder(room, seed)?);

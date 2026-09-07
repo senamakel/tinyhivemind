@@ -393,9 +393,11 @@ pub(crate) fn run_episode_with(
 /// Run one full episode, letting every member spend up to `aside_cap` turns
 /// asking one peer for a second reading before it commits to a position.
 ///
-/// `mode` decides who may read that exchange, and nothing else: the two
-/// settings cost the same turns and write the same words. That is what makes
-/// them a matched pair, and it is the whole of what the aside arms measure.
+/// `mode` decides who may read that exchange: the two settings cost the same
+/// turns and write the same words, which is what makes them a matched pair.
+/// `aside_informed` aims the question at whoever the room has heard ground
+/// the option, and `aside_evidence` lets a member holding the fact that rules
+/// an option out say so rather than hand over a number to be averaged.
 ///
 /// `AsideMode::Off` with `aside_cap: 0` is what every other arm passes, and a
 /// member that opens no check behaves exactly as it did before the move
