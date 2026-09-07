@@ -431,6 +431,46 @@ impl Room {
         room
     }
 
+    /// The same room, with every private reading and every refuting fact
+    /// already in every member's hands, at no turn cost at all.
+    ///
+    /// This is the **ceiling** on pairwise exchange, and it is the control
+    /// the aside arms were missing. Those arms confound two things: what a
+    /// check is worth, and what the turns it spends cost. `swarm.rs` already
+    /// solves the same problem one level up with `pooled`, which hands every
+    /// desk every other desk's readings for free and bounds what crossing a
+    /// channel could ever buy. This is that arm for a pair inside one desk.
+    ///
+    /// It is deliberately more generous than any protocol could be: every
+    /// member absorbs every peer's own reading of every option, and every
+    /// refutation any peer holds, before the episode opens. No sequence of
+    /// asides can beat it, so if the room is no better here the mechanism is
+    /// not what is limiting the room.
+    pub(crate) fn pooled(&self) -> Self {
+        let mut room = self.clone();
+        let readings: Vec<(Vec<(TopicId, i32)>, Option<TopicId>)> = self
+            .agents
+            .iter()
+            .map(|agent| (agent.evals.clone(), agent.refutes.clone()))
+            .collect();
+        for (index, agent) in room.agents.iter_mut().enumerate() {
+            for (peer, (evals, refutes)) in readings.iter().enumerate() {
+                if peer == index {
+                    continue;
+                }
+                for (topic, reading) in evals {
+                    agent.import(topic, *reading);
+                }
+                if let Some(topic) = refutes
+                    && !agent.ruled_out.contains(topic)
+                {
+                    agent.ruled_out.push(topic.clone());
+                }
+            }
+        }
+        room
+    }
+
     /// The same room, with every member opening on a deposit rather than a
     /// position.
     ///
