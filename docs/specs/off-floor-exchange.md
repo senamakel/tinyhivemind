@@ -223,6 +223,23 @@ contribution nobody was authorized to make.
   is removed.
 - Turning the policy off reproduces every published number to the decimal.
 
+## Measured
+
+Recorded in
+[`../experiments/2026-09-07-why-asides-lose.md`](../experiments/2026-09-07-why-asides-lose.md),
+2000 rooms, paired bootstrap against the same rooms with the policy off.
+
+| arm | hidden profile, budget 40 | private rows/ep |
+| --- | --- | --- |
+| `hive+along` — one row per authorized turn | `+0.5 [+0.1, +1.0]` | — |
+| `hive+share` — the same, spent continuously | `+1.9 [+0.8, +3.0]` | — |
+| `hive+rounds` — exchange rounds off the floor | **`+4.9 [+3.5, +6.2]`** | 20.0 |
+| `hive+pooled` — the ceiling | `+21.2 [+19.3, +23.3]` | — |
+
+Uniform rooms are a null at every setting, as every exchange arm is: a room whose
+members differ only by independent noise holds no concentrated information for a
+contact to move.
+
 ## Open questions
 
 - **Collusion surface.** More private bandwidth is more room for covert
