@@ -19,7 +19,11 @@
 //! host's to authorize, so [`ExchangePolicy`] is off by default and carries
 //! two finite ceilings a host can read its worst case off before starting.
 //!
-//! See [`docs/specs/off-floor-exchange.md`][spec] and [ADR 0012][adr].
+//! See [`README.md`][readme] in this directory for the design and the host's
+//! obligations, [`docs/specs/off-floor-exchange.md`][spec] for the behavior, and
+//! [ADR 0012][adr] for the decision.
+//!
+//! [readme]: https://github.com/tinyhumansai/tinyhivemind/blob/main/crates/tinyhivemind-hive/src/exchange/README.md
 //!
 //! [spec]: https://github.com/tinyhumansai/tinyhivemind/blob/main/docs/specs/off-floor-exchange.md
 //! [adr]: https://github.com/tinyhumansai/tinyhivemind/blob/main/docs/adr/0012-an-exchange-round-spends-model-calls-not-turns.md
