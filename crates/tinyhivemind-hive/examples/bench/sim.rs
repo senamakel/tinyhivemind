@@ -467,6 +467,11 @@ impl Room {
                     agent.ruled_out.push(topic.clone());
                 }
             }
+            // A refutation installed after this agent's last `import` call
+            // above -- always true for whichever peer is processed last --
+            // would otherwise leave `favourite` pointing at an option this
+            // agent's own `ruled_out` has since discounted.
+            agent.recompute_favourite();
         }
         room
     }
