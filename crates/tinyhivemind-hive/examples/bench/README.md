@@ -60,11 +60,18 @@ them byte for byte.
 Every aside arm that spends a turn loses, and the seven of them together
 settle what the loss is made of. `hive+aside − hive+ask` spans zero in every
 configuration, so privacy is never the variable. `hive+mute` discards the
-answer and loses *more* than the arms that keep it, so the content is never the
-variable either — the cost is the turns, in full, before a word changes hands.
-`hive+fact°` runs the identical exchange off the floor and moves from −15.0 to
-`+3.0 [+2.0, +4.0]` on a hidden profile, so the scheduling is the whole of it.
-And `hive+pooled` beats `hive+` by `+21.2 [+19.2, +23.2]` in *fewer* turns: peer
+answer and loses *more* than the matched-turn arms that keep it — `hive+aside`,
+`hive+ask`, `hive+fact` all land within a point of it — so the content is never
+the variable either; the cost is the turns, in full, before a word changes
+hands. `hive+aside!` is the exception: aimed at the actual fact-holder it loses
+`-17.1`, more than `hive+mute`, because conscripting the one member whose
+public turn matters into an audience of one is itself a cost. `hive+fact°` runs
+the same bounded exchange off the floor and moves from −15.0 to
+`+4.9 [+3.7, +6.0]` on a hidden profile, so scheduling accounts for most of the
+gap — though `hive+fact°` picks its peer from private room state rather than
+`hive+fact`'s transcript-only `View::grounded_by`, so this is an upper bound on
+the off-floor benefit, not a pure isolation of scheduling from targeting. And
+`hive+pooled` beats `hive+` by `+30.8 [+28.7, +32.9]` in *fewer* turns: peer
 information is worth more here than anything else this benchmark measures, and
 buying it one floor turn at a time is what costs more than it is worth.
 [`docs/experiments/2026-09-07-why-asides-lose.md`](../../../../docs/experiments/2026-09-07-why-asides-lose.md)
