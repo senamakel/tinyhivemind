@@ -46,11 +46,11 @@ pub(crate) trait Participant {
     fn speak(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Result<String, String>;
 
     /// One private line this participant sends **alongside** the floor move it
-    /// just made, under [`AsideMode::Concurrent`].
+    /// just made, under [`AsideMode::Alongside`].
     ///
     /// Called once per turn, immediately after [`Participant::speak`] and over
     /// the same projection. Returning `None` — the default, and what every
-    /// arm that is not a concurrent one does — leaves the turn exactly as it
+    /// arm that is not an alongside one does — leaves the turn exactly as it
     /// was.
     ///
     /// At most one row: the exchange is bounded by the floor it rides on, so a
@@ -312,16 +312,24 @@ pub(crate) enum AsideMode {
     Private,
     /// The identical exchange, in the open, where every member reads it.
     Public,
-    /// The private exchange again, **riding along** with the floor move that
+    /// The private exchange again, **riding alongside** the floor move that
     /// authored it rather than replacing one.
     ///
     /// One turn produces two rows: the member's ordinary desk-visible
     /// contribution, and one aside. The episode cannot see the second — it
     /// resolves no trace, folds into no standing, and `spent` counts turns
     /// rather than rows — so the exchange costs the room nothing and cannot
-    /// outrun it. See ADR 0011, and the invariants pinned in
+    /// outrun it.
+    ///
+    /// This is not the concurrency [ADR 0002][adr2] rules out: `HiveStep::Speak`
+    /// still carries exactly one turn, no two participants ever hold the floor,
+    /// and the answer arrives on the peer's own next turn. What rides alongside
+    /// is a row, not a turn. See [ADR 0011][adr11] and the invariants pinned in
     /// `episode::test` and `tests/fuzz_invariants.rs`.
-    Concurrent,
+    ///
+    /// [adr2]: https://github.com/tinyhumansai/tinyhivemind/blob/main/docs/adr/0002-hive-episodes-are-sequential.md
+    /// [adr11]: https://github.com/tinyhumansai/tinyhivemind/blob/main/docs/adr/0011-an-aside-rides-alongside-a-turn.md
+    Alongside,
 }
 
 /// The audience one authored line is committed under.
@@ -338,7 +346,7 @@ fn audience_for(
     content: &str,
     policy: AsidePolicy,
 ) -> Audience {
-    if !matches!(mode, AsideMode::Private | AsideMode::Concurrent)
+    if !matches!(mode, AsideMode::Private | AsideMode::Alongside)
         || !content.trim_start().starts_with(ASIDE_MARKER)
     {
         return Audience::Desk;
@@ -655,10 +663,10 @@ pub(crate) fn drive_with(
                         visible.len(),
                     ));
                 }
-                // A concurrent aside is asked for over the same projection the
+                // An alongside aside is asked for over the same projection the
                 // floor move was composed from, before either row is appended,
                 // so the private line sees exactly what the public one saw.
-                let private = if aside_mode == AsideMode::Concurrent {
+                let private = if aside_mode == AsideMode::Alongside {
                     agent.aside(&turn, &visible)
                 } else {
                     None
@@ -678,7 +686,7 @@ pub(crate) fn drive_with(
                 // non-desk row before it can reach a standing. See ADR 0011.
                 if let Some(line) = private {
                     let audience =
-                        audience_for(AsideMode::Concurrent, &host, &turn.agent_id, &line, policy);
+                        audience_for(AsideMode::Alongside, &host, &turn.agent_id, &line, policy);
                     // A refused audience would put the line on the desk, where
                     // it would be a second floor contribution on one turn. The
                     // safe direction here is the opposite one: drop it.
