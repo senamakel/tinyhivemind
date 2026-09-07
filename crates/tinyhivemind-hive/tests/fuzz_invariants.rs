@@ -326,12 +326,14 @@ fn exchange_rounds_terminate_inside_their_budget_without_moving_the_episode() {
                 exchange(&policy, &opened(), &transcript, &roster, &desk_set)
                     .expect("valid snapshots"),
                 ExchangeRound::Closed {
-                    reason: if MEMBERS.len() as u32 * contact_cap <= round_cap * seats
-                        && contact_cap <= round_cap
-                    {
-                        NoExchangeReason::ContactsSpent
-                    } else {
+                    // A host writing one row per named member each round takes
+                    // `min(contact_cap, round_cap)` rounds to exhaust itself,
+                    // so the round cap is what bit whenever it is the smaller
+                    // of the two — and the fold checks it first on a tie.
+                    reason: if round_cap <= contact_cap {
                         NoExchangeReason::RoundsSpent
+                    } else {
+                        NoExchangeReason::ContactsSpent
                     },
                 },
                 "the round must close once the budget is gone",
