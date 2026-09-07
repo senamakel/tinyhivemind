@@ -29,8 +29,18 @@ pub(crate) struct Aggregate {
     pub(crate) turns: u64,
     /// Calls into the library across the sample.
     pub(crate) step_calls: u64,
-    /// Time spent inside the library.
+    /// Time spent inside the library, including an off-floor exchange
+    /// round's own library time. What [`Aggregate::episodes_per_second`]
+    /// divides by, since that column is the full library cost a host would
+    /// pay per second, exchange included.
     pub(crate) library_time: Duration,
+    /// Time spent inside `step` calls alone, excluding an exchange round's
+    /// own library time. What [`Aggregate::nanos_per_step`] divides by
+    /// [`Self::step_calls`], so an off-floor arm's exchange rounds do not
+    /// inflate its `ns/step` against arms that never call `exchange` — see
+    /// the `ns/step` glossary entry, "one call to `step`... participant time
+    /// excluded".
+    pub(crate) step_time: Duration,
     /// Episodes in which the room's decisive member -- its expert, or the
     /// hidden-profile member who held the deciding fact -- put its knowledge
     /// on the floor before the commit boundary.
