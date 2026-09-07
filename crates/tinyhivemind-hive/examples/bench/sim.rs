@@ -522,6 +522,12 @@ impl Room {
                     agent.import(&topic, *reading);
                 }
             }
+            // `import` already recomputes `favourite` on every reading taken,
+            // which covers today's data (every peer holds a reading for
+            // every topic). Recomputing again here is a cheap guarantee
+            // against the one case that would not: a `ruled_out` fact
+            // installed above with no matching `import` call to refresh it.
+            agent.recompute_favourite();
         }
         room
     }
