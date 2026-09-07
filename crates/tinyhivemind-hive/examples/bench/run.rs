@@ -655,17 +655,37 @@ pub(crate) fn drive_with(
                         visible.len(),
                     ));
                 }
+                // A concurrent aside is asked for over the same projection the
+                // floor move was composed from, before either row is appended,
+                // so the private line sees exactly what the public one saw.
+                let private = if aside_mode == AsideMode::Concurrent {
+                    agent.aside(&turn, &visible)
+                } else {
+                    None
+                };
                 tally.record(&turn, &content, agent.cost_unit(), turns);
-                let audience = audience_for(
-                    aside_mode,
-                    &host,
-                    &turn.agent_id,
-                    &content,
-                    aside_policy(member_ids.len()),
-                );
+                let policy = aside_policy(member_ids.len());
+                let audience =
+                    audience_for(aside_mode, &host, &turn.agent_id, &content, policy);
                 // Durably append the turn, then commit the state it returned.
                 // That ordering is what the `next_state` contract requires.
                 host.agent_to(&turn.agent_id, content, audience);
+                // The aside rides along: one more row on the same turn, at the
+                // next sequence, addressed privately. It is appended *after*
+                // the floor move so the desk-visible row is what a reader meets
+                // first, and it moves nothing the library counts — `spent` is
+                // already fixed in `turn.next_state`, and `live_traces` drops a
+                // non-desk row before it can reach a standing. See ADR 0011.
+                if let Some(line) = private {
+                    let audience =
+                        audience_for(AsideMode::Concurrent, &host, &turn.agent_id, &line, policy);
+                    // A refused audience would put the line on the desk, where
+                    // it would be a second floor contribution on one turn. The
+                    // safe direction here is the opposite one: drop it.
+                    if !audience.is_desk() {
+                        host.agent_to(&turn.agent_id, line, audience);
+                    }
+                }
                 state = turn.next_state;
                 turns = turns.saturating_add(1);
                 continue;
