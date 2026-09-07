@@ -81,7 +81,7 @@ paragraph of the earlier note is retracted below.
 
 **The information is worth a great deal.** `hive+pooled` beats `hive+` by
 **+30.8** on the hidden profile and by **+9.4 to +10.0** on uniform rooms, and
-does it in *fewer* turns (10.31 against 10.98). This is the largest effect
+does it in *fewer* turns (10.15 against 10.98). This is the largest effect
 anywhere in this benchmark. A room whose members can read each other's private
 evaluations is a substantially better room. The intuition that peer-to-peer
 exchange should make a hive mind smarter is correct, and this is the size of it.
