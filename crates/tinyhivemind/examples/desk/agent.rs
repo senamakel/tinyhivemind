@@ -195,9 +195,11 @@ fn wait_with_timeout(
     let mut timed_out = false;
     let mut stalled = false;
     loop {
-        match child.try_wait()? {
-            Some(_) => break,
-            None => {
+        if child.try_wait()?.is_some() {
+            break;
+        }
+        {
+            {
                 let quiet = seen
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
