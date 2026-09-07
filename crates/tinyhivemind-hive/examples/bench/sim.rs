@@ -738,6 +738,12 @@ pub(crate) struct SimAgent {
     /// Whether a check goes to the member the transcript shows has grounded
     /// the topic, rather than to whoever spoke first.
     aside_informed: bool,
+    /// Whether an answered check may carry the fact that rules an option out,
+    /// rather than only a reading of it.
+    aside_evidence: bool,
+    /// Options a private exchange has told this member are ruled out. Read by
+    /// [`Self::score`], and by nothing the room counts.
+    ruled_out: Vec<TopicId>,
     /// Sequences of exchanges this member has already answered or folded in,
     /// so neither is done twice.
     handled: Vec<Sequence>,
@@ -793,6 +799,8 @@ impl SimAgent {
             aside_cap: 0,
             asides_spent: 0,
             aside_informed: false,
+            aside_evidence: false,
+            ruled_out: Vec::new(),
             handled: Vec::new(),
             favourite,
             rng: Rng::seeded(mix(seed, 0x000A_11CE ^ index as u64)),
@@ -845,11 +853,13 @@ impl SimAgent {
     /// `Room::generate_with` leaves every member at `0`, so an arm that opens
     /// no check is bit-identical to one built before the move existed — the
     /// same discipline `set_defer_cap` follows.
-    pub(crate) fn set_aside_cap(&mut self, cap: u32, informed: bool) {
+    pub(crate) fn set_aside_cap(&mut self, cap: u32, informed: bool, evidence: bool) {
         self.aside_cap = cap;
         self.aside_informed = informed;
+        self.aside_evidence = evidence;
         self.asides_spent = 0;
         self.handled.clear();
+        self.ruled_out.clear();
     }
 
     /// Tell the participant which quorum rule the room is running.
@@ -896,12 +906,23 @@ impl SimAgent {
         let Some((_, own)) = self.evals.iter().find(|(held, _)| held == topic) else {
             return i32::MIN;
         };
-        let Some((_, sum, count)) = self.imports.iter().find(|(held, _, _)| held == topic) else {
-            return *own;
+        let pooled = match self.imports.iter().find(|(held, _, _)| held == topic) {
+            None => *own,
+            Some((_, sum, count)) => {
+                let total = i64::from(*own).saturating_add(*sum);
+                let divisor = i64::from(*count).saturating_add(1);
+                i32::try_from(total / divisor).unwrap_or(*own)
+            }
         };
-        let total = i64::from(*own).saturating_add(*sum);
-        let divisor = i64::from(*count).saturating_add(1);
-        i32::try_from(total / divisor).unwrap_or(*own)
+        // A fact learned in a private exchange discounts the option for this
+        // member exactly as a desk-visible one discounts it for every reader
+        // in `View::posterior`, at the same constant. The two channels are
+        // therefore worth the same per fact, and the arms differ in how far
+        // one fact reaches rather than in how loudly it is stated.
+        if self.ruled_out.contains(topic) {
+            return pooled.saturating_sub(GROUNDS_WEIGHT);
+        }
+        pooled
     }
 
     /// Spend this turn on a pairwise check, if this member wants one.
@@ -958,6 +979,16 @@ impl SimAgent {
                 continue;
             };
             self.handled.push(message.sequence);
+            // A refutation is not a reading to be averaged. A member told
+            // privately that its best option is ruled out revises its own
+            // belief instead of pooling one more number into it — which is
+            // what a contact transfers in every biological analogue this
+            // workspace cites, and what the room's public grammar has always
+            // carried in `!evidence`. It stays a belief: no trace resolves
+            // out of an aside row, so the room still counts nothing.
+            if self.aside_evidence && body.contains(RULES_OUT) && !self.ruled_out.contains(&topic) {
+                self.ruled_out.push(topic.clone());
+            }
             self.import(&topic, reading);
         }
     }
@@ -984,6 +1015,16 @@ impl SimAgent {
         // modelling the experiment it documents — one private evaluation
         // averaged with one independent peer's.
         let reading = self.own_reading(&topic);
+        // A member holding the one fact that rules this option out says so,
+        // rather than handing over a number for the asker to average into an
+        // error they already share. Off unless the arm asked for it, so the
+        // reading-only arms are unchanged.
+        if self.aside_evidence && self.refutes.as_ref() == Some(&topic) {
+            return Some(format!(
+                "{ASIDE_MARKER} @{from} #{topic} My own {ASIDE_READS} {reading}. \
+                 The reading I hold {RULES_OUT}."
+            ));
+        }
         Some(format!(
             "{ASIDE_MARKER} @{from} #{topic} My own {ASIDE_READS} {reading}."
         ))
@@ -1317,10 +1358,28 @@ impl View {
     /// from, taken directly because a participant here needs one name rather
     /// than a ranking.
     fn grounded_by(&self, topic: &TopicId, excluding: &str) -> Option<String> {
-        self.traces
-            .iter()
-            .filter(|trace| trace.topic.as_ref() == Some(topic))
-            .filter(|trace| matches!(trace.kind, TraceKind::Evidence))
+        // A deposit that *argues against* the topic first, and any deposit at
+        // all only after that.
+        //
+        // Taking the first depositor outright is what this did before, and it
+        // did not aim. Under `--blind-evidence` every lay member opens by
+        // depositing its own reading of whatever it rates highest, which
+        // under a hidden profile is the planted decoy: four such deposits and
+        // one refutation land on the same topic, the refutation is rarely
+        // first, and "whoever the room has heard ground this option" resolved
+        // to a member holding nothing but the error every member shares. The
+        // measured hit rate on the one member who knows something was 22%
+        // against 25% for drawing a peer at random, so the informed arm was
+        // not aiming at anything.
+        let depositors = || {
+            self.traces
+                .iter()
+                .filter(|trace| trace.topic.as_ref() == Some(topic))
+                .filter(|trace| matches!(trace.kind, TraceKind::Evidence))
+        };
+        depositors()
+            .filter(|trace| trace.text.contains(RULES_OUT))
+            .chain(depositors())
             .filter_map(|trace| match &trace.author {
                 SessionAuthor::Agent { id, .. } => Some(id.clone()),
                 _ => None,
