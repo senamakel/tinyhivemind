@@ -82,9 +82,10 @@ loss — it bounds the untargeted ones, and the targeted ones cost more still.
 **So the pooling explanation is wrong.** The first note argued that averaging a
 peer's reading imports the room's shared bias and moves a member toward the
 decoy. If that were the mechanism, muting the answer would recover the loss. It
-does not; it deepens it slightly. Taking the answer in is worth about +0.7
-points against not taking it in — small, and in the *helpful* direction. That
-paragraph of the earlier note is retracted below.
+does not; among the untargeted arms it deepens it slightly (`hive+mute` at
+−15.7 against −15.4/−15.5 for `hive+aside`/`hive+ask`). Taking the answer in is
+worth a few tenths of a point against not taking it in — small, and in the
+*helpful* direction. That paragraph of the earlier note is retracted below.
 
 **The information is worth a great deal.** `hive+pooled` beats `hive+` by
 **+30.8** on the hidden profile and by **+9.4 to +10.0** on uniform rooms, and
@@ -95,9 +96,9 @@ exchange should make a hive mind smarter is correct, and this is the size of it.
 
 **Most of the gap is scheduling.** `hive+fact°` runs the same bounded exchange,
 with the same payload and the same number of contacts as `hive+fact` — off the
-floor rather than on it. It moves from **−15.0 to +4.9**, an interval clear of
-zero. Close to twenty points of the difference between the two is when the
-exchange happens.
+floor rather than on it. It moves from **−16.9 to +3.2**, an interval clear of
+zero. Twenty points of the difference between the two is when the exchange
+happens.
 
 One caveat on "the same targeting": `hive+fact°` chooses its peer from private
 room state — it always reaches the actual fact-holder. `hive+fact` chooses its
