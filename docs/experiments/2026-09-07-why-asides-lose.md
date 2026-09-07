@@ -68,8 +68,8 @@ uniform, budget 15
 same way `hive+aside`/`hive+ask` do — whoever spoke first, `informed: false` —
 and against those two it is a clean matched-turn control: same turns, same
 words, no transfer, and it loses *more* than both (−15.7 against −15.4 and
-−15.5). For those two, taking the answer in is worth about +0.3 points against
-not taking it in — small, and in the *helpful* direction.
+−15.5). For those two, taking the answer in is worth a few tenths of a point
+against not taking it in — small, and in the *helpful* direction.
 
 `hive+fact` and `hive+aside!` are `informed: true`, aimed at the fact-holder
 rather than at whoever spoke first, and *both* lose more than `hive+mute`
