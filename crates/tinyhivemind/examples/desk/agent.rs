@@ -198,26 +198,22 @@ fn wait_with_timeout(
         if child.try_wait()?.is_some() {
             break;
         }
-        {
-            {
-                let quiet = seen
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .1
-                    .elapsed();
-                if Instant::now() >= deadline {
-                    timed_out = true;
-                    let _ = child.kill();
-                    break;
-                }
-                if quiet >= STALL_AFTER {
-                    stalled = true;
-                    let _ = child.kill();
-                    break;
-                }
-                std::thread::sleep(Duration::from_millis(250));
-            }
+        let quiet = seen
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .1
+            .elapsed();
+        if Instant::now() >= deadline {
+            timed_out = true;
+            let _ = child.kill();
+            break;
         }
+        if quiet >= STALL_AFTER {
+            stalled = true;
+            let _ = child.kill();
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(250));
     }
     let _ = reader.join();
     let buffer = seen
