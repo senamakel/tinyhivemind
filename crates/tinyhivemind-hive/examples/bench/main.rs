@@ -800,6 +800,8 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
         ("hive+aside", &totals.hive_aside),
         ("hive+ask", &totals.hive_ask),
         ("hive+aside!", &totals.hive_aside_informed),
+        ("hive+fact", &totals.hive_aside_fact),
+        ("hive+pooled", &totals.hive_pooled),
     ];
 
     if options.json {
@@ -834,6 +836,8 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
         ("hive+aside", &totals.hive_aside),
         ("hive+ask", &totals.hive_ask),
         ("hive+aside!", &totals.hive_aside_informed),
+        ("hive+fact", &totals.hive_aside_fact),
+        ("hive+pooled", &totals.hive_pooled),
     ]
     .iter()
     .enumerate()
@@ -905,6 +909,13 @@ struct Totals {
     /// The private exchange again, aimed at whoever the room has heard ground
     /// the option rather than at whoever spoke first.
     hive_aside_informed: Aggregate,
+    /// The aimed private exchange, carrying the fact that rules an option out
+    /// rather than a reading of it to be averaged.
+    hive_aside_fact: Aggregate,
+    /// The ceiling: every reading and every fact already in every member's
+    /// hands before the episode opens, at no turn cost. Nothing a protocol
+    /// could do beats it.
+    hive_pooled: Aggregate,
     /// Both delegation mechanisms at once.
     hive_both: Aggregate,
     /// The tuned policy in a room that puts every seat on the expensive
@@ -1013,6 +1024,27 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
             true,
             false,
         )?);
+        // The same aimed exchange, carrying the fact rather than a number.
+        // This is the arm that asks whether an aside is worth anything once
+        // it carries what the room's public grammar has always carried.
+        totals.hive_aside_fact.add(&run_episode_checking(
+            room,
+            &tuned,
+            TASK,
+            false,
+            0,
+            AsideMode::Private,
+            options.aside_cap,
+            true,
+            true,
+        )?);
+        // The ceiling. Every reading and every fact is already in every
+        // member's hands when the episode opens, and the episode itself is
+        // an ordinary `hive+` run that opens no check and spends no turn on
+        // one. It bounds what any amount of pairwise exchange could buy.
+        totals
+            .hive_pooled
+            .add(&run_episode(&room.pooled(), &tuned, TASK, false)?);
         let seed = mix(options.seed, u64::try_from(index).unwrap_or(0));
         totals.ladder.add_arm(&arms::run_ladder(room, seed)?);
         let earned = earn_directory(room, &tuned, options.history, mix(seed, 0x6869_7374))?;
