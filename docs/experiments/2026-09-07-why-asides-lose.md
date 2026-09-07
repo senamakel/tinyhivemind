@@ -250,9 +250,10 @@ and `tests/fuzz_invariants.rs` holds desk sequence numbers fixed across the
 transcripts it compares, so it correctly proves an aside cannot buy a vote —
 it was never a claim about live per-episode sequence numbering, and does not
 cover this. The `+0.5` and `+1.4` above are real measurements of the code as it
-runs today, confound included; the confound biases decay to be *faster*, not
-slower, so it does not manufacture the gain these arms show. See the "Known
-limitation" note on [ADR 0011](../adr/0011-an-aside-rides-alongside-a-turn.md).
+runs today, confound included; this note records the confound rather than
+correcting for it, because the size and direction of its effect on the
+reported gain have not been isolated. See the "Known limitation" note on
+[ADR 0011](../adr/0011-an-aside-rides-alongside-a-turn.md).
 
 ## Retraction
 
