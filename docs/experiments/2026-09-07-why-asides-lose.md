@@ -44,16 +44,16 @@ Paired bootstrap against `hive+` over the same rooms, 2000 resamples.
 | `hive+aside!` | 79.6 | 81.6 | 50.9 |
 | `hive+fact` | 79.6 | 81.6 | 53.0 |
 | `hive+mute` | 79.6 | 81.5 | 52.3 |
-| `hive+fact°` | 80.9 | 81.5 | 71.0 |
-| `hive+pooled` | **91.5** | **91.6** | **89.2** |
+| `hive+fact°` | 80.9 | 81.5 | 72.9 |
+| `hive+pooled` | **91.5** | **91.6** | **98.8** |
 
 ```text
 hidden profile, budget 40
   hive+mute   − hive+:   -15.7 [-17.6, -13.8]     the turns alone
   hive+aside  − hive+:   -15.4 [-17.1, -13.4]
   hive+fact   − hive+:   -15.0 [-16.9, -13.1]
-  hive+fact°  − hive+:    +3.0 [ +2.0,  +4.0]     the same exchange, off the floor
-  hive+pooled − hive+:   +21.2 [+19.2, +23.2]     the ceiling
+  hive+fact°  − hive+:    +4.9 [ +3.7,  +6.0]     the same exchange, off the floor
+  hive+pooled − hive+:   +30.8 [+28.7, +32.9]     the ceiling
 
 uniform, budget 15
   hive+mute   − hive+:    -2.5 [-3.0, -2.1]
