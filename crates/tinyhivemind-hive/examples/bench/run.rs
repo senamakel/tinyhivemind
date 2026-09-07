@@ -982,6 +982,7 @@ pub(crate) fn drive_with(
             turns,
             step_calls,
             library_time,
+            step_time,
             trace,
             proposer,
             has_expert: false,
