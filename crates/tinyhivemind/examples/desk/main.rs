@@ -124,6 +124,7 @@ struct Options {
     max_turns: usize,
     max_hops: u32,
     chair_every: usize,
+    resume_sessions: bool,
     window: usize,
     timeout: Duration,
     cortex_base: Option<String>,
@@ -148,6 +149,7 @@ impl Options {
             max_turns: 40,
             max_hops: 6,
             chair_every: 6,
+            resume_sessions: false,
             window: 40,
             timeout: Duration::from_secs(2400),
             cortex_base: std::env::var("CORTEX_BASE").ok(),
@@ -173,6 +175,7 @@ impl Options {
                 "--max-turns" => options.max_turns = value()?.parse()?,
                 "--max-hops" => options.max_hops = value()?.parse()?,
                 "--chair-every" => options.chair_every = value()?.parse()?,
+                "--resume-sessions" => options.resume_sessions = true,
                 "--window" => options.window = value()?.parse()?,
                 "--timeout" => options.timeout = Duration::from_secs(value()?.parse()?),
                 "--cortex-base" => options.cortex_base = Some(value()?),
@@ -454,7 +457,19 @@ async fn main() -> Result<(), BoxError> {
             brevity: BrevityPolicy::DEFAULT,
             asides: ASIDES,
         };
-        let resumed = sessions.get(&seat.id).cloned();
+        // Off by default, and that default is the finding. Resuming a seat's
+        // CLI session looks like free continuity, but the session keeps every
+        // prior turn: the request payload grows without bound until a single
+        // call takes minutes and then never returns at all. The room got
+        // slower turn by turn and finally stalled on every one. A fresh
+        // session answers at once, and the context a seat actually needs is
+        // the bounded projection this host already assembles plus the files
+        // in the shared workspace — which is what the library's own
+        // `prepare_delta` is for.
+        let resumed = options
+            .resume_sessions
+            .then(|| sessions.get(&seat.id).cloned())
+            .flatten();
         let plan = match (resumed.as_ref(), shared.get(&seat.id)) {
             (Some(_), Some(state)) => Some(
                 prepare_delta(
