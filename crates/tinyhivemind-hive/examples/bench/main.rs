@@ -788,7 +788,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
     );
 
     let (totals, wall) = run_arms(options, rooms)?;
-    let arms: [(&str, &Aggregate); 18] = [
+    let arms: [(&str, &Aggregate); 19] = [
         ("ladder", &totals.ladder),
         ("vote", &totals.vote),
         ("hive", &totals.hive_default),
@@ -808,6 +808,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
         ("hive+fact", &totals.hive_aside_fact),
         ("hive+mute", &totals.hive_aside_mute),
         ("hive+along", &totals.hive_aside_alongside),
+        ("hive+share", &totals.hive_aside_exchange),
         ("hive+fact°", &totals.hive_aside_offfloor),
         ("hive+pooled", &totals.hive_pooled),
     ];
@@ -899,6 +900,9 @@ struct Totals {
     /// member's floor move rather than replacing one: one turn, two rows, and
     /// the room charged for the first only.
     hive_aside_alongside: Aggregate,
+    /// The free row spent continuously: a contact on every turn, carrying
+    /// every reading its author holds. Bounded by `--aside-cap` peers.
+    hive_aside_exchange: Aggregate,
     /// The aimed, fact-carrying exchange again, held off the floor: the same
     /// bounded number of contacts, spending no turn the room could have
     /// deliberated with.
@@ -950,6 +954,7 @@ fn check_arm_diffs(options: &Options, totals: &Totals) {
         ("hive+fact", &totals.hive_aside_fact),
         ("hive+mute", &totals.hive_aside_mute),
         ("hive+along", &totals.hive_aside_alongside),
+        ("hive+share", &totals.hive_aside_exchange),
         ("hive+fact°", &totals.hive_aside_offfloor),
         ("hive+pooled", &totals.hive_pooled),
     ]
@@ -1017,6 +1022,12 @@ fn run_check_arms(
     totals
         .hive_aside_alongside
         .add(&check(AsideMode::Alongside, CheckStyle::ALONGSIDE)?);
+    // The same free row, spent continuously: a contact on every turn carrying
+    // every reading its author holds, bounded by how many distinct peers
+    // `--aside-cap` allows. This is the arm a charged row could never afford.
+    totals
+        .hive_aside_exchange
+        .add(&check(AsideMode::Alongside, CheckStyle::EXCHANGE)?);
     // The same bounded exchange, held off the floor entirely and given oracle
     // targeting. It bounds what the alongside arm above could reach.
     totals.hive_aside_offfloor.add(&run_episode(

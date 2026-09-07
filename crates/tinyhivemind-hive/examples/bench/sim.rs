@@ -1215,6 +1215,21 @@ impl SimAgent {
         // count one peer's signal several times over, and the arm would stop
         // modelling the experiment it documents — one private evaluation
         // averaged with one independent peer's.
+        // A full exchange hands over everything this member holds rather than
+        // an answer to the one question asked. It is the same move as the
+        // pairwise answer — this member's own untouched readings, never its
+        // pooled ones — over every option instead of one.
+        if self.style.exchange {
+            let mut line = format!("{ASIDE_MARKER} @{from}");
+            for (held, _) in &self.evals {
+                let reading = self.own_reading(held);
+                line.push_str(&format!(" #{held} {ASIDE_READS} {reading}."));
+            }
+            if let Some(refuted) = self.refutes.clone() {
+                line.push_str(&format!(" #{refuted} The reading I hold {RULES_OUT}."));
+            }
+            return Some(line);
+        }
         let reading = self.own_reading(&topic);
         // A member holding the one fact that rules this option out says so,
         // rather than handing over a number for the asker to average into an
@@ -1251,6 +1266,23 @@ impl SimAgent {
     fn open_check(&mut self, visible: &[SessionMessage], view: &View) -> Option<String> {
         if self.asides_spent >= self.aside_cap {
             return None;
+        }
+        // A continuous exchange does not wait to be uncertain, and does not
+        // pick a peer for a question: it contacts whoever it has not reached
+        // yet. `aside_cap` bounds how many that is.
+        if self.style.exchange {
+            let peer = visible.iter().find_map(|message| match &message.author {
+                SessionAuthor::Agent { id, .. }
+                    if *id != self.id && !self.contacted.contains(id) =>
+                {
+                    Some(id.clone())
+                }
+                _ => None,
+            })?;
+            self.contacted.push(peer.clone());
+            return Some(format!(
+                "{ASIDE_MARKER} @{peer} What do you make of these?"
+            ));
         }
         let mut ranked: Vec<(&TopicId, i32)> = self
             .evals
