@@ -2142,5 +2142,43 @@ pub(crate) fn check_selfcheck() -> bool {
     let view = View::fold(&[plain, against], QuorumPolicy::DEFAULT);
     ok &= view.grounded_by(&topic, "asker").as_deref() == Some("holder");
 
+    // A full exchange answers about every option in one row, and every reading
+    // in it is the responder's own rather than a pooled one. The reader takes
+    // all of them.
+    let mut donor = sample.clone();
+    donor.set_aside_cap(1, CheckStyle::EXCHANGE);
+    donor.import(&topic, 999);
+    let asked = crate::run::one_agent_message("peer", &format!("{ASIDE_MARKER} @{} Well?", donor.id));
+    let Some(offered) = donor.answer_check(std::slice::from_ref(&asked)) else {
+        return false;
+    };
+    let carried = parse_readings(&offered);
+    ok &= carried.len() == sample.evals.len()
+        && carried
+            .iter()
+            .all(|(held, reading)| *reading == sample.own_reading(held));
+    let mut taker = sample.clone();
+    taker.set_aside_cap(1, CheckStyle::EXCHANGE);
+    taker.absorb(std::slice::from_ref(&crate::run::one_agent_message("peer", &offered)));
+    ok &= taker.imports.len() == sample.evals.len();
+
+    // A refutation inside a multi-option row names the option it rules out,
+    // and the reader discounts that one rather than whichever was written
+    // first.
+    let Some((other, _)) = sample.evals.get(1).cloned() else {
+        return false;
+    };
+    let mixed = format!(
+        "{ASIDE_MARKER} @a #{topic} {ASIDE_READS} 7. #{other} {ASIDE_READS} 9. \
+         #{other} The reading I hold {RULES_OUT}."
+    );
+    ok &= parse_ruled_out(&mixed).as_ref() == Some(&other);
+    // And the single-option form still reads as being about its one option.
+    ok &= parse_ruled_out(&format!(
+        "{ASIDE_MARKER} @a #{topic} My own {ASIDE_READS} 7. The reading I hold {RULES_OUT}."
+    ))
+    .as_ref()
+        == Some(&topic);
+
     ok
 }
