@@ -60,6 +60,9 @@ const ASIDES: AsidePolicy = AsidePolicy {
     require_thread: false,
 };
 
+/// How many times one turn may be restarted after a stalled stream.
+const STALL_RESTARTS: usize = 3;
+
 /// How long a seat gets to land its work: write it down, then speak.
 ///
 /// A seat that spends its whole working budget inside tool calls has both
@@ -550,25 +553,24 @@ async fn main() -> Result<(), BoxError> {
                 tokens += output.tokens;
             }
         }
-        if output.stalled {
-            // Killed for going quiet, not for running long. One intermittent
-            // upstream failure ends the CLI's progress without ending the CLI,
-            // so the turn is recoverable: start it again rather than spend the
-            // rest of the budget watching a process that has stopped asking.
+        // One hung stream should cost a couple of minutes, not the turn. Each
+        // restart is a fresh session on the same prompt; the seat's earlier
+        // work is in the workspace, so what a restart repeats is orientation
+        // rather than the work itself.
+        let mut restarts = 0;
+        while output.stalled && restarts < STALL_RESTARTS {
+            restarts += 1;
             println!(
-                "   !! stalled after {:?} of silence - restarting the turn",
+                "   !! stalled after {:?} of silence - restart {restarts}",
                 output.elapsed
             );
             output = runner.run(
                 &prompt,
-                &format!("turn-{turns:03}-{}-restart", seat.id),
+                &format!("turn-{turns:03}-{}-restart{restarts}", seat.id),
                 runner.timeout(),
-                output.session.as_deref().or(resumed.as_deref()),
+                None,
             )?;
             tokens += output.tokens;
-            if let Some(id) = output.session.clone() {
-                sessions.insert(seat.id.clone(), id);
-            }
         }
         if output.timed_out || output.message.trim().is_empty() {
             // Two phases, because the failure has two halves. First ask the

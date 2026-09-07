@@ -17,11 +17,13 @@ use std::{
 /// How long a turn may produce nothing at all before it is treated as stalled.
 ///
 /// A seat that is working emits an event every few seconds — a step, a tool
-/// call, a token. Silence for minutes means the agent CLI is waiting on a
-/// request that will never come back: one intermittent upstream failure ends
-/// its progress and it neither retries nor exits. Without this the only thing
-/// that notices is the turn deadline, so a provider blip costs a whole turn.
-const STALL_AFTER: Duration = Duration::from_secs(240);
+/// call, a token. Silence past this means the CLI is waiting on a streamed
+/// response that will never arrive: the router's own request timeout covers a
+/// request that fails to answer, not a stream that opens and then stops, so
+/// nothing upstream will ever end it. The seat neither retries nor exits, and
+/// without this the only thing that notices is the turn deadline — which is
+/// how one hung stream came to cost a whole turn.
+const STALL_AFTER: Duration = Duration::from_secs(120);
 
 /// What one turn produced.
 #[derive(Clone, Debug, Default)]
