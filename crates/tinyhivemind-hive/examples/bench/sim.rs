@@ -988,12 +988,18 @@ impl SimAgent {
     /// `Room::generate_with` leaves every member at `0`, so an arm that opens
     /// no check is bit-identical to one built before the move existed — the
     /// same discipline `set_defer_cap` follows.
+    ///
+    /// Resets only the exchange state a *floor* check creates — it must not
+    /// clear `ruled_out`, because `Room::pre_checked` and `Room::pooled`
+    /// write facts into it before the episode opens, and this is called on
+    /// that same freshly cloned agent right at `run_episode`'s start. Wiping
+    /// it here would silently discard every fact those off-floor controls
+    /// preload.
     pub(crate) fn set_aside_cap(&mut self, cap: u32, style: CheckStyle) {
         self.aside_cap = cap;
         self.style = style;
         self.asides_spent = 0;
         self.handled.clear();
-        self.ruled_out.clear();
     }
 
     /// Tell the participant which quorum rule the room is running.
