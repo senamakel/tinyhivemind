@@ -70,12 +70,22 @@ fn said(sequence: u64, author: &str) -> SessionMessage {
 }
 
 fn open(policy: &ExchangePolicy, transcript: &[SessionMessage]) -> ExchangeRound {
+    open_after(policy, transcript, ExchangeState::opened())
+}
+
+/// The same, with rounds already opened.
+fn open_after(
+    policy: &ExchangePolicy,
+    transcript: &[SessionMessage],
+    opened: ExchangeState,
+) -> ExchangeRound {
     let people = roster_members();
     let rooms = desks();
     let retired: Vec<String> = Vec::new();
     exchange(
         policy,
         &state(),
+        opened,
         transcript,
         &Roster::new(&people, &[], &retired),
         &DeskSet::new(&rooms, &[], &[], &[], &retired),
@@ -141,7 +151,9 @@ fn a_zero_cap_closes_the_round_rather_than_erroring() {
 
 #[test]
 fn an_open_round_names_every_active_member_in_desk_order() {
-    let ExchangeRound::Open { members, remaining } = open(&generous(), &[]) else {
+    let ExchangeRound::Open {
+        members, remaining, ..
+    } = open(&generous(), &[]) else {
         panic!("expected an open round");
     };
     assert_eq!(members, MEMBERS.map(str::to_owned).to_vec());
@@ -160,7 +172,9 @@ fn spend_is_read_back_out_of_the_transcript() {
         private(3, "planner", "scout"),
         private(4, "critic", "planner"),
     ];
-    let ExchangeRound::Open { members, remaining } = open(&generous(), &transcript) else {
+    let ExchangeRound::Open {
+        members, remaining, ..
+    } = open(&generous(), &transcript) else {
         panic!("expected an open round");
     };
     // `planner` has spent both of its contacts and drops out; the others have
@@ -183,7 +197,9 @@ fn remaining_is_clamped_per_member_rather_than_in_aggregate() {
     let transcript: Vec<SessionMessage> = (0..10_u64)
         .map(|index| private(index + 1, "planner", "critic"))
         .collect();
-    let ExchangeRound::Open { members, remaining } = open(&policy, &transcript) else {
+    let ExchangeRound::Open {
+        members, remaining, ..
+    } = open(&policy, &transcript) else {
         panic!("expected an open round");
     };
     // `planner` is out of contacts; `critic` and `scout` have ten each left on
@@ -237,12 +253,8 @@ fn the_round_cap_bounds_the_episode_independently_of_the_contact_cap() {
         contact_cap: 10,
         round_cap: 2,
     };
-    let transcript = vec![
-        private(1, "planner", "critic"),
-        private(2, "planner", "scout"),
-    ];
     assert_eq!(
-        open(&policy, &transcript),
+        open_after(&policy, &[], ExchangeState { rounds: 2 }),
         ExchangeRound::Closed {
             reason: NoExchangeReason::RoundsSpent,
         }
@@ -334,6 +346,7 @@ fn a_desk_of_one_has_nobody_to_exchange_with() {
         exchange(
             &generous(),
             &state(),
+            ExchangeState::opened(),
             &[],
             &Roster::new(&people, &[], &retired),
             &DeskSet::new(&rooms, &[], &[], &[], &retired),
@@ -369,10 +382,16 @@ fn the_policy_and_round_pin_their_wire_forms() {
     let round = serde_json::to_value(ExchangeRound::Open {
         members: vec!["planner".into()],
         remaining: 3,
+        next: ExchangeState { rounds: 1 },
     })
     .expect("serializes");
     assert_eq!(
         round,
-        serde_json::json!({ "kind": "open", "members": ["planner"], "remaining": 3 })
+        serde_json::json!({
+            "kind": "open",
+            "members": ["planner"],
+            "remaining": 3,
+            "next": { "rounds": 1 },
+        })
     );
 }
