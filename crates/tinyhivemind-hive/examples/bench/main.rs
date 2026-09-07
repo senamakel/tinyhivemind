@@ -69,6 +69,8 @@
 //! | `--specialist-model NAME` | model for a seat the scenario marks as a specialist |
 //! | `--specialists N`, `--hidden-profile` | how expertise is distributed |
 //! | `--defer-cap N`, `--history N`, `--cost-tiers` | the delegation arms |
+//! | `--aside-cap N` | pairwise checks one member may open (default 1); `0` makes every on-floor and alongside aside arm identical to `hive+` |
+//! | `--exchange-cap N` | private rows one member may write off the floor (default 4); `0` disables `hive+rounds` |
 //! | `--blind-evidence` | members open the blind round with a deposit, not a position |
 //! | `--directory` | fold the directory into the traced episode's own policy |
 //! | `--thinking on\|off` | whether the HTTP backend reasons before answering |

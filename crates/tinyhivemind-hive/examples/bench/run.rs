@@ -814,7 +814,14 @@ fn one_exchange(
         ExchangeRound::Open { next, .. } => *next,
         ExchangeRound::Closed { .. } => opened,
     };
-    let ran = exchange_round(host, agents, last, &round, aside_policy(members), &mut library);
+    let ran = exchange_round(
+        host,
+        agents,
+        last,
+        &round,
+        aside_policy(members),
+        &mut library,
+    );
     Ok((Round { next, ..ran }, library))
 }
 
@@ -977,9 +984,8 @@ pub(crate) fn drive_with(
                 // for any of it.
                 if aside_mode == AsideMode::OffFloor {
                     let members = member_ids.len();
-                    let (ran, spent) = one_exchange(
-                        &mut host, agents, &last, &state, &exchange, opened, members,
-                    )?;
+                    let (ran, spent) =
+                        one_exchange(&mut host, agents, &last, &state, &exchange, opened, members)?;
                     contacts = contacts.saturating_add(ran.calls);
                     opened = ran.next;
                     library_time += spent;

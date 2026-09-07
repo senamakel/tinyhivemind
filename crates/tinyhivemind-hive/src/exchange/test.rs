@@ -153,7 +153,8 @@ fn a_zero_cap_closes_the_round_rather_than_erroring() {
 fn an_open_round_names_every_active_member_in_desk_order() {
     let ExchangeRound::Open {
         members, remaining, ..
-    } = open(&generous(), &[]) else {
+    } = open(&generous(), &[])
+    else {
         panic!("expected an open round");
     };
     assert_eq!(members, MEMBERS.map(str::to_owned).to_vec());
@@ -174,7 +175,8 @@ fn spend_is_read_back_out_of_the_transcript() {
     ];
     let ExchangeRound::Open {
         members, remaining, ..
-    } = open(&generous(), &transcript) else {
+    } = open(&generous(), &transcript)
+    else {
         panic!("expected an open round");
     };
     // `planner` has spent both of its contacts and drops out; the others have
