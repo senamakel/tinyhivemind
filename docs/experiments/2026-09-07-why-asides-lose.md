@@ -186,7 +186,7 @@ episode cannot vote the row, because `live_traces` drops a non-desk row before
 it reaches a trace or a standing, and `spent` counts turns rather than rows.
 It is not free of a sequence, though: see "What this does not settle" below.
 
-That property is now pinned twice: a readable case in `episode::test`, and an
+That property is pinned twice — a readable case in `episode::test`, and an
 *addition* invariant in the fuzz suite — arbitrary aside rows, carrying the same
 fuzzed grammar as the desk rows, interleaved anywhere in an arbitrary
 transcript, leave `step` exactly where it was. Both go red if the audience
@@ -292,8 +292,14 @@ alongside row lands only on turns whose author wanted one, so it stretches gaps
 unevenly — the case with no such argument available, and the one that had to be
 measured rather than reasoned about. It too is zero.
 
-This does not make the sequence-distance decay a good design; it makes it
-harmless at these volumes. A host writing far more private rows than this
+None of this makes the sequence-distance decay a good design; it makes it
+harmless at these volumes. It is a real limit on the guarantee, not only on the
+measurement: `step`'s indifference to private rows holds for the same desk rows
+at the same sequences, and a host allocating sequences live shifts them.
+`episode::test::shifting_desk_sequences_past_a_private_row_can_change_the_step`
+demonstrates a support ageing out of a tight window because an exchange
+happened. What keeps it academic here is that the default window is 100 against
+episodes of about eleven desk turns. A host writing far more private rows than this
 benchmark does should re-measure rather than assume, and the real fix — decay
 over desk turns rather than raw sequences — remains a library change that would
 need its own ADR.
