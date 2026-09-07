@@ -461,10 +461,8 @@ impl Room {
                 for (topic, reading) in evals {
                     agent.import(topic, *reading);
                 }
-                if let Some(topic) = refutes
-                    && !agent.ruled_out.contains(topic)
-                {
-                    agent.ruled_out.push(topic.clone());
+                if let Some(topic) = refutes {
+                    agent.note_fact(topic);
                 }
             }
             // A refutation installed after this agent's last `import` call
@@ -519,9 +517,7 @@ impl Room {
                 // in `absorb` -- otherwise `hive+fact°` would carry both the
                 // fact and the reading `hive+fact` never gets to average in.
                 if evidence && refutes.as_ref() == Some(&topic) {
-                    if !agent.ruled_out.contains(&topic) {
-                        agent.ruled_out.push(topic.clone());
-                    }
+                    agent.note_fact(&topic);
                 } else if let Some((_, reading)) = evals.iter().find(|(held, _)| *held == topic) {
                     agent.import(&topic, *reading);
                 }
@@ -802,6 +798,14 @@ pub(crate) struct SimAgent {
     /// changes what a member *believes*, and it still has to spend a turn
     /// saying so before the room counts it.
     imports: Vec<(TopicId, i64, u32)>,
+    /// Everything this member has been told, in arrival order, one row each.
+    ///
+    /// Parallel to `imports` and `ruled_out` rather than replacing them: under
+    /// [`ContextBudget::UNBOUNDED`] nothing reads this and the arm is
+    /// bit-identical to one built before the window existed.
+    context: Vec<ContextEntry>,
+    /// How much of the above this member can still read.
+    budget: ContextBudget,
     /// Its own argmax over `evals`.
     favourite: TopicId,
     /// Drives noncompliance only; never the private evaluations.
@@ -1026,6 +1030,8 @@ impl SimAgent {
             contacted: Vec::new(),
             complied: false,
             ruled_out: Vec::new(),
+            context: Vec::new(),
+            budget: ContextBudget::UNBOUNDED,
             handled: Vec::new(),
             favourite,
             rng: Rng::seeded(mix(seed, 0x000A_11CE ^ index as u64)),
@@ -1063,8 +1069,82 @@ impl SimAgent {
             }
             None => self.imports.push((topic.clone(), i64::from(reading), 1)),
         }
+        self.context.push(ContextEntry {
+            topic: topic.clone(),
+            kind: EntryKind::Reading(reading),
+        });
         self.recompute_favourite();
         true
+    }
+
+    /// Give this member a window, and clear what it was holding in the old one.
+    pub(crate) fn set_budget(&mut self, budget: ContextBudget) {
+        self.budget = budget;
+    }
+
+    /// Install a fact that rules an option out, occupying a row to do it.
+    ///
+    /// The single place a fact enters a member, so that a fact is subject to
+    /// the same window every reading is. That matters more than it sounds: on
+    /// a hidden profile the decisive fact is *one* row among many readings that
+    /// all agree with each other, and a model of context that charged the
+    /// readings but not the fact would make the fact free precisely where it is
+    /// load-bearing.
+    pub(crate) fn note_fact(&mut self, topic: &TopicId) {
+        if !self.ruled_out.contains(topic) {
+            self.ruled_out.push(topic.clone());
+        }
+        self.context.push(ContextEntry {
+            topic: topic.clone(),
+            kind: EntryKind::Fact,
+        });
+    }
+
+    /// Charge this member one row for an exchange it could see but not read.
+    pub(crate) fn note_stub(&mut self, topic: &TopicId) {
+        self.context.push(ContextEntry {
+            topic: topic.clone(),
+            kind: EntryKind::Stub,
+        });
+    }
+
+    /// How many rows this member is currently carrying, before compaction.
+    pub(crate) fn context_rows(&self) -> usize {
+        self.context.len()
+    }
+
+    /// This member's score for one option, read through its window.
+    ///
+    /// Only reached when a budget is set. Each surviving row contributes at the
+    /// weight its position earns, so a reading buried in the middle of a
+    /// crowded window is worth a fraction of the same reading at the edge of a
+    /// quiet one, and a row evicted by compaction is worth nothing at all.
+    fn windowed_score(&self, topic: &TopicId, own: i32) -> i32 {
+        let kept = self.budget.retained(self.context.len());
+        let held = kept.len();
+        let mut total = f64::from(own);
+        let mut divisor = 1.0_f64;
+        let mut ruled_out = 0.0_f64;
+        for (position, index) in kept.into_iter().enumerate() {
+            let entry = &self.context[index];
+            if &entry.topic != topic {
+                continue;
+            }
+            let weight = self.budget.weight(position, held);
+            match entry.kind {
+                EntryKind::Reading(reading) => {
+                    total += weight * f64::from(reading);
+                    divisor += weight;
+                }
+                EntryKind::Fact => ruled_out = ruled_out.max(weight),
+                // A stub says an exchange happened and nothing about the
+                // option, so it moves no score. It has already cost its row.
+                EntryKind::Stub => {}
+            }
+        }
+        let pooled = if divisor > 0.0 { total / divisor } else { f64::from(own) };
+        let discounted = pooled - ruled_out * f64::from(GROUNDS_WEIGHT);
+        discounted.round() as i32
     }
 
     /// Recompute [`Self::favourite`] from every option this member holds a
@@ -1165,6 +1245,9 @@ impl SimAgent {
         let Some((_, own)) = self.evals.iter().find(|(held, _)| held == topic) else {
             return i32::MIN;
         };
+        if !self.budget.is_unbounded() {
+            return self.windowed_score(topic, *own);
+        }
         let pooled = match self.imports.iter().find(|(held, _, _)| held == topic) {
             None => *own,
             Some((_, sum, count)) => {
@@ -1258,9 +1341,8 @@ impl SimAgent {
                 .then(|| parse_ruled_out(body))
                 .flatten();
             if let Some(topic) = refuted.clone()
-                && !self.ruled_out.contains(&topic)
-            {
-                self.ruled_out.push(topic);
+                {
+                self.note_fact(&topic);
             }
             // The fact is carried *instead of* the number for the option it
             // rules out, never in addition to it: `CheckStyle::FACT` exists to
