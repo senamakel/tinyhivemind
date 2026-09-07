@@ -395,6 +395,7 @@ impl Room {
         Self {
             truth,
             agents: members,
+            budget: ContextBudget::UNBOUNDED,
             experts,
             decisive,
             planted,
@@ -454,6 +455,13 @@ impl Room {
     /// refutation any peer holds, before the episode opens. No sequence of
     /// asides can beat it, so if the room is no better here the mechanism is
     /// not what is limiting the room.
+    /// The same room, read through a window of `budget`.
+    pub(crate) fn with_budget(&self, budget: ContextBudget) -> Self {
+        let mut room = self.clone();
+        room.budget = budget;
+        room
+    }
+
     pub(crate) fn pooled(&self) -> Self {
         let mut room = self.clone();
         let readings: Vec<Holdings> = self

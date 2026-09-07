@@ -477,6 +477,7 @@ pub(crate) fn run_episode_checking(
     let mut agents: Vec<SimAgent> = room.agents.clone();
     for agent in &mut agents {
         agent.set_quorum(policy.quorum);
+        agent.set_budget(room.budget);
         agent.set_defer_cap(defer_cap);
         agent.set_aside_cap(aside_cap, style);
         agent.set_peers(&ids);
