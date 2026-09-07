@@ -31,6 +31,13 @@ pub(crate) struct TurnOutput {
     /// What the seat actually ran and saw, so a wrap-up summarizes evidence
     /// rather than inventing it.
     pub(crate) work_log: String,
+    /// A provider or CLI failure reported inside the event stream.
+    ///
+    /// A 402 from a fallback provider arrives here, not as a nonzero exit: the
+    /// process runs its full budget and prints one `error` event, so a turn
+    /// that lost its credit is indistinguishable from a model that would not
+    /// speak unless the host reads this.
+    pub(crate) error: Option<String>,
     /// Whether the seat actually marked a message for the room.
     ///
     /// Unmarked trailing text is narration — "Now I have the full picture, let
@@ -204,6 +211,15 @@ fn parse_events(stdout: &str) -> TurnOutput {
                 turn.work_log.push('\n');
                 turn.work_log.push_str(&truncate(result, 1200));
                 turn.work_log.push('\n');
+            }
+            Some("error") => {
+                turn.error = Some(
+                    event
+                        .pointer("/error/data/message")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("unknown agent error")
+                        .to_string(),
+                );
             }
             Some("step_finish") => {
                 if let Some(total) = event

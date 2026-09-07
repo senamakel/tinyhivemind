@@ -507,6 +507,21 @@ async fn main() -> Result<(), BoxError> {
         if let Some(id) = output.session.clone() {
             sessions.insert(seat.id.clone(), id);
         }
+        if let Some(error) = output.error.clone() {
+            // Say so. An upstream failure that reads as silence is how an hour
+            // goes into diagnosing a model that was never asked.
+            println!("   !! agent error: {}", &error[..error.len().min(180)]);
+            if output.message.trim().is_empty() {
+                println!("   retrying the turn once");
+                output = runner.run(
+                    &prompt,
+                    &format!("turn-{turns:03}-{}-retry", seat.id),
+                    runner.timeout(),
+                    output.session.as_deref().or(resumed.as_deref()),
+                )?;
+                tokens += output.tokens;
+            }
+        }
         if output.timed_out || output.message.trim().is_empty() {
             // Two phases, because the failure has two halves. First ask the
             // seat to land what it has: same session, tools still attached, so
