@@ -43,9 +43,13 @@ Every arm decides the same rooms from the same private evaluations.
 | `hive+dir` | The tuned policy with `directory: Some(DirectoryPolicy::DEFAULT)` — the folded transactive-memory directory on, so `BidReason::Knows` is reachable. |
 | `hive+defer` | The tuned policy with `defer_cap: Some(N)` and no directory: members may stand aside on a topic that is not theirs, with nothing routing the vacated turn. |
 | `hive+dir+defer` | Both at once, which is the arrangement `docs/specs/expert-delegation.md` describes end to end. |
-| `hive+aside` | The tuned policy with `--aside-cap`: a member that cannot separate its two best options spends a turn asking one peer for its reading, privately. Loses; see [the write-up](../../../../docs/experiments/2026-09-07-do-asides-help.md). |
+| `hive+aside` | The tuned policy with `--aside-cap`: a member that cannot separate its two best options spends a turn asking one peer for its reading, privately. Loses; see [the write-up](../../../../docs/experiments/2026-09-07-why-asides-lose.md). |
 | `hive+ask` | The identical exchange in the open — same turns, same words, every member reads it. The control that isolates *privacy* from *asking*. |
 | `hive+aside!` | The private check again, aimed at whoever the transcript shows has grounded the option rather than at whoever spoke first. |
+| `hive+fact` | The aimed check again, carrying the fact that rules an option out rather than a number to be averaged into an error the pair may share. |
+| `hive+mute` | The identical check on the identical turns, with the answer **discarded**. The matched-turn control: what it loses against `hive+` is what the turns cost, and what any arm above gains over it is what the answer is worth. |
+| `hive+fact°` | The same bounded exchange as `hive+fact`, held **off the floor** — before the episode opens, spending no turn the room could have deliberated with. It isolates the scheduling from everything else. |
+| `hive+pooled` | The **ceiling**: every private reading and every fact already in every member's hands, free. No amount of pairwise exchange beats it, so it bounds the whole question. |
 | `ladder+dir` | The responder ladder again, with a directory the room *earned* over `--history` prior episodes of `hive+` on the same room. The selector's candidates carry that directory's per-agent lines as their `description`, the request names the topic the call turns on, and a router that reads the descriptions picks the heaviest holder of it. Validated through the real `accept_selection`. |
 | `all-reasoning` | Only under `--cost-tiers`, in the cost table: `hive+dir+defer` (the delegating room) against a policy that puts every seat on the expensive tier. |
 
@@ -53,12 +57,16 @@ The six rows above `hive+dir` are the published table; the delegation arms are
 appended rather than interleaved, so `--seed 1 --episodes 5000` still prints
 them byte for byte.
 
-The three aside arms lose too, and the pair of them settles what the loss is
-made of: `hive+aside − hive+ask` spans zero in every configuration, so privacy
-is never the variable, and `hive+aside − hive+` goes to zero once the turn
-budget stops binding. On a hidden profile the loss is 15 points with the budget
-unconstrained, because averaging with a peer inside one correlated desk imports
-the shared bias rather than cancelling noise.
+Every aside arm that spends a turn loses, and the seven of them together
+settle what the loss is made of. `hive+aside − hive+ask` spans zero in every
+configuration, so privacy is never the variable. `hive+mute` discards the
+answer and loses *more* than the arms that keep it, so the content is never the
+variable either — the cost is the turns, in full, before a word changes hands.
+`hive+fact°` runs the identical exchange off the floor and moves from −15.0 to
+`+3.0 [+2.0, +4.0]` on a hidden profile, so the scheduling is the whole of it.
+And `hive+pooled` beats `hive+` by `+21.2 [+19.2, +23.2]` in *fewer* turns: peer
+information is worth more here than anything else this benchmark measures, and
+buying it one floor turn at a time is what costs more than it is worth.
 [`docs/experiments/2026-09-07-do-asides-help.md`](../../../../docs/experiments/2026-09-07-do-asides-help.md)
 carries the numbers and the argument.
 
@@ -367,7 +375,7 @@ rather than a failure of the harness.
 | `--blind-evidence` | a member's first turn, while the room is blind, is a deposit rather than a position (off by default) |
 | `--directory` | fold the directory into the traced episode's own policy, so `--trace` can show a `knows` turn |
 | `--defer-cap N` | turns a member may spend deferring to a topic's expert instead of arguing outside its own specialty (default 1, minimum 1); read by `hive+defer` and `hive+dir+defer` |
-| `--aside-cap N` | pairwise checks one member may open (default 1); `0` makes `hive+aside`, `hive+ask` and `hive+aside!` bit-identical to `hive+` |
+| `--aside-cap N` | pairwise checks one member may open (default 1); `0` makes every aside arm bit-identical to `hive+` |
 | `--history N` | prior episodes of `hive+` the `ladder+dir` arm earns its directory from (default 3) |
 | `--budget N` `--quorum N` `--window N` | episode policy, overriding the tuned values |
 | `--dominance N` `--repetition N` `--no-blind` | episode policy |
