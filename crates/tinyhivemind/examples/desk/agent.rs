@@ -226,6 +226,78 @@ fn wait_with_timeout(
     Ok((buffer, timed_out, stalled))
 }
 
+/// Fold one `--format json` event stream into a turn.
+///
+/// Text parts are concatenated in arrival order; a `<<<POST ... POST>>>` block
+/// wins over everything around it, because a model narrating its own reasoning
+/// into the shared transcript is noise every other seat then has to read.
+fn parse_events(stdout: &str) -> TurnOutput {
+    let mut text = String::new();
+    let mut turn = TurnOutput::default();
+    for line in stdout.lines() {
+        let Ok(event) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        if turn.session.is_none()
+            && let Some(id) = event.get("sessionID").and_then(serde_json::Value::as_str)
+        {
+            turn.session = Some(id.to_string());
+        }
+        match event.get("type").and_then(serde_json::Value::as_str) {
+            Some("text") => {
+                if let Some(part) = event.pointer("/part/text").and_then(serde_json::Value::as_str) {
+                    if !text.is_empty() {
+                        text.push('\n');
+                    }
+                    text.push_str(part);
+                }
+            }
+            Some("tool" | "tool_use") => {
+                if let Some(name) = event
+                    .pointer("/part/tool")
+                    .and_then(serde_json::Value::as_str)
+                {
+                    turn.tools.push(name.to_string());
+                }
+                let input = event
+                    .pointer("/part/state/input")
+                    .map(serde_json::Value::to_string)
+                    .unwrap_or_default();
+                let result = event
+                    .pointer("/part/state/output")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or_default();
+                turn.work_log.push_str("\n$ ");
+                turn.work_log.push_str(&truncate(&input, 1200));
+                turn.work_log.push('\n');
+                turn.work_log.push_str(&truncate(result, 1200));
+                turn.work_log.push('\n');
+            }
+            Some("error") => {
+                turn.error = Some(
+                    event
+                        .pointer("/error/data/message")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("unknown agent error")
+                        .to_string(),
+                );
+            }
+            Some("step_finish") => {
+                if let Some(total) = event
+                    .pointer("/part/tokens/total")
+                    .and_then(serde_json::Value::as_u64)
+                {
+                    turn.tokens = turn.tokens.max(total);
+                }
+            }
+            _ => {}
+        }
+    }
+    turn.posted = text.contains("<<<POST");
+    turn.message = extract_post(&text);
+    turn
+}
+
 /// Keep the head of a long string, marking what was dropped.
 fn truncate(text: &str, limit: usize) -> String {
     let mut end = limit.min(text.len());
