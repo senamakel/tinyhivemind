@@ -1987,6 +1987,23 @@ impl crate::run::Participant for SimAgent {
         Ok(self.compose(turn, visible))
     }
 
+    fn exchange(&mut self, visible: &[SessionMessage]) -> Option<String> {
+        // No turn is being taken, so there is no `compose` to have absorbed
+        // first and no compliance draw to respect: a member asked in a round
+        // it is not otherwise part of reads what it can, then answers or asks.
+        if !self.style.alongside || self.aside_cap == 0 {
+            return None;
+        }
+        self.absorb(visible);
+        if let Some(line) = self.answer_check(visible) {
+            return Some(line);
+        }
+        let view = View::fold(visible, self.quorum);
+        let line = self.open_check(visible, &view)?;
+        self.asides_spent = self.asides_spent.saturating_add(1);
+        Some(line)
+    }
+
     fn aside(&mut self, _turn: &HiveTurn, visible: &[SessionMessage]) -> Option<String> {
         // The same three parts `check` runs, minus the absorb `compose` has
         // already done on this turn: answer whoever asked, and otherwise ask.

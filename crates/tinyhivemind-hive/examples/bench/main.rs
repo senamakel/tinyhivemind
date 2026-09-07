@@ -809,6 +809,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
         ("hive+mute", &totals.hive_aside_mute),
         ("hive+along", &totals.hive_aside_alongside),
         ("hive+share", &totals.hive_aside_exchange),
+        ("hive+rounds", &totals.hive_exchange_rounds),
         ("hive+fact°", &totals.hive_aside_offfloor),
         ("hive+pooled", &totals.hive_pooled),
     ];
@@ -955,6 +956,7 @@ fn check_arm_diffs(options: &Options, totals: &Totals) {
         ("hive+mute", &totals.hive_aside_mute),
         ("hive+along", &totals.hive_aside_alongside),
         ("hive+share", &totals.hive_aside_exchange),
+        ("hive+rounds", &totals.hive_exchange_rounds),
         ("hive+fact°", &totals.hive_aside_offfloor),
         ("hive+pooled", &totals.hive_pooled),
     ]
