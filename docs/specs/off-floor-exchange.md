@@ -208,7 +208,9 @@ contribution nobody was authorized to make.
 
 - `step` returns the same `HiveStep`, including `next_state`, for a transcript
   with and without any number of private rows interleaved anywhere.
-- An episode's total private rows never exceed the policy's computed worst case.
+- An episode's total private rows never exceed the policy's computed worst case,
+  and its total rounds never exceed `round_cap` — including rounds in which
+  every named member declined to write.
 - A member never authors more than `contact_cap` private rows in one episode.
 - `ExchangePolicy::DEFAULT` is disabled, and a disabled policy makes every
   projection, decision and turn identical to one taken before this spec existed.

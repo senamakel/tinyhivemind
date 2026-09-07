@@ -55,16 +55,24 @@ member's judgement, and the audience it writes is validated by
 are active on the episode's desk and still under their own contact cap. A host
 may run any subset, in any order, including none.
 
-## Spend is folded, never stored
+## Contacts are folded; rounds are carried
 
 A member's contacts are the private rows above the episode's watermark that it
 authored. There is no counter, so there is nothing that could disagree with the
 log — the discipline `standings` and `directory` already follow, and what keeps
 this inside the charter's "no second journal" rule.
 
-Rounds are counted by the **busiest** member, since a round gives each member at
-most one row. That under-counts rounds in which a member declined to speak, which
-is the safe direction: it can only leave a host with budget it did not use.
+Rounds are different, and the difference is a defect this had before review
+caught it. A round in which every named member declines to write leaves **no row
+behind**, so the transcript cannot tell it from a round that never happened — and
+those are the rounds that cost most per row, because the host paid to ask each
+member and got nothing. Folding the count out of authored rows therefore lets
+`RoundsSpent` arrive arbitrarily late and leaves the model-call budget unbounded,
+which is the one thing `round_cap` exists to prevent.
+
+So the host carries the round count in `ExchangeState`, exactly as it carries
+`EpisodeState`, and advances it from the `next` every open round returns rather
+than from a number of its own — so the two cannot drift.
 
 ## Bounds, and why they are two
 
