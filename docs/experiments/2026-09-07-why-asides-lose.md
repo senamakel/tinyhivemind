@@ -27,7 +27,7 @@ the explanation does not survive them.
 | `hive+mute` | the identical check on the identical turns, with the answer **discarded**. What it loses against `hive+` is what the turns cost. |
 | `hive+fact` | the aimed check, carrying the fact that rules an option out rather than a number to be averaged. |
 | `hive+fact°` | the same bounded exchange, held **off the floor** — before the episode opens, spending no turn the room could have deliberated with. |
-| `hive+pooled` | the **ceiling**: every reading and every fact already in every member's hands, free. No protocol beats it. |
+| `hive+pooled` | the **ceiling** *for equal-weight pooling*: every reading and every fact already in every member's hands, free, averaged with no regard for whose reading it is. No protocol that treats every peer's reading as equally reliable beats it; a protocol that could tell a specialist's reading from a lay guess (`--specialists`, not measured here) could in principle do better by weighting instead of averaging. |
 
 `--aside-cap 0` leaves all four bit-identical to `hive+`, and every number in
 the published six-row table is unchanged to the decimal.
