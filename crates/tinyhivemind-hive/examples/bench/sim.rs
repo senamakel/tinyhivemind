@@ -1321,6 +1321,20 @@ impl SimAgent {
     fn absorb(&mut self, visible: &[SessionMessage]) {
         for message in visible {
             let Some(body) = message.readable() else {
+                // An exchange this member can see happened and cannot read.
+                // It costs a row and carries nothing, which is the whole
+                // trade an aside makes for everybody outside it: the
+                // projection collapses the exchange to one stub instead of
+                // showing its messages, so the non-member pays one row rather
+                // than however many were said.
+                //
+                // Charged once, by sequence, for the same reason a reading is:
+                // a stub that stayed in the window for four turns is one row,
+                // not four.
+                if !self.budget.is_unbounded() && self.handled.insert(message.sequence) {
+                    let topic = self.favourite.clone();
+                    self.note_stub(&topic);
+                }
                 continue;
             };
             if self.handled.contains(&message.sequence) || !body.starts_with(ASIDE_MARKER) {
