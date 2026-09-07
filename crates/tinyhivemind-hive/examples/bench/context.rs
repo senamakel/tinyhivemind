@@ -229,24 +229,57 @@ mod test {
         assert_eq!(budget.weight(0, 1), 1.0);
     }
 
-    /// The property the whole file exists for: the same fact is worth more in a
-    /// window that is not crowded. Pooling does not merely add rows, it pushes
-    /// what was already there towards a middle that is read less.
+    /// The property the whole file exists for, stated correctly.
+    ///
+    /// A first cut of this test asserted that crowding a window devalues
+    /// everything already in it, and **that is false** under a U-curve: an
+    /// entry keeps its index while `held` grows, so its normalised position
+    /// moves *towards the head*, which is a privileged edge. The entry gets
+    /// better, not worse. The code was right and the test was wrong.
+    ///
+    /// What crowding actually costs is this: a window holds a fixed number of
+    /// good positions, and everything past them lands in the middle. With one
+    /// row, that row is all edge. With many, most of them are not — so the
+    /// *middle* of a full window is where the majority of its content sits,
+    /// and that is the content least likely to be read.
     #[test]
-    fn crowding_a_window_devalues_what_was_already_in_it() {
+    fn a_full_window_puts_most_of_its_content_in_the_cheap_middle() {
         let budget = ContextBudget {
-            capacity: 32,
+            capacity: 64,
             rot: 1.0,
         };
-        // A decisive fact arrives second, into a quiet window of three.
-        let quiet = budget.weight(1, 3);
-        // The same fact, second into a window of twenty-one: now it is buried.
-        let crowded = budget.weight(1, 21);
+        // Share of rows worth less than half their face value.
+        let buried = |held: usize| {
+            (0..held).filter(|at| budget.weight(*at, held) < 0.5).count() as f64 / held as f64
+        };
+        assert_eq!(buried(1), 0.0, "a lone row is all edge");
         assert!(
-            quiet > crowded,
-            "a fact at the same position is worth less in a fuller window: \
-             {quiet} vs {crowded}"
+            buried(21) > 0.4,
+            "most of a full window sits in its own middle: {}",
+            buried(21)
         );
+        // And the share does not shrink as it fills further.
+        assert!(buried(41) >= buried(21) - 1e-9);
+    }
+
+    /// The mechanism that actually drove `hive+pooled` down in the sweep:
+    /// once a window is over capacity, the middle is not merely cheap, it is
+    /// **gone**. An entry that would have been read at half value is read at
+    /// none.
+    #[test]
+    fn over_capacity_the_middle_is_dropped_not_discounted() {
+        let budget = ContextBudget {
+            capacity: 6,
+            rot: 0.0,
+        };
+        let kept = budget.retained(17);
+        assert_eq!(kept.len(), 6, "the window holds what it holds");
+        for middle in 4..13 {
+            assert!(
+                !kept.contains(&middle),
+                "row {middle} is in the middle of seventeen and should be gone"
+            );
+        }
     }
 
     /// Eviction keeps both ends, so the newest row always survives.
