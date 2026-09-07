@@ -260,3 +260,27 @@ contact to move.
   Admitting asides through that filter was measured at `+0.5` and declined
   ([ADR 0011](../adr/0011-an-aside-rides-alongside-a-turn.md)), so the
   interaction stands as a known limit rather than a defect.
+- **`round_cap` bounds rows opened, not rounds attempted.** `rounds` is folded
+  as the busiest member's row count, so a round in which every named member
+  declines leaves no artifact in the transcript and does not advance the
+  count. A host whose participants decline every round can therefore call
+  `exchange` — and pay for asking each named member — more than `round_cap`
+  times; the practical ceiling in that case is `min(round_cap, turns already
+  taken + 1) × members`, bounded by the host's own turn loop rather than by
+  the policy alone. Closing this precisely needs a marker for "this round
+  opened" independent of any row it produced, which is a host-observable
+  round-attempt record — a protocol change and its own decision, not a fold
+  over the transcript this crate already holds. Left open rather than solved
+  here; the benchmark's own arms always answer or decline predictably rather
+  than starving the round, so it does not affect a published number.
+- **`private/ep` in the benchmark counts rows written, not calls attempted.**
+  [`ADR 0012`](../adr/0012-an-exchange-round-spends-model-calls-not-turns.md)
+  frames the cost as *n* model calls — one per named member, whether or not it
+  writes — but the harness's `private/ep` column
+  (`crates/tinyhivemind-hive/examples/bench/README.md`) counts only rows a
+  member actually wrote, so a member that is asked and declines (for example,
+  during a blind round) is not charged. That undercounts the true call volume
+  whenever declines are common. The column is correctly labeled for what it
+  measures — rows, not calls — so no published number is mislabeled, but a
+  harness that also reports attempted calls would be a more complete price tag
+  and is left as follow-up work rather than done here.
