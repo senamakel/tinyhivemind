@@ -114,6 +114,7 @@ impl Aggregate {
         self.turns = self.turns.saturating_add(u64::from(report.turns));
         self.step_calls = self.step_calls.saturating_add(u64::from(report.step_calls));
         self.library_time += report.library_time;
+        self.step_time += report.step_time;
         self.correct_flags.push(report.correct);
         self.cost_units = self.cost_units.saturating_add(report.cost_units);
         self.contacts = self.contacts.saturating_add(u64::from(report.contacts));
