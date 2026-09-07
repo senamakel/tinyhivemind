@@ -1207,19 +1207,13 @@ impl SimAgent {
             SessionAuthor::Agent { id, .. } => id.clone(),
             _ => return None,
         };
-        let topic = parse_topic(request.readable()?)?;
-        self.handled.push(request.sequence);
-        // The member's *own* reading, not `score()`. `score` averages in every
-        // reading this member has already absorbed, so answering with it would
-        // echo an already-pooled value back into the room: a later asker would
-        // count one peer's signal several times over, and the arm would stop
-        // modelling the experiment it documents — one private evaluation
-        // averaged with one independent peer's.
         // A full exchange hands over everything this member holds rather than
-        // an answer to the one question asked. It is the same move as the
-        // pairwise answer — this member's own untouched readings, never its
-        // pooled ones — over every option instead of one.
+        // an answer to the one question asked, so its question names no option
+        // and this runs before the topic is read out of one. Same move as the
+        // pairwise answer below — this member's own untouched readings, never
+        // its pooled ones — over every option instead of one.
         if self.style.exchange {
+            self.handled.push(request.sequence);
             let mut line = format!("{ASIDE_MARKER} @{from}");
             for (held, _) in &self.evals {
                 let reading = self.own_reading(held);
@@ -1230,6 +1224,14 @@ impl SimAgent {
             }
             return Some(line);
         }
+        let topic = parse_topic(request.readable()?)?;
+        self.handled.push(request.sequence);
+        // The member's *own* reading, not `score()`. `score` averages in every
+        // reading this member has already absorbed, so answering with it would
+        // echo an already-pooled value back into the room: a later asker would
+        // count one peer's signal several times over, and the arm would stop
+        // modelling the experiment it documents — one private evaluation
+        // averaged with one independent peer's.
         let reading = self.own_reading(&topic);
         // A member holding the one fact that rules this option out says so,
         // rather than handing over a number for the asker to average into an
