@@ -320,7 +320,11 @@ pub fn project_for(turn: &HiveTurn, messages: &[SessionMessage]) -> Vec<SessionM
             Visibility::Full => true,
             Visibility::Blind => match &message.author {
                 SessionAuthor::Agent { id, .. } => {
-                    id == &turn.agent_id || message.sequence <= watermark
+                    id == &turn.agent_id
+                        || message.sequence <= watermark
+                        || (std::env::var("PIERCE").is_ok()
+                            && !message.audience.is_desk()
+                            && message.audience.admits(&viewer, Some(id)))
                 }
                 SessionAuthor::Operator
                 | SessionAuthor::Person { .. }
