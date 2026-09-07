@@ -901,7 +901,9 @@ pub(crate) fn drive_with(
             let desks = host.desks();
             step(&state, &host.journal, &roster, &desks, policy)
         };
-        library_time += started.elapsed();
+        let elapsed = started.elapsed();
+        library_time += elapsed;
+        step_time += elapsed;
         step_calls = step_calls.saturating_add(1);
 
         let (ending, decided) = match decision.map_err(|error| error.to_string())? {
