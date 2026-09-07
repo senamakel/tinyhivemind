@@ -207,8 +207,6 @@ struct Options {
     context: usize,
     /// How hard the middle of that window is discounted, `0.0..=1.0`.
     rot: f64,
-    /// Sweep the window model instead of comparing arms once.
-    context_sweep: bool,
     /// Prior episodes of `hive+` the `ladder+dir` arm earns its directory
     /// from, on the same room.
     history: u32,
@@ -247,6 +245,9 @@ enum Mode {
     Trace,
     /// Search the policy grid.
     Sweep,
+    /// Sweep the context-window model instead: who is still right when the
+    /// window is tight.
+    ContextSweep,
     /// Drive one episode through a real agent CLI or an HTTP backend.
     Live,
     /// Compare several desks solving one problem across channels.
@@ -281,7 +282,6 @@ impl Options {
             aside_cap: 1,
             context: 0,
             rot: 0.0,
-            context_sweep: false,
             history: 3,
             json: false,
             timeout: 180,
@@ -432,7 +432,7 @@ fn apply_expertise_flag(
                 .unwrap_or(0.0)
                 .clamp(0.0, 1.0);
         }
-        "--context-sweep" => options.context_sweep = true,
+        "--context-sweep" => options.mode = Mode::ContextSweep,
         "--history" => options.history = next_number(args).unwrap_or(3),
         "--cost-tiers" => options.cost = true,
         "--blind-evidence" => options.blind_evidence = true,
@@ -788,6 +788,7 @@ fn run(options: &Options) -> Result<(), String> {
         Mode::Compare => compare(options, &rooms),
         Mode::Trace => trace(&rooms, &options.policy),
         Mode::Sweep => sweep_policies(options, &rooms),
+        Mode::ContextSweep => sweep_context(options, &rooms),
         Mode::Live => live_episode(options),
     }
 }
@@ -1276,6 +1277,16 @@ fn trace(rooms: &[Room], policy: &EpisodePolicy) -> Result<(), String> {
         report.turns,
         if report.correct { "and" } else { "but not" },
     );
+    Ok(())
+}
+
+/// Charge every arm for the context it needs, and print who degrades first.
+fn sweep_context(options: &Options, rooms: &[Room]) -> Result<(), String> {
+    let wall = Instant::now();
+    let points = budget::sweep(rooms, &options.policy, TASK, options.aside_cap)?;
+    let wall = wall.elapsed();
+    print!("{}", budget::render(&points, rooms.len()));
+    println!("\nswept in {:.2} s", wall.as_secs_f64());
     Ok(())
 }
 
