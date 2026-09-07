@@ -196,7 +196,7 @@ fn arbitrary_transcripts_have_stable_well_formed_and_idempotent_folds() {
 /// would carry real weight if the filter ever slipped.
 #[test]
 fn asides_interleaved_into_an_arbitrary_transcript_do_not_move_the_episode() {
-    let mut state = 0xc0_ffee_a51d_e5_u64;
+    let mut state = 0xc0ff_eea5_1de5_u64;
     let people = roster_members();
     let rooms = desks();
     let retired: Vec<String> = Vec::new();
@@ -226,7 +226,7 @@ fn asides_interleaved_into_an_arbitrary_transcript_do_not_move_the_episode() {
             interleaved.push(message.clone());
             // Not every turn carries one, so runs of desk rows are covered
             // too.
-            if next(&mut state) % 3 == 0 {
+            if next(&mut state).is_multiple_of(3) {
                 continue;
             }
             let members: Vec<String> = MEMBERS
