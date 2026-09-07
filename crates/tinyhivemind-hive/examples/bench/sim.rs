@@ -1164,6 +1164,7 @@ impl SimAgent {
                 if !self.ruled_out.contains(&topic) {
                     self.ruled_out.push(topic.clone());
                 }
+                self.recompute_favourite();
             } else {
                 self.import(&topic, reading);
             }
