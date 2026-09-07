@@ -14,8 +14,17 @@
 > matched-turn control and the free ceiling this note lists as missing. The
 > results here stand; the *explanation* of the hidden-profile loss below does
 > not, and is retracted there. In short: the loss is the turns, the same
-> exchange held off the floor gains `+3.0 [+2.0, +4.0]`, and free peer
-> information is worth `+21.2 [+19.2, +23.2]`.
+> exchange held off the floor gains `+4.9 [+3.7, +6.0]`, and free peer
+> information is worth `+30.8 [+28.7, +32.9]`.
+>
+> **Q3's answer below is also superseded.** `View::grounded_by` did not aim at
+> anything at the time this note measured `hive+aside!` — it returned the
+> first `!evidence` author on the topic rather than the one grounding it. Fixed
+> to prefer a refuting depositor, aiming changes the result: `hive+aside!`
+> reaches the fact-holder and loses `-17.1`, worse than every matched-turn
+> arm including `hive+mute`. "Aiming it changes nothing" was measuring an arm
+> that never aimed; see the "Two defects found on the way" section of the
+> linked note.
 
 The spec's acceptance criteria say the mechanism must be allowed to lose and
 that the loss must be published. It lost.
