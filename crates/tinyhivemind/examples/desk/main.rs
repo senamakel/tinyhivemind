@@ -548,12 +548,26 @@ async fn main() -> Result<(), BoxError> {
                  not finish, which files you wrote, and the one seat you need \
                  next - that seat named first.\n\n{prompt}"
             );
-            let landed = runner.run(
+            let mut landed = runner.run(
                 &landing,
                 &format!("turn-{turns:03}-{}-landing", seat.id),
                 LANDING_TIMEOUT,
                 output.session.as_deref().or(resumed.as_deref()),
             )?;
+            if !landed.posted && landed.tokens == 0 {
+                // Nothing at all came back — no events, no complaint. Resuming
+                // a session whose process was killed exits silently, and a
+                // landing that cannot start is a landing that cannot save. Try
+                // again on a fresh session: it loses the seat's working
+                // context, which is the lesser of the two losses.
+                println!("   landing on the resumed session produced nothing; retrying fresh");
+                landed = runner.run(
+                    &landing,
+                    &format!("turn-{turns:03}-{}-landing-fresh", seat.id),
+                    LANDING_TIMEOUT,
+                    None,
+                )?;
+            }
             tokens += landed.tokens;
             if let Some(id) = landed.session.clone() {
                 sessions.insert(seat.id.clone(), id);
