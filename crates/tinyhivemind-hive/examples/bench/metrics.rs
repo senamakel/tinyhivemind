@@ -76,7 +76,8 @@ pub(crate) struct Aggregate {
     /// Total cost, in [`crate::run::Participant::cost_unit`] units, spent
     /// across the sample.
     pub(crate) cost_units: u64,
-    /// Private rows written off the floor, summed across the sample.
+    /// Model calls made in off-floor exchange rounds, summed across the
+    /// sample.
     ///
     /// Each one is a model call the room paid for and the deliberation's turn
     /// count does not show. The spec for the mechanism requires it be
@@ -251,10 +252,11 @@ impl Aggregate {
         ratio(self.cost_units, self.episodes.into())
     }
 
-    /// Private rows written off the floor per episode.
+    /// Model calls made in off-floor exchange rounds per episode.
     ///
-    /// The price of an off-floor exchange, in model calls the turn count does
-    /// not show.
+    /// The price of an off-floor exchange, in calls the turn count does not
+    /// show. Counted as members *asked*, not rows written: a member that
+    /// declines costs the same call as one that answers.
     pub(crate) fn contacts_per_episode(&self) -> f64 {
         ratio(self.contacts, self.episodes.into())
     }
@@ -377,7 +379,7 @@ pub(crate) fn detail_header() -> String {
         "defers/ep",
         "route %",
         "cost/ep",
-        "private/ep",
+        "calls/ep",
         "rho",
     )
 }
