@@ -832,6 +832,15 @@ pub(crate) struct SimAgent {
     /// Options a private exchange has told this member are ruled out. Read by
     /// [`Self::score`], and by nothing the room counts.
     ruled_out: Vec<TopicId>,
+    /// Whether the turn this member has just composed was a real contribution
+    /// rather than [`NONCOMPLIANCE`] filler.
+    ///
+    /// Read only by the alongside arm, so a member drifting through a turn
+    /// does not also open a private check on it. Without it the two halves of
+    /// the same experiment would differ in a second way: an on-floor check
+    /// never happens on a noncompliant turn either, because `compose` returns
+    /// before reaching one.
+    complied: bool,
     /// Sequences of exchanges this member has already answered or folded in,
     /// so neither is done twice.
     handled: Vec<Sequence>,
@@ -951,6 +960,7 @@ impl SimAgent {
             aside_cap: 0,
             asides_spent: 0,
             style: CheckStyle::PLAIN,
+            complied: false,
             ruled_out: Vec::new(),
             handled: Vec::new(),
             favourite,
@@ -1252,11 +1262,13 @@ impl SimAgent {
         // that is the difference between benchmarking the protocol and
         // benchmarking a formatter.
         if self.rng.chance(NONCOMPLIANCE) {
+            self.complied = false;
             return format!(
                 "Thinking about this; {} still looks strongest to me.",
                 self.favourite
             );
         }
+        self.complied = true;
 
         // A pairwise check, and the three parts of it. Every one of them reads
         // the transcript the library authorized this turn to see, so under a
@@ -1872,6 +1884,23 @@ impl crate::run::Participant for SimAgent {
 
     fn speak(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Result<String, String> {
         Ok(self.compose(turn, visible))
+    }
+
+    fn aside(&mut self, _turn: &HiveTurn, visible: &[SessionMessage]) -> Option<String> {
+        // The same three parts `check` runs, minus the absorb `compose` has
+        // already done on this turn: answer whoever asked, and otherwise ask.
+        // The difference is only where the line goes — a second row on this
+        // turn rather than this turn's only row.
+        if !self.style.alongside || !self.complied || self.aside_cap == 0 {
+            return None;
+        }
+        if let Some(line) = self.answer_check(visible) {
+            return Some(line);
+        }
+        let view = View::fold(visible, self.quorum);
+        let line = self.open_check(visible, &view)?;
+        self.asides_spent = self.asides_spent.saturating_add(1);
+        Some(line)
     }
 
     fn cost_unit(&self) -> u32 {
