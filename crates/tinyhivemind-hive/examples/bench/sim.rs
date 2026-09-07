@@ -1072,6 +1072,19 @@ impl SimAgent {
             );
         }
 
+        if std::env::var("TINYHIVEMIND_ASIDE_DEPOSIT_FIRST").is_ok() {
+        // The evidence-first opening: while nobody can read anybody, say what
+            // you know rather than what you want. This is the whole of
+            // `--blind-evidence` on the writing side, and the module docs say why
+            // it is a participant policy rather than something the library could
+            // impose.
+            if self.blind_evidence
+                && turn.visibility == Visibility::Blind
+                && let Some(line) = self.opening_deposit(&view)
+            {
+                return line;
+            }
+        }
         // A pairwise check, and the three parts of it. Every one of them reads
         // the transcript the library authorized this turn to see, so under a
         // private exchange a member outside it parses a stub and takes
