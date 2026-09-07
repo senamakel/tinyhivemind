@@ -1124,11 +1124,6 @@ impl SimAgent {
         });
     }
 
-    /// How many rows this member is currently carrying, before compaction.
-    pub(crate) fn context_rows(&self) -> usize {
-        self.context.len()
-    }
-
     /// This member's score for one option, read through its window.
     ///
     /// Only reached when a budget is set. Each surviving row contributes at the
