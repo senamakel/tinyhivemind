@@ -1141,6 +1141,10 @@ impl SimAgent {
     /// weight its position earns, so a reading buried in the middle of a
     /// crowded window is worth a fraction of the same reading at the edge of a
     /// quiet one, and a row evicted by compaction is worth nothing at all.
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "a weighted mean of readings is bounded by the readings, which are i32"
+    )]
     fn windowed_score(&self, topic: &TopicId, own: i32) -> i32 {
         let kept = self.budget.retained(self.context.len());
         let held = kept.len();
