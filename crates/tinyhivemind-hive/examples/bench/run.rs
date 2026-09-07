@@ -61,6 +61,18 @@ pub(crate) trait Participant {
         None
     }
 
+    /// One private line this participant sends in an **exchange round**,
+    /// holding no floor and taking no turn.
+    ///
+    /// Distinct from [`Participant::aside`] because the contracts differ: an
+    /// aside rides on a turn this member is already taking, while this is
+    /// asked of a member the library named in a round it is not otherwise
+    /// part of. Returning `None` — the default — declines the round.
+    fn exchange(&mut self, visible: &[SessionMessage]) -> Option<String> {
+        let _ = visible;
+        None
+    }
+
     /// What one of this participant's turns costs, for the vote arm's charge
     /// and a deliberation's own `cost_units` total. A live agent costs the
     /// same as any other by default.
@@ -610,6 +622,64 @@ pub(crate) fn drive(
     keep_trace: bool,
 ) -> Result<EpisodeReport, String> {
     drive_with(member_ids, agents, policy, task, keep_trace, AsideMode::Off)
+}
+
+/// The exchange policy an off-floor arm runs under.
+///
+/// `contact_cap` is `--aside-cap`, so the off-floor arm and the arms that ride
+/// alongside a turn are bounded by the same number and differ in where the row
+/// goes rather than in how many there are. `round_cap` is the episode's turn
+/// budget, because the harness opens at most one round per turn — so the
+/// contact cap is what actually binds, and the round cap is the belt to its
+/// braces.
+fn exchange_policy(contact_cap: u32, round_cap: u32) -> ExchangePolicy {
+    ExchangePolicy {
+        enabled: true,
+        contact_cap,
+        round_cap,
+    }
+}
+
+/// Run one exchange round, and return how many private rows it wrote.
+///
+/// Each member the library named is asked for one line, over a projection
+/// built at **the visibility the last turn ran under** — so a round during the
+/// blind phase still cannot show a member its peers' desk rows, and ADR 0005's
+/// blind round is worth exactly what it was worth before. An audience the
+/// `aside` fold will not make private is dropped rather than published.
+fn exchange_round(
+    host: &mut Host,
+    agents: &mut [&mut dyn Participant],
+    last: &HiveTurn,
+    round: &ExchangeRound,
+    policy: AsidePolicy,
+) -> u32 {
+    let ExchangeRound::Open { members, .. } = round else {
+        return 0;
+    };
+    let mut written = 0_u32;
+    for member in members {
+        // The turn-holder's own projection, addressed to this member: same
+        // visibility, same watermark, this reader's audience.
+        let as_member = HiveTurn {
+            agent_id: member.clone(),
+            ..last.clone()
+        };
+        let visible = project_for(&as_member, &host.journal);
+        let Some(agent) = agents.iter_mut().find(|agent| agent.id() == member) else {
+            continue;
+        };
+        let Some(line) = agent.exchange(&visible) else {
+            continue;
+        };
+        let audience = audience_for(AsideMode::OffFloor, host, member, &line, policy);
+        if audience.is_desk() {
+            continue;
+        }
+        host.agent_to(member, line, audience);
+        written = written.saturating_add(1);
+    }
+    written
 }
 
 /// The aside policy every arm that opens a check runs under.
