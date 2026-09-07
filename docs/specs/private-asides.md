@@ -240,10 +240,17 @@ authorizes and stores; there is no new port and no new idempotency boundary.
 
 An aside costs no turn. One authorized turn produces the member's ordinary
 desk-visible contribution and, optionally, one aside row: a host appends both
-and commits the state the turn returned, exactly once. The episode cannot tell,
-because `live_traces` drops a non-desk row before it reaches a trace, a
-standing, the sequence they fold at, or the floor, and `spent` counts turns
-rather than rows.
+and commits the state the turn returned, exactly once. The episode cannot vote
+it, because `live_traces` drops a non-desk row before it reaches a trace or a
+standing, and `spent` counts turns rather than rows.
+
+It is not free of a sequence. Sequence numbers are unique across the one
+shared journal, so the aside row still takes the next one, and every later
+desk row lands at a higher raw sequence than it would have without the aside.
+`salience::standing` scores recency from that raw distance, and salience feeds
+the floor-holder choice — so "the episode cannot tell" covers votes, standings
+and `spent`, but not the decay a busier journal produces. See the "Known
+limitation" note on [ADR 0011](../adr/0011-an-aside-rides-alongside-a-turn.md).
 
 Three bounds hold, and they are what keep this inside the charter's third rule:
 
