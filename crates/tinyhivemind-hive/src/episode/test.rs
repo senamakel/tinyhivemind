@@ -1255,8 +1255,8 @@ fn shifting_desk_sequences_past_a_private_row_can_change_the_step() {
             .filter(|message| message.audience.is_desk())
             .last()
             .map_or(Sequence(0), |message| message.sequence);
-        let traces = read(&live_desk_rows(transcript));
-        standings(&traces, at, &policy.quorum).expect("valid policy")
+        let traces = crate::trace::read(&live_desk_rows(transcript));
+        crate::quorum::standings(&traces, at, &policy.quorum).expect("valid policy")
     };
 
     // The proposal is still inside a two-sequence window in the tight
