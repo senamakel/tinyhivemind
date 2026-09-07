@@ -180,6 +180,77 @@ fn arbitrary_transcripts_have_stable_well_formed_and_idempotent_folds() {
     }
 }
 
+/// An aside interleaved anywhere in an arbitrary transcript leaves `step`
+/// exactly where it was.
+///
+/// The order-independence above is idempotence under redelivery and
+/// reordering. This is a different property and the one a concurrent aside
+/// rests on: **addition**. A host that appends a private row alongside the
+/// turn that authored it must not be able to move the floor, the standings,
+/// the sequence they fold at, the phase, or the budget — whatever that row
+/// says, and however many of them there are. `live_traces` drops a non-desk
+/// row before any of that, and `spent` counts turns rather than rows.
+///
+/// The aside rows carry the *same* fuzzed grammar as the desk rows, so the
+/// corpus includes private `!propose`, `!support` and `!commit` lines that
+/// would carry real weight if the filter ever slipped.
+#[test]
+fn asides_interleaved_into_an_arbitrary_transcript_do_not_move_the_episode() {
+    let mut state = 0xc0_ffee_a51d_e5_u64;
+    let people = roster_members();
+    let rooms = desks();
+    let retired: Vec<String> = Vec::new();
+    let roster = Roster::new(&people, &[], &retired);
+    let desk_set = DeskSet::new(&rooms, &[], &[], &[], &retired);
+    let episode = EpisodePolicy {
+        directory: Some(DirectoryPolicy::DEFAULT),
+        defer_cap: Some(2),
+        ..EpisodePolicy::DEFAULT
+    };
+
+    for case in 0..256_u64 {
+        // Desk rows on even sequences, so an aside always has an odd sequence
+        // of its own to land on between two of them.
+        let desk: Vec<SessionMessage> = (0..8_u64)
+            .map(|index| SessionMessage {
+                sequence: Sequence(case * 32 + index * 2),
+                author: author(index),
+                content: content(&mut state),
+                audience: Audience::Desk,
+                elided: None,
+            })
+            .collect();
+
+        let mut interleaved: Vec<SessionMessage> = Vec::new();
+        for (index, message) in desk.iter().enumerate() {
+            interleaved.push(message.clone());
+            // Not every turn carries one, so runs of desk rows are covered
+            // too.
+            if next(&mut state) % 3 == 0 {
+                continue;
+            }
+            let members: Vec<String> = MEMBERS
+                .iter()
+                .skip(usize::try_from(next(&mut state) % 4).expect("bounded index"))
+                .take(2)
+                .map(|id| (*id).to_owned())
+                .collect();
+            interleaved.push(SessionMessage {
+                sequence: Sequence(case * 32 + index as u64 * 2 + 1),
+                author: message.author.clone(),
+                content: content(&mut state),
+                audience: Audience::Aside { members },
+                elided: None,
+            });
+        }
+
+        assert_eq!(
+            step(&opened(), &desk, &roster, &desk_set, &episode).expect("valid policy"),
+            step(&opened(), &interleaved, &roster, &desk_set, &episode).expect("valid policy"),
+        );
+    }
+}
+
 /// The four agents the corpus authors as, as a roster.
 fn roster_members() -> Vec<RosterMember> {
     MEMBERS
