@@ -8,10 +8,11 @@
 use std::time::{Duration, Instant};
 
 use tinyhivemind_hive::{
-    BidReason, Conversation, Directory, DirectoryPolicy, EpisodePolicy, EpisodeState, HiveStep,
-    HiveTurn, Phase, Sequence, SessionAuthor, SessionMessage,
+    BidReason, Conversation, Directory, DirectoryPolicy, EpisodePolicy, EpisodeState,
+    ExchangePolicy, ExchangeRound, ExchangeState, HiveStep, HiveTurn, Phase, Sequence,
+    SessionAuthor, SessionMessage,
     desk::{Desk, DeskSet, ResponderMode},
-    directory, project_for,
+    directory, exchange, project_for,
     roster::{Roster, RosterMember},
     step,
     trace::{TopicId, Trace, TraceKind, resolve},
@@ -58,6 +59,18 @@ pub(crate) trait Participant {
     /// them cost its author a turn it had won anyway.
     fn aside(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Option<String> {
         let _ = (turn, visible);
+        None
+    }
+
+    /// One private line this participant sends in an **exchange round**,
+    /// holding no floor and taking no turn.
+    ///
+    /// Distinct from [`Participant::aside`] because the contracts differ: an
+    /// aside rides on a turn this member is already taking, while this is
+    /// asked of a member the library named in a round it is not otherwise
+    /// part of. Returning `None` — the default — declines the round.
+    fn exchange(&mut self, visible: &[SessionMessage]) -> Option<String> {
+        let _ = visible;
         None
     }
 
@@ -113,7 +126,20 @@ pub(crate) struct EpisodeReport {
     /// Calls into [`step`], including the terminal one.
     pub(crate) step_calls: u32,
     /// Time spent inside the library, excluding the simulated agents.
+    ///
+    /// Includes an off-floor exchange round's own library time (see
+    /// [`crate::metrics::Aggregate::episodes_per_second`], which wants the
+    /// full library cost a host would pay), but **not** [`Self::step_time`],
+    /// which [`crate::metrics::Aggregate::nanos_per_step`] divides by
+    /// [`Self::step_calls`] and must stay one call to `step` for exactly one
+    /// unit of time, matching the `ns/step` column's documented meaning.
     pub(crate) library_time: Duration,
+    /// Time spent inside [`step`] calls alone, excluding an exchange round's
+    /// own library time. The numerator `nanos_per_step` actually divides by
+    /// `step_calls` — kept separate from [`Self::library_time`] so an
+    /// off-floor arm's exchange rounds do not inflate its reported ns/step
+    /// against arms that never call `exchange`.
+    pub(crate) step_time: Duration,
     /// One line per turn, for the trace view.
     pub(crate) trace: Vec<String>,
     /// Author of the first `!propose` for the topic the episode decided.
@@ -148,6 +174,18 @@ pub(crate) struct EpisodeReport {
     /// The sum of every speaker's own `Participant::cost_unit` across every
     /// turn taken.
     pub(crate) cost_units: u64,
+    /// Model calls made **off the floor**, in exchange rounds.
+    ///
+    /// Members *asked* for a line, not rows appended: a member that declines
+    /// costs the same call as one that answers, and a round in which everybody
+    /// declines is the most expensive kind per row. Counting rows would report
+    /// a price lower than the one actually paid.
+    ///
+    /// Deliberately not folded into `cost_units`, which is defined as each
+    /// speaker's own cost times its turns and is asserted to be exactly that.
+    /// This is the separate price of an off-floor exchange, and the table
+    /// prints it in a column of its own so it cannot hide inside `cost/ep`.
+    pub(crate) contacts: u32,
     /// The turn index at which each agent id first deposited a topiced
     /// `!evidence` line, in first-depositing order.
     ///
@@ -312,6 +350,14 @@ pub(crate) enum AsideMode {
     Private,
     /// The identical exchange, in the open, where every member reads it.
     Public,
+    /// Members exchange privately **off the floor**, in rounds between turns.
+    ///
+    /// Nobody takes the floor and no turn is produced: the library's
+    /// [`exchange`] fold says whether a round is open and which members it
+    /// names, and each of them may append at most one private row. Bounded by
+    /// an [`ExchangePolicy`] the caller sets, and priced in the `private/ep`
+    /// column rather than hidden. See ADR 0012.
+    OffFloor,
     /// The private exchange again, **riding alongside** the floor move that
     /// authored it rather than replacing one.
     ///
@@ -350,8 +396,10 @@ fn audience_for(
     content: &str,
     policy: AsidePolicy,
 ) -> Audience {
-    if !matches!(mode, AsideMode::Private | AsideMode::Alongside)
-        || !content.trim_start().starts_with(ASIDE_MARKER)
+    if !matches!(
+        mode,
+        AsideMode::Private | AsideMode::Alongside | AsideMode::OffFloor
+    ) || !content.trim_start().starts_with(ASIDE_MARKER)
     {
         return Audience::Desk;
     }
@@ -446,6 +494,61 @@ pub(crate) fn run_episode_with(
     )
 }
 
+/// Run one full episode with an **off-floor exchange**: members contact each
+/// other in rounds between turns, taking no floor and producing no turn.
+///
+/// `contact_cap` is the number of private rows one member may write across the
+/// episode, and `0` disables the exchange entirely, leaving the episode
+/// bit-identical to a plain [`run_episode`]. The round cap is the turn budget,
+/// because the harness opens at most one round per turn.
+///
+/// `style` is what an answer carries: [`CheckStyle::EXCHANGE`] hands over every
+/// reading its author holds, and [`CheckStyle::QUIET`] writes the identical
+/// rows on the identical rounds and throws every answer away — the control that
+/// separates what an exchange said from what merely writing its rows does to a
+/// fold that reads recency off raw sequence distance.
+///
+/// # Errors
+///
+/// Returns the library's own error text if a snapshot or policy is malformed.
+pub(crate) fn run_episode_exchanging_with(
+    room: &Room,
+    policy: &EpisodePolicy,
+    task: &str,
+    keep_trace: bool,
+    contact_cap: u32,
+    style: CheckStyle,
+) -> Result<EpisodeReport, String> {
+    let ids = room.member_ids();
+    let mut agents: Vec<SimAgent> = room.agents.clone();
+    for agent in &mut agents {
+        agent.set_quorum(policy.quorum);
+        agent.set_defer_cap(0);
+        // The cap on the participant side is the library's, so a member never
+        // wants a row the round would not have authorized.
+        agent.set_aside_cap(contact_cap, style);
+        agent.set_peers(&ids);
+    }
+    let mut participants: Vec<&mut dyn Participant> = agents
+        .iter_mut()
+        .map(|agent| agent as &mut dyn Participant)
+        .collect();
+    let report = drive_with(
+        &ids,
+        &mut participants,
+        policy,
+        task,
+        keep_trace,
+        if contact_cap == 0 {
+            AsideMode::Off
+        } else {
+            AsideMode::OffFloor
+        },
+        exchange_policy(contact_cap, policy.turn_budget),
+    )?;
+    Ok(scored(room, report))
+}
+
 /// Run one full episode, letting every member spend up to `aside_cap` turns
 /// asking one peer for a second reading before it commits to a position.
 ///
@@ -492,11 +595,20 @@ pub(crate) fn run_episode_checking(
         task,
         keep_trace,
         aside_mode,
+        // The checking arms take no off-floor round; their private rows ride
+        // alongside a turn or replace one.
+        ExchangePolicy::DEFAULT,
     )?;
 
-    // `drive` stays ignorant of which member is an expert or a decisive
-    // hidden-profile holder; only the room knows that, and only after the
-    // episode has already ended is it safe to ask.
+    Ok(scored(room, report))
+}
+
+/// Fill in the fields only the room can answer, once the episode has ended.
+///
+/// `drive` stays ignorant of which member is an expert or a decisive
+/// hidden-profile holder; only the room knows that, and only after the episode
+/// has already decided is it safe to ask.
+fn scored(room: &Room, report: EpisodeReport) -> EpisodeReport {
     let expert = room.deciding_expert();
     // In time, or not at all. A deposit at or after the commit boundary is
     // compute the room paid for and could not use, and scoring it as a hit
@@ -519,8 +631,8 @@ pub(crate) fn run_episode_checking(
         fact_at,
         ..report
     };
-    debug_check(&report, &ids, room);
-    Ok(report)
+    debug_check(&report, &room.member_ids(), room);
+    report
 }
 
 /// Cheap consistency checks over a freshly built report, active only in
@@ -595,7 +707,185 @@ pub(crate) fn drive(
     task: &str,
     keep_trace: bool,
 ) -> Result<EpisodeReport, String> {
-    drive_with(member_ids, agents, policy, task, keep_trace, AsideMode::Off)
+    drive_with(
+        member_ids,
+        agents,
+        policy,
+        task,
+        keep_trace,
+        AsideMode::Off,
+        ExchangePolicy::DEFAULT,
+    )
+}
+
+/// The exchange policy an off-floor arm runs under.
+///
+/// `contact_cap` is `--aside-cap`, so the off-floor arm and the arms that ride
+/// alongside a turn are bounded by the same number and differ in where the row
+/// goes rather than in how many there are. `round_cap` is the episode's turn
+/// budget, because the harness opens at most one round per turn — so the
+/// contact cap is what actually binds, and the round cap is the belt to its
+/// braces.
+fn exchange_policy(contact_cap: u32, round_cap: u32) -> ExchangePolicy {
+    ExchangePolicy {
+        enabled: true,
+        contact_cap,
+        round_cap,
+    }
+}
+
+/// One line of the `--trace` view: who spoke, why, under what visibility and
+/// phase, how much they were shown, and what they said.
+fn trace_line(turn: &HiveTurn, content: &str, saw: usize) -> String {
+    format!(
+        "{:>10}  {:<10} {:<6} {:<11} saw {saw:>2}  {content}",
+        turn.agent_id,
+        format!("{:?}", turn.reason).to_lowercase(),
+        format!("{:?}", turn.visibility).to_lowercase(),
+        format!("{:?}", turn.phase).to_lowercase(),
+    )
+}
+
+/// Append one authorized turn, and the private row riding alongside it.
+///
+/// Durably append the turn, then the caller commits the state it returned:
+/// that ordering is what the `next_state` contract requires. The aside is
+/// appended *after* the floor move, so the desk-visible row is what a reader
+/// meets first, and it cannot buy the room a vote — `spent` is already fixed in
+/// `turn.next_state`, and `live_traces` drops a non-desk row before it can
+/// reach a trace or a standing.
+///
+/// It does spend a **sequence**, though: the next desk turn lands one raw
+/// sequence higher than it would have without the row, and
+/// `salience::standing` reads recency as a raw sequence distance. So a private
+/// row does perturb which member the attention market hands the floor to next,
+/// even though it moves nothing the room counts. See the "Known limitation"
+/// note on ADR 0011, and `hive+quiet`, the control that measures it.
+fn append_turn(
+    host: &mut Host,
+    turn: &HiveTurn,
+    content: String,
+    private: Option<String>,
+    mode: AsideMode,
+    members: usize,
+) {
+    let policy = aside_policy(members);
+    let audience = audience_for(mode, host, &turn.agent_id, &content, policy);
+    host.agent_to(&turn.agent_id, content, audience);
+    let Some(line) = private else {
+        return;
+    };
+    let audience = audience_for(AsideMode::Alongside, host, &turn.agent_id, &line, policy);
+    // A refused audience would put the line on the desk, where it would be a
+    // second floor contribution on one turn. The safe direction here is the
+    // opposite one: drop it.
+    if !audience.is_desk() {
+        host.agent_to(&turn.agent_id, line, audience);
+    }
+}
+
+/// Ask the library for a round and run it, returning the rows written and the
+/// time spent inside the library.
+///
+/// Split out of [`drive_with`] so the step loop stays readable and so the
+/// library call is timed the same way [`step`] is.
+///
+/// # Errors
+///
+/// Returns the library's own error text if a snapshot is malformed.
+fn one_exchange(
+    host: &mut Host,
+    agents: &mut [&mut dyn Participant],
+    last: &HiveTurn,
+    state: &EpisodeState,
+    policy: &ExchangePolicy,
+    opened: ExchangeState,
+    members: usize,
+) -> Result<(Round, Duration), String> {
+    let started = Instant::now();
+    let round = {
+        let roster = host.roster();
+        let desks = host.desks();
+        exchange(policy, state, opened, &host.journal, &roster, &desks)
+            .map_err(|error| error.to_string())?
+    };
+    let mut library = started.elapsed();
+    let next = match &round {
+        ExchangeRound::Open { next, .. } => *next,
+        ExchangeRound::Closed { .. } => opened,
+    };
+    let ran = exchange_round(
+        host,
+        agents,
+        last,
+        &round,
+        aside_policy(members),
+        &mut library,
+    );
+    Ok((Round { next, ..ran }, library))
+}
+
+/// What one exchange round did.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Round {
+    /// Members actually asked for a line — the model calls this round paid for,
+    /// whether or not the member had anything to say.
+    pub(crate) calls: u32,
+    /// Private rows appended.
+    pub(crate) rows: u32,
+    /// The exchange state to carry into the next round.
+    pub(crate) next: ExchangeState,
+}
+
+/// Run one exchange round, and return how many private rows it wrote.
+///
+/// Each member the library named is asked for one line, over a projection
+/// built at **the visibility the last turn ran under** — so a round during the
+/// blind phase still cannot show a member its peers' desk rows, and ADR 0005's
+/// blind round is worth exactly what it was worth before. An audience the
+/// `aside` fold will not make private is dropped rather than published.
+fn exchange_round(
+    host: &mut Host,
+    agents: &mut [&mut dyn Participant],
+    last: &HiveTurn,
+    round: &ExchangeRound,
+    policy: AsidePolicy,
+    library: &mut Duration,
+) -> Round {
+    let ExchangeRound::Open { members, .. } = round else {
+        return Round::default();
+    };
+    let mut ran = Round::default();
+    for member in members {
+        // The turn-holder's own projection, addressed to this member: same
+        // visibility, same watermark, this reader's audience.
+        let as_member = HiveTurn {
+            agent_id: member.clone(),
+            ..last.clone()
+        };
+        let started = Instant::now();
+        let visible = project_for(&as_member, &host.journal);
+        *library += started.elapsed();
+        let Some(agent) = agents.iter_mut().find(|agent| agent.id() == member) else {
+            continue;
+        };
+        // Asked, and therefore paid for, whether or not it answers. This is
+        // the number the price column reports: a declined round costs the same
+        // calls as a productive one.
+        ran.calls = ran.calls.saturating_add(1);
+        let Some(line) = agent.exchange(&visible) else {
+            continue;
+        };
+        let started = Instant::now();
+        let audience = audience_for(AsideMode::OffFloor, host, member, &line, policy);
+        *library += started.elapsed();
+        if audience.is_desk() {
+            continue;
+        }
+        host.agent_to(member, line, audience);
+        ran.rows = ran.rows.saturating_add(1);
+    }
+    ran
 }
 
 /// The aside policy every arm that opens a check runs under.
@@ -628,14 +918,21 @@ pub(crate) fn drive_with(
     task: &str,
     keep_trace: bool,
     aside_mode: AsideMode,
+    exchange: ExchangePolicy,
 ) -> Result<EpisodeReport, String> {
     let mut host = Host::new(member_ids);
     host.operator(task);
 
     let mut state = EpisodeState::opened(host.conversation(), host.watermark());
     let mut library_time = Duration::ZERO;
+    let mut step_time = Duration::ZERO;
     let mut step_calls = 0_u32;
     let mut turns = 0_u32;
+    // Calls made in exchange rounds, and the round count carried across them.
+    // The count is the host's because a round nobody wrote in leaves no row to
+    // fold it back out of, and that round still cost its calls.
+    let mut contacts = 0_u32;
+    let mut opened = ExchangeState::opened();
     let mut trace = Vec::new();
     let mut tally = Tally::opened(member_ids);
 
@@ -646,7 +943,9 @@ pub(crate) fn drive_with(
             let desks = host.desks();
             step(&state, &host.journal, &roster, &desks, policy)
         };
-        library_time += started.elapsed();
+        let elapsed = started.elapsed();
+        library_time += elapsed;
+        step_time += elapsed;
         step_calls = step_calls.saturating_add(1);
 
         let (ending, decided) = match decision.map_err(|error| error.to_string())? {
@@ -658,16 +957,6 @@ pub(crate) fn drive_with(
                     return Err(format!("no agent named {}", turn.agent_id));
                 };
                 let content = agent.speak(&turn, &visible)?;
-                if keep_trace {
-                    trace.push(format!(
-                        "{:>10}  {:<10} {:<6} {:<11} saw {:>2}  {content}",
-                        turn.agent_id,
-                        format!("{:?}", turn.reason).to_lowercase(),
-                        format!("{:?}", turn.visibility).to_lowercase(),
-                        format!("{:?}", turn.phase).to_lowercase(),
-                        visible.len(),
-                    ));
-                }
                 // An alongside aside is asked for over the same projection the
                 // floor move was composed from, before either row is appended,
                 // so the private line sees exactly what the public one saw.
@@ -676,34 +965,30 @@ pub(crate) fn drive_with(
                 } else {
                     None
                 };
-                tally.record(&turn, &content, agent.cost_unit(), turns);
-                let policy = aside_policy(member_ids.len());
-                let audience = audience_for(aside_mode, &host, &turn.agent_id, &content, policy);
-                // Durably append the turn, then commit the state it returned.
-                // That ordering is what the `next_state` contract requires.
-                host.agent_to(&turn.agent_id, content, audience);
-                // The aside rides along: one more row on the same turn, at the
-                // next sequence, addressed privately. It is appended *after*
-                // the floor move so the desk-visible row is what a reader meets
-                // first. `spent` is already fixed in `turn.next_state`, and
-                // `live_traces` drops a non-desk row before it can reach a
-                // trace or a standing, so this cannot buy the room a vote.
-                // It does spend a sequence: the next desk turn lands one raw
-                // sequence higher than it would have without this row, which
-                // `salience::standing`'s sequence-distance decay reads. See
-                // the "Known limitation" note on ADR 0011.
-                if let Some(line) = private {
-                    let audience =
-                        audience_for(AsideMode::Alongside, &host, &turn.agent_id, &line, policy);
-                    // A refused audience would put the line on the desk, where
-                    // it would be a second floor contribution on one turn. The
-                    // safe direction here is the opposite one: drop it.
-                    if !audience.is_desk() {
-                        host.agent_to(&turn.agent_id, line, audience);
-                    }
+                if keep_trace {
+                    trace.push(trace_line(&turn, &content, visible.len()));
                 }
+                tally.record(&turn, &content, agent.cost_unit(), turns);
+                let members = member_ids.len();
+                append_turn(&mut host, &turn, content, private, aside_mode, members);
+                // Kept for the exchange round below, which projects the
+                // journal for each named member at this turn's visibility.
+                let last = turn.clone();
                 state = turn.next_state;
                 turns = turns.saturating_add(1);
+
+                // An exchange round, between turns and never during one. The
+                // library says whether one is open and who it names; the
+                // episode's own state is already committed and does not move
+                // for any of it.
+                if aside_mode == AsideMode::OffFloor {
+                    let members = member_ids.len();
+                    let (ran, spent) =
+                        one_exchange(&mut host, agents, &last, &state, &exchange, opened, members)?;
+                    contacts = contacts.saturating_add(ran.calls);
+                    opened = ran.next;
+                    library_time += spent;
+                }
                 continue;
             }
             HiveStep::Converged { topic, .. } => (Ending::Converged, Some(topic)),
@@ -739,6 +1024,7 @@ pub(crate) fn drive_with(
             turns,
             step_calls,
             library_time,
+            step_time,
             trace,
             proposer,
             has_expert: false,
@@ -749,6 +1035,7 @@ pub(crate) fn drive_with(
             knows_turns: tally.knows_turns,
             speech: tally.speech,
             cost_units: tally.cost_units,
+            contacts,
             first_deposit: tally.first_deposit,
             commit_at: tally.commit_at,
             first_spoke: tally.first_spoke,

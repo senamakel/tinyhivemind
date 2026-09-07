@@ -101,10 +101,23 @@ decay of older traces relative to that control. The fuzz invariant above holds
 this fixed by giving both transcripts it compares the same desk sequence
 numbers, so it correctly proves the aside cannot buy a vote; it does not, and
 was never meant to, prove the live per-episode sequence numbering is
-unaffected. The `hive+along` and `hive+share` figures below are real
-measurements of the code as it runs today, confound included; this note
-records the confound rather than correcting for it, because the size and
-direction of its effect on the reported gain have not been isolated.
+unaffected. `QuorumPolicy::window` reads the same raw
+distance (`crates/tinyhivemind-hive/src/quorum/mod.rs`), so with a tight enough
+window a support can age out of it purely because an aside was written —
+demonstrated at `window: 2` by
+`episode::test::shifting_desk_sequences_past_a_private_row_can_change_the_step`.
+
+The size of that effect has since been isolated rather than left open.
+`hive+hush` and `hive+quiet` write the identical rows on the identical schedule
+and discard every answer, so whatever they move is the sequence shift alone.
+Both are `+0.0 [+0.0, +0.0]` in every configuration, at up to forty-five model calls
+an episode — so the confound is real in principle and empirically empty at the
+default policy, whose window of 100 is an order of magnitude larger than the
+rows written between two desk turns. The `hive+along` and `hive+share` figures
+are therefore information rather than artifact. A host running tight windows,
+or writing far more private rows per turn, should re-measure; removing the
+caveat outright means measuring decay and windows in desk-visible rows, which
+is a change to two folds and needs its own decision.
 
 **A free row makes continuous exchange affordable, and that is worth more than
 one question.** Once a contact costs no turn, a member can contact a peer on

@@ -35,3 +35,5 @@ See [`example-retry-policy.md`](example-retry-policy.md) for a test-first sample
   and atomic enqueue port.
 - [`hive-mind.md`](hive-mind.md) — P8 the `tinyhivemind-hive` crate and its
   deliberation episode.
+- [`off-floor-exchange.md`](off-floor-exchange.md) — private exchange that takes
+  no floor, bounded by a host-set budget in model calls.

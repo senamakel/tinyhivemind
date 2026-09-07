@@ -897,6 +897,13 @@ pub(crate) enum Payload {
     /// A reading of *every* option, and any fact — what a contact transfers in
     /// the biology, and what only a row that costs no turn can afford.
     Everything,
+    /// [`Payload::Everything`] written and then thrown away by its reader.
+    ///
+    /// Byte-for-byte the same rows on the same rounds, consuming the same
+    /// sequence numbers, transferring nothing. The control that separates what
+    /// an off-floor exchange *says* from what merely writing its rows does to
+    /// a fold that reads recency off raw sequence distance.
+    Discarded,
 }
 
 /// What one arm's pairwise check does, beyond costing a turn.
@@ -955,6 +962,19 @@ impl CheckStyle {
         alongside: true,
         payload: Payload::Everything,
     };
+    /// The same rows on the same rounds, with every answer discarded.
+    ///
+    /// The control an off-floor exchange needs and an on-floor one does not.
+    /// A private row consumes a sequence number, and `salience::standing`
+    /// reads recency as a raw sequence distance — so writing twenty of them an
+    /// episode perturbs which member the attention market hands the floor to,
+    /// whatever they say. This arm writes them and says nothing, so whatever
+    /// it moves is that perturbation rather than information.
+    pub(crate) const QUIET: Self = Self {
+        informed: false,
+        alongside: true,
+        payload: Payload::Discarded,
+    };
 
     /// Whether an answer may carry the fact that rules an option out.
     pub(crate) const fn evidence(self) -> bool {
@@ -963,12 +983,16 @@ impl CheckStyle {
 
     /// Whether an answer is discarded rather than taken in.
     pub(crate) const fn mute(self) -> bool {
-        matches!(self.payload, Payload::Nothing)
+        matches!(self.payload, Payload::Nothing | Payload::Discarded)
     }
 
     /// Whether a contact happens every turn and carries every option.
+    ///
+    /// True of [`Payload::Discarded`] as well as [`Payload::Everything`]: the
+    /// control has to *write* the same rows to be a control, and differs only
+    /// in what its reader does with them.
     pub(crate) const fn exchange(self) -> bool {
-        matches!(self.payload, Payload::Everything)
+        matches!(self.payload, Payload::Everything | Payload::Discarded)
     }
 }
 
@@ -2039,6 +2063,34 @@ impl crate::run::Participant for SimAgent {
 
     fn speak(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Result<String, String> {
         Ok(self.compose(turn, visible))
+    }
+
+    fn exchange(&mut self, visible: &[SessionMessage]) -> Option<String> {
+        // No turn is being taken, so there is no `compose` to have absorbed
+        // first and no compliance draw to respect: a member asked in a round
+        // it is not otherwise part of reads what it can, then answers or asks.
+        if !self.style.alongside || self.aside_cap == 0 {
+            return None;
+        }
+        // A round during the blind phase shows this member no peer at all, so
+        // anything it wrote would sit unread until blindness lifted and every
+        // contact it spent doing so would be gone by then. Declining is what
+        // keeps a bounded budget for the turns that can actually use it —
+        // measured, not assumed: without this the arm spends its whole cap
+        // before the room can read a word of it.
+        if !visible.iter().any(
+            |message| matches!(&message.author, SessionAuthor::Agent { id, .. } if *id != self.id),
+        ) {
+            return None;
+        }
+        self.absorb(visible);
+        if let Some(line) = self.answer_check(visible) {
+            return Some(line);
+        }
+        let view = View::fold(visible, self.quorum);
+        let line = self.open_check(visible, &view)?;
+        self.asides_spent = self.asides_spent.saturating_add(1);
+        Some(line)
     }
 
     fn aside(&mut self, _turn: &HiveTurn, visible: &[SessionMessage]) -> Option<String> {
