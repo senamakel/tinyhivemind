@@ -1,0 +1,316 @@
+//! Unit tests for the off-floor exchange fold.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use super::*;
+
+use tinyhivemind::aside::Audience;
+use tinyhivemind::{
+    Conversation, Sequence,
+    desk::{Desk, DeskSet, ResponderMode},
+    roster::{Roster, RosterMember},
+};
+
+const MEMBERS: [&str; 3] = ["planner", "critic", "scout"];
+
+fn roster_members() -> Vec<RosterMember> {
+    MEMBERS
+        .iter()
+        .map(|id| RosterMember {
+            id: (*id).into(),
+            name: Some((*id).into()),
+        })
+        .collect()
+}
+
+fn desks() -> Vec<Desk> {
+    vec![Desk {
+        id: "engineering".into(),
+        name: "Engineering".into(),
+        description: None,
+        members: MEMBERS.iter().map(|id| (*id).to_owned()).collect(),
+        responder_mode: ResponderMode::Auto,
+    }]
+}
+
+fn state() -> EpisodeState {
+    EpisodeState::opened(
+        Conversation {
+            desk_id: "engineering".into(),
+            desk_name: "Engineering".into(),
+            thread_root: None,
+        },
+        Sequence(0),
+    )
+}
+
+/// One private row from `author` to `to`.
+fn private(sequence: u64, author: &str, to: &str) -> SessionMessage {
+    SessionMessage {
+        sequence: Sequence(sequence),
+        author: SessionAuthor::Agent {
+            id: author.into(),
+            label: author.into(),
+        },
+        content: format!("!aside @{to} Between us."),
+        audience: Audience::Aside {
+            members: vec![to.to_owned()],
+        },
+        elided: None,
+    }
+}
+
+/// One desk-visible row.
+fn said(sequence: u64, author: &str) -> SessionMessage {
+    SessionMessage {
+        audience: Audience::Desk,
+        content: "!propose #stage".into(),
+        ..private(sequence, author, "nobody")
+    }
+}
+
+fn open(policy: &ExchangePolicy, transcript: &[SessionMessage]) -> ExchangeRound {
+    let people = roster_members();
+    let rooms = desks();
+    let retired: Vec<String> = Vec::new();
+    exchange(
+        policy,
+        &state(),
+        transcript,
+        &Roster::new(&people, &[], &retired),
+        &DeskSet::new(&rooms, &[], &[], &[], &retired),
+    )
+    .expect("valid snapshots")
+}
+
+fn generous() -> ExchangePolicy {
+    ExchangePolicy {
+        enabled: true,
+        contact_cap: 2,
+        round_cap: 4,
+    }
+}
+
+#[test]
+fn the_default_policy_opens_no_round() {
+    // Off is the past, exactly: a host that has not asked for the mechanism
+    // gets an episode indistinguishable from one taken before it existed.
+    assert_eq!(
+        open(&ExchangePolicy::DEFAULT, &[]),
+        ExchangeRound::Closed {
+            reason: NoExchangeReason::Disabled,
+        }
+    );
+}
+
+#[test]
+fn a_zero_cap_closes_the_round_rather_than_erroring() {
+    // Unlike `defer_cap`, zero is a configuration a host may hold on purpose —
+    // it is how the budget runs out — so it closes the round rather than
+    // reporting a malformed policy.
+    for policy in [
+        ExchangePolicy {
+            contact_cap: 0,
+            ..generous()
+        },
+        ExchangePolicy {
+            round_cap: 0,
+            ..generous()
+        },
+        ExchangePolicy {
+            enabled: false,
+            ..generous()
+        },
+    ] {
+        assert_eq!(
+            open(&policy, &[]),
+            ExchangeRound::Closed {
+                reason: NoExchangeReason::Disabled,
+            }
+        );
+    }
+}
+
+#[test]
+fn an_open_round_names_every_active_member_in_desk_order() {
+    let ExchangeRound::Open { members, remaining } = open(&generous(), &[]) else {
+        panic!("expected an open round");
+    };
+    assert_eq!(members, MEMBERS.map(str::to_owned).to_vec());
+    // Three members with two contacts each, none spent.
+    assert_eq!(remaining, 6);
+}
+
+#[test]
+fn spend_is_read_back_out_of_the_transcript() {
+    // No counter is carried, so the only thing that can say what a member has
+    // spent is the log itself. A desk-visible row is not spend, and a private
+    // row is — whatever it says.
+    let transcript = vec![
+        said(1, "planner"),
+        private(2, "planner", "critic"),
+        private(3, "planner", "scout"),
+        private(4, "critic", "planner"),
+    ];
+    let ExchangeRound::Open { members, remaining } = open(&generous(), &transcript) else {
+        panic!("expected an open round");
+    };
+    // `planner` has spent both of its contacts and drops out; the others have
+    // one and two left.
+    assert_eq!(members, vec!["critic".to_owned(), "scout".to_owned()]);
+    assert_eq!(remaining, 3);
+}
+
+#[test]
+fn a_member_that_has_spent_its_cap_is_not_named_again() {
+    let policy = ExchangePolicy {
+        contact_cap: 1,
+        ..generous()
+    };
+    let transcript = vec![private(1, "planner", "critic")];
+    let ExchangeRound::Open { members, .. } = open(&policy, &transcript) else {
+        panic!("expected an open round");
+    };
+    assert!(!members.contains(&"planner".to_owned()));
+}
+
+#[test]
+fn a_round_closes_once_every_member_has_spent_its_cap() {
+    let policy = ExchangePolicy {
+        contact_cap: 1,
+        ..generous()
+    };
+    let transcript: Vec<SessionMessage> = MEMBERS
+        .iter()
+        .enumerate()
+        .map(|(index, id)| private(index as u64 + 1, id, "critic"))
+        .collect();
+    assert_eq!(
+        open(&policy, &transcript),
+        ExchangeRound::Closed {
+            reason: NoExchangeReason::ContactsSpent,
+        }
+    );
+}
+
+#[test]
+fn the_round_cap_bounds_the_episode_independently_of_the_contact_cap() {
+    // The two ceilings are independent: a generous per-member cap does not let
+    // a host run more rounds than it authorized. Rounds are counted by the
+    // busiest member, since a round gives each member at most one row.
+    let policy = ExchangePolicy {
+        enabled: true,
+        contact_cap: 10,
+        round_cap: 2,
+    };
+    let transcript = vec![
+        private(1, "planner", "critic"),
+        private(2, "planner", "scout"),
+    ];
+    assert_eq!(
+        open(&policy, &transcript),
+        ExchangeRound::Closed {
+            reason: NoExchangeReason::RoundsSpent,
+        }
+    );
+}
+
+#[test]
+fn rows_at_or_below_the_watermark_are_not_this_episodes_spend() {
+    // The watermark is what separates this episode from the conversation that
+    // led into it, for spend exactly as for votes.
+    let mut opened = state();
+    opened.watermark = Sequence(5);
+    let transcript = vec![private(1, "planner", "critic"), private(2, "planner", "scout")];
+    let people = roster_members();
+    let rooms = desks();
+    let retired: Vec<String> = Vec::new();
+    let round = exchange(
+        &ExchangePolicy {
+            contact_cap: 1,
+            ..generous()
+        },
+        &opened,
+        &transcript,
+        &Roster::new(&people, &[], &retired),
+        &DeskSet::new(&rooms, &[], &[], &[], &retired),
+    )
+    .expect("valid snapshots");
+    let ExchangeRound::Open { members, .. } = round else {
+        panic!("expected an open round");
+    };
+    assert!(members.contains(&"planner".to_owned()));
+}
+
+#[test]
+fn a_private_row_from_a_non_member_is_not_charged_to_anybody() {
+    // A retired agent or one from another desk can leave rows in the log. They
+    // are not this desk's spend, and they must not exhaust a budget that
+    // belongs to somebody else.
+    let transcript = vec![private(1, "stranger", "critic")];
+    let ExchangeRound::Open { remaining, .. } = open(&generous(), &transcript) else {
+        panic!("expected an open round");
+    };
+    assert_eq!(remaining, 6);
+}
+
+#[test]
+fn a_desk_of_one_has_nobody_to_exchange_with() {
+    let people = vec![RosterMember {
+        id: "planner".into(),
+        name: Some("planner".into()),
+    }];
+    let rooms = vec![Desk {
+        id: "engineering".into(),
+        name: "Engineering".into(),
+        description: None,
+        members: vec!["planner".into()],
+        responder_mode: ResponderMode::Auto,
+    }];
+    let retired: Vec<String> = Vec::new();
+    assert_eq!(
+        exchange(
+            &generous(),
+            &state(),
+            &[],
+            &Roster::new(&people, &[], &retired),
+            &DeskSet::new(&rooms, &[], &[], &[], &retired),
+        )
+        .expect("valid snapshots"),
+        ExchangeRound::Closed {
+            reason: NoExchangeReason::TooFewMembers,
+        }
+    );
+}
+
+#[test]
+fn the_policy_and_round_pin_their_wire_forms() {
+    // The wire form is the contract between a host and this module; a rename
+    // is a decode error at runtime rather than a compile error here.
+    let policy = serde_json::to_value(generous()).expect("serializes");
+    assert_eq!(
+        policy,
+        serde_json::json!({
+            "enabled": true,
+            "contact_cap": 2,
+            "round_cap": 4,
+        })
+    );
+    let closed = serde_json::to_value(ExchangeRound::Closed {
+        reason: NoExchangeReason::RoundsSpent,
+    })
+    .expect("serializes");
+    assert_eq!(
+        closed,
+        serde_json::json!({ "kind": "closed", "reason": "rounds_spent" })
+    );
+    let round = serde_json::to_value(ExchangeRound::Open {
+        members: vec!["planner".into()],
+        remaining: 3,
+    })
+    .expect("serializes");
+    assert_eq!(
+        round,
+        serde_json::json!({ "kind": "open", "members": ["planner"], "remaining": 3 })
+    );
+}
