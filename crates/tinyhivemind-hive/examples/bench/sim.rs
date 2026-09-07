@@ -262,6 +262,13 @@ pub(crate) struct Room {
     pub(crate) truth: TopicId,
     /// The participants.
     pub(crate) agents: Vec<SimAgent>,
+    /// The window every member in this room reads through.
+    ///
+    /// Carried on the room rather than threaded through `run_episode_checking`
+    /// so that `pooled` and `pre_checked`, which clone the room to install what
+    /// a member has absorbed, cannot install information into a room and then
+    /// forget what it costs to hold.
+    pub(crate) budget: ContextBudget,
     /// The member holding each specialised topic, one entry per topic that
     /// has an expert. Populated under `Expertise::Specialists` only; empty
     /// under `Expertise::Uniform`, which has no experts, and under
