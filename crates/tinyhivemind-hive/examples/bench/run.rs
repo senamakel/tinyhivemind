@@ -353,7 +353,7 @@ pub(crate) fn one_agent_message(author: &str, body: &str) -> SessionMessage {
         sequence: Sequence(1),
         author: SessionAuthor::Agent {
             id: author.to_owned(),
-            label: Some(author.to_owned()),
+            label: author.to_owned(),
         },
         content: body.to_owned(),
         audience: Audience::Desk,
