@@ -363,6 +363,41 @@ fn rows_at_or_below_the_watermark_are_not_this_episodes_spend() {
 }
 
 #[test]
+fn a_member_added_mid_episode_brings_its_own_contact_cap() {
+    // Membership is the host's, not this fold's, and a desk that grows
+    // mid-episode has more members to ask. So the per-member cap holds for the
+    // newcomer exactly as for everyone else — it has spent nothing — and the
+    // episode-wide total rises with the desk rather than staying at whatever
+    // the opening membership implied.
+    //
+    // This is why the documented ceiling is `round_cap × max_members` rather
+    // than a number computed once from the opening roster: `round_cap` bounds
+    // rounds absolutely, and a round asks at most one row of each *current*
+    // member. Freezing the roster instead would silently exclude a member the
+    // host legitimately added, which is a worse behaviour than a bound stated
+    // correctly.
+    let policy = ExchangePolicy {
+        enabled: true,
+        contact_cap: 1,
+        round_cap: 2,
+    };
+    // `planner` and `critic` have each spent their one contact; `scout` is the
+    // newcomer and has spent nothing.
+    let transcript = vec![
+        private(1, "planner", "critic"),
+        private(2, "critic", "planner"),
+    ];
+    let ExchangeRound::Open {
+        members, remaining, ..
+    } = open_after(&policy, &transcript, ExchangeState { rounds: 1 })
+    else {
+        panic!("expected an open round");
+    };
+    assert_eq!(members, vec!["scout".to_owned()]);
+    assert_eq!(remaining, 1, "the newcomer's own cap, not a shared pool");
+}
+
+#[test]
 fn a_private_row_from_a_non_member_is_not_charged_to_anybody() {
     // A retired agent or one from another desk can leave rows in the log. They
     // are not this desk's spend, and they must not exhaust a budget that

@@ -120,14 +120,24 @@ pub struct ExchangePolicy {
 }
 ```
 
-Two independent ceilings, both finite, both known before the episode starts. The
-total number of private rows an episode can produce is at most
+Two independent ceilings, both finite. `round_cap` bounds rounds absolutely, and
+a round asks at most one row of each **currently active** member, so the total
+private rows an episode can produce is at most
 
 ```text
-min(members × contact_cap, round_cap × members)
+round_cap × max_active_members
 ```
 
-and a host reads its worst case off the policy rather than discovering it.
+where `max_active_members` is the largest the desk gets during the episode. Each
+member is independently bounded by `contact_cap`, whenever it joined.
+
+Membership is the host's and this fold does not freeze it: a desk that grows
+mid-episode has more members to ask, and the newcomer arrives with its own
+untouched `contact_cap`. So a host that adds members must read its ceiling off
+the largest desk it will allow, not the one it opened with. Freezing the roster
+inside `ExchangeState` was considered and rejected — it would silently exclude a
+member the host legitimately added, which is a worse behaviour than a ceiling
+stated correctly.
 
 **Spend is folded, never stored.** A member's contacts are the private rows
 above the episode's watermark that it authored. There is no counter to keep
@@ -217,10 +227,11 @@ contribution nobody was authorized to make.
   that distance raw, so the fold's indifference to private rows does not extend
   to the numbering. Pinned by
   `episode::test::shifting_desk_sequences_past_a_private_row_can_change_the_step`.
-- An episode's total private rows never exceed the policy's computed worst case,
-  and its total rounds never exceed `round_cap` — including rounds in which
-  every named member declined to write.
-- A member never authors more than `contact_cap` private rows in one episode.
+- An episode's total rounds never exceed `round_cap`, including rounds in which
+  every named member declined to write, and its total private rows never exceed
+  `round_cap × max_active_members`.
+- A member never authors more than `contact_cap` private rows, whenever it
+  joined the desk.
 - `ExchangePolicy::DEFAULT` is disabled, and a disabled policy makes every
   projection, decision and turn identical to one taken before this spec existed.
 - A `Closed` round names a reason; there is no silent no-op.

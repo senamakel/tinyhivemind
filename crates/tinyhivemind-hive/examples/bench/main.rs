@@ -924,7 +924,7 @@ struct Totals {
     /// The same continuous exchange, run **off the floor** in rounds between
     /// turns: nobody takes the floor for it, so its volume is set by the
     /// policy rather than by how many turns the room happens to take. Its
-    /// price is the `private/ep` column.
+    /// price is the `calls/ep` column.
     hive_exchange_rounds: Aggregate,
     /// `hive+share` with every answer discarded: the same rows riding
     /// alongside the same turns, transferring nothing. Alongside rows land
@@ -1071,7 +1071,7 @@ fn run_check_arms(
         .add(&check(AsideMode::Alongside, CheckStyle::QUIET)?);
     // The same continuous exchange, run off the floor: one round between every
     // pair of turns, bounded by `ExchangePolicy` rather than by the number of
-    // turns the room takes. Priced in `private/ep`.
+    // turns the room takes. Priced in `calls/ep`.
     totals
         .hive_exchange_rounds
         .add(&run_episode_exchanging_with(

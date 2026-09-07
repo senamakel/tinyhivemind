@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 /// Two independent ceilings, both finite and both readable before an episode
 /// starts, so a host knows its worst case rather than discovering it. The
 /// total rows an episode can produce is at most
-/// `min(members × contact_cap, round_cap × members)`.
+/// `round_cap × max_active_members`, the max taken over the episode since this
+/// fold does not freeze a host's roster. Each member is independently bounded
+/// by `contact_cap`, whenever it joined.
 ///
 /// Off by default. An exchange round is *n* model calls, which is a real cost
 /// and a host's to authorize — see

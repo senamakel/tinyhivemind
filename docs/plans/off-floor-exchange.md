@@ -35,7 +35,7 @@ No new port, no waiting, no second journal, and no change to `step`.
    overallocate.
 4. Add a failing integration invariant driving rounds to exhaustion across a
    grid of policies: it terminates, never exceeds
-   `min(members × contact_cap, round_cap × members)`, closes with the reason the
+   `round_cap × max_active_members`, closes with the reason the
    binding cap implies, and leaves `step` unchanged.
 5. Export `ExchangePolicy`, `ExchangeRound`, `NoExchangeReason` and `exchange`
    from `crates/tinyhivemind-hive/src/lib.rs`, and add the module `README.md`.

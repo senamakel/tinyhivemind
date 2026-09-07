@@ -355,7 +355,7 @@ pub(crate) enum AsideMode {
     /// Nobody takes the floor and no turn is produced: the library's
     /// [`exchange`] fold says whether a round is open and which members it
     /// names, and each of them may append at most one private row. Bounded by
-    /// an [`ExchangePolicy`] the caller sets, and priced in the `private/ep`
+    /// an [`ExchangePolicy`] the caller sets, and priced in the `calls/ep`
     /// column rather than hidden. See ADR 0012.
     OffFloor,
     /// The private exchange again, **riding alongside** the floor move that
