@@ -387,8 +387,9 @@ fn a_member_added_mid_episode_brings_its_own_contact_cap() {
         private(1, "planner", "critic"),
         private(2, "critic", "planner"),
     ];
-    let ExchangeRound::Open { members, remaining } =
-        open_after(&policy, &transcript, ExchangeState { rounds: 1 })
+    let ExchangeRound::Open {
+        members, remaining, ..
+    } = open_after(&policy, &transcript, ExchangeState { rounds: 1 })
     else {
         panic!("expected an open round");
     };
