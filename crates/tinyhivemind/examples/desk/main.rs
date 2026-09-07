@@ -60,6 +60,15 @@ const ASIDES: AsidePolicy = AsidePolicy {
     require_thread: false,
 };
 
+/// How long a seat gets to land its work: write it down, then speak.
+///
+/// A seat that spends its whole working budget inside tool calls has both
+/// said nothing *and* left nothing behind, so the next seat starts from an
+/// empty directory. This second phase runs in the seat's own session with its
+/// tools still attached, which is what a tool-less wrap-up cannot do: it can
+/// summarize a turn but it cannot save one.
+const LANDING_TIMEOUT: Duration = Duration::from_secs(720);
+
 /// How long a seat gets to write the message it never got round to writing.
 const WRAP_UP_TIMEOUT: Duration = Duration::from_secs(600);
 
@@ -445,34 +454,60 @@ async fn main() -> Result<(), BoxError> {
             sessions.insert(seat.id.clone(), id);
         }
         if output.timed_out || output.message.trim().is_empty() {
-            // A seat that spent its whole budget inside tool calls has said
-            // nothing, and a room cannot read work it was never told about.
-            // One short, tool-less turn to make it speak is a host obligation:
-            // the library has no way to know a process was killed.
+            // Two phases, because the failure has two halves. First ask the
+            // seat to land what it has: same session, tools still attached, so
+            // the working code and the notes reach the shared workspace where
+            // the next seat can run them. Only if that also runs out of time
+            // does the tool-less channel take over, which can make a seat speak
+            // but cannot make it save.
             println!(
-                "   !! {} after {:?} — asking for a wrap-up",
-                if output.timed_out {
-                    "timed out"
-                } else {
-                    "silent"
-                },
+                "   !! {} after {:?} - asking the seat to land it",
+                if output.timed_out { "timed out" } else { "silent" },
                 output.elapsed
             );
-            let wrap = format!(
-                "{prompt}\n\n## What you actually ran this turn\n{}\n\nYou have no tools. Your working turn ended before you posted \
-                 anything. Write the message now, in one block wrapped in <<<POST and \
-                 POST>>>: what you established, what you did not finish, and the one seat \
-                 you need next. Ground every claim in the commands above; if they \
-                 do not establish something, say it is not established.",
-                agent::truncate_work_log(&output.work_log)
+            let landing = format!(
+                "Stop the investigation here; do not open a new line of work.\n\n\
+                 Two things, in order. First write down what this turn established, \
+                 so it outlives this process: put your notes in NOTES.md and any \
+                 working code in named .py files in this workspace, which every \
+                 seat shares. Second, post one message to the room wrapped in \
+                 <<<POST and POST>>>, saying what you established, what you did \
+                 not finish, which files you wrote, and the one seat you need \
+                 next - that seat named first.\n\n{prompt}"
             );
-            let salvage = wrapup.complete(&wrap);
-            let salvage = agent::extract_post(&salvage);
+            let landed = runner.run(
+                &landing,
+                &format!("turn-{turns:03}-{}-landing", seat.id),
+                LANDING_TIMEOUT,
+                output.session.as_deref().or(resumed.as_deref()),
+            )?;
+            tokens += landed.tokens;
+            if let Some(id) = landed.session.clone() {
+                sessions.insert(seat.id.clone(), id);
+            }
+            let salvage = if landed.message.trim().is_empty() {
+                let wrap = format!(
+                    "{prompt}\n\n## What you actually ran this turn\n{}\n\nYou have no \
+                     tools. Your working turn ended before you posted anything. Write the \
+                     message now, in one block wrapped in <<<POST and POST>>>: what you \
+                     established, what you did not finish, and the one seat you need next. \
+                     Ground every claim in the commands above; if they do not establish \
+                     something, say it is not established.",
+                    agent::truncate_work_log(&output.work_log)
+                );
+                let text = wrapup.complete(&wrap);
+                if !text.trim().is_empty() {
+                    println!("   wrap-up posted through the router with no tools attached");
+                }
+                agent::extract_post(&text)
+            } else {
+                println!("   landed in the seat's own session, files included");
+                landed.message
+            };
             if salvage.trim().is_empty() {
-                println!("   !! wrap-up also silent; the seat forfeits this turn");
+                println!("   !! nothing salvaged; the seat forfeits this turn");
                 continue;
             }
-            println!("   wrap-up posted through the router with no tools attached");
             output.message = salvage;
         }
         println!(
