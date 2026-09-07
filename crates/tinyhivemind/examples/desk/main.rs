@@ -350,12 +350,14 @@ async fn main() -> Result<(), BoxError> {
                     break;
                 }
                 rounds += 1;
-                let last = transcript.rows().into_iter().rev().find_map(|row| {
-                    match row.author {
+                let last = transcript
+                    .rows()
+                    .into_iter()
+                    .rev()
+                    .find_map(|row| match row.author {
                         SessionAuthor::Agent { id, .. } => Some(id),
                         _ => None,
-                    }
-                });
+                    });
                 let seat = match last.as_deref().and_then(|id| spec.agent(id)) {
                     Some(seat) => seat,
                     None => {
