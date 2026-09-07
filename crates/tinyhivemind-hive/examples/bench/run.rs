@@ -519,6 +519,7 @@ pub(crate) fn run_episode_checking(
         task,
         keep_trace,
         aside_mode,
+        exchange_policy(aside_cap, policy.turn_budget),
     )?;
 
     // `drive` stays ignorant of which member is an expert or a decisive
@@ -622,7 +623,15 @@ pub(crate) fn drive(
     task: &str,
     keep_trace: bool,
 ) -> Result<EpisodeReport, String> {
-    drive_with(member_ids, agents, policy, task, keep_trace, AsideMode::Off)
+    drive_with(
+        member_ids,
+        agents,
+        policy,
+        task,
+        keep_trace,
+        AsideMode::Off,
+        ExchangePolicy::DEFAULT,
+    )
 }
 
 /// The exchange policy an off-floor arm runs under.
