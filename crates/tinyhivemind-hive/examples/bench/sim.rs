@@ -1331,7 +1331,8 @@ impl SimAgent {
                 // Charged once, by sequence, for the same reason a reading is:
                 // a stub that stayed in the window for four turns is one row,
                 // not four.
-                if !self.budget.is_unbounded() && self.handled.insert(message.sequence) {
+                if !self.budget.is_unbounded() && !self.handled.contains(&message.sequence) {
+                    self.handled.push(message.sequence);
                     let topic = self.favourite.clone();
                     self.note_stub(&topic);
                 }
