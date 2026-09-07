@@ -1,6 +1,6 @@
 # Off-floor exchange
 
-**Status:** Draft
+**Status:** Accepted
 **Owner:** tinyhivemind maintainers
 - **Plan:** [`../plans/off-floor-exchange.md`](../plans/off-floor-exchange.md)
 
@@ -83,6 +83,7 @@ The host asks the library whether a round is open:
 pub fn exchange(
     policy: &ExchangePolicy,
     state: &EpisodeState,
+    opened: ExchangeState,
     transcript: &[SessionMessage],
     roster: &Roster<'_>,
     desks: &DeskSet<'_>,
@@ -93,7 +94,9 @@ pub enum ExchangeRound {
     Open {
         members: Vec<String>,
         /// Rows this episode may still write, across every member.
-        remaining: u32,
+        remaining: u64,
+        /// The state to carry into the next call, having opened this round.
+        next: ExchangeState,
     },
     /// No round, and why.
     Closed { reason: NoExchangeReason },
