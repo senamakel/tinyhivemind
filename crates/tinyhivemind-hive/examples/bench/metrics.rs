@@ -529,7 +529,7 @@ pub(crate) fn json_line(name: &str, totals: &Aggregate) -> String {
          \"episodes_per_second\":{},\"fact_pct\":{},\"to_fact\":{},\
          \"knows_pct\":{},\"defers_per_episode\":{},\
          \"expert_led\":{},\"route_pct\":{},\"cost_per_episode\":{},\
-         \"accuracy_per_kilo_unit\":{},\"rho\":{}}}",
+         \"accuracy_per_kilo_unit\":{},\"rho\":{},\"private_rows_per_episode\":{}}}",
         json_f64(totals.turns_per_episode()),
         json_f64(totals.decision_rate()),
         json_f64(totals.accuracy()),
