@@ -881,9 +881,6 @@ pub(crate) fn drive_with(
                     return Err(format!("no agent named {}", turn.agent_id));
                 };
                 let content = agent.speak(&turn, &visible)?;
-                if keep_trace {
-                    trace.push(trace_line(&turn, &content, visible.len()));
-                }
                 // An alongside aside is asked for over the same projection the
                 // floor move was composed from, before either row is appended,
                 // so the private line sees exactly what the public one saw.
@@ -892,15 +889,12 @@ pub(crate) fn drive_with(
                 } else {
                     None
                 };
+                if keep_trace {
+                    trace.push(trace_line(&turn, &content, visible.len()));
+                }
                 tally.record(&turn, &content, agent.cost_unit(), turns);
-                append_turn(
-                    &mut host,
-                    &turn,
-                    content,
-                    private,
-                    aside_mode,
-                    member_ids.len(),
-                );
+                let members = member_ids.len();
+                append_turn(&mut host, &turn, content, private, aside_mode, members);
                 let last = HiveTurn {
                     next_state: turn.next_state.clone(),
                     ..turn.clone()
@@ -913,14 +907,9 @@ pub(crate) fn drive_with(
                 // episode's own state is already committed and does not move
                 // for any of it.
                 if aside_mode == AsideMode::OffFloor {
-                    let (written, spent) = one_exchange(
-                        &mut host,
-                        agents,
-                        &last,
-                        &state,
-                        &exchange,
-                        member_ids.len(),
-                    )?;
+                    let members = member_ids.len();
+                    let (written, spent) =
+                        one_exchange(&mut host, agents, &last, &state, &exchange, members)?;
                     contacts = contacts.saturating_add(written);
                     library_time += spent;
                 }
