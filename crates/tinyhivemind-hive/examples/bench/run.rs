@@ -110,6 +110,13 @@ pub(crate) struct EpisodeReport {
     pub(crate) correct: bool,
     /// Turns actually taken.
     pub(crate) turns: u32,
+    /// Mean rows a member was holding when the episode ended.
+    ///
+    /// What the arm cost the *window*, as against `turns`, which is what it
+    /// cost the floor. The two are the whole point of `--context-sweep`: an
+    /// arm can be cheap in turns and ruinous in rows, and until this field
+    /// existed the benchmark could only see the first.
+    pub(crate) context_rows: f64,
     /// Calls into [`step`], including the terminal one.
     pub(crate) step_calls: u32,
     /// Time spent inside the library, excluding the simulated agents.
