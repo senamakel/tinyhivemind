@@ -1926,6 +1926,34 @@ pub(crate) fn check_selfcheck() -> bool {
                 .all(|topic| agent.ruled_out.contains(topic))
     });
 
+    // `run_episode_checking` -- the entry point `hive+fact°` and `hive+pooled`
+    // both run through -- clones the room and calls `set_aside_cap` on every
+    // agent before driving a single turn. That call must not discard what
+    // `pre_checked` and `pooled` just preloaded: the regression this guards
+    // was landing at exactly that step, silently wiping every ruled-out fact
+    // an off-floor control had just injected, so the arm executed the rest of
+    // the episode without the fact it was built to carry.
+    let checked = room.pre_checked(1, true);
+    ok &= checked.agents.iter().any(|agent| !agent.ruled_out.is_empty());
+    let mut after_reset = checked.clone();
+    for agent in &mut after_reset.agents {
+        agent.set_aside_cap(0, CheckStyle::PLAIN);
+    }
+    ok &= after_reset
+        .agents
+        .iter()
+        .zip(&checked.agents)
+        .all(|(after, before)| after.ruled_out == before.ruled_out);
+    let mut pooled_after_reset = pooled.clone();
+    for agent in &mut pooled_after_reset.agents {
+        agent.set_aside_cap(0, CheckStyle::PLAIN);
+    }
+    ok &= pooled_after_reset
+        .agents
+        .iter()
+        .zip(&pooled.agents)
+        .all(|(after, before)| after.ruled_out == before.ruled_out);
+
     // A muted check takes nothing in. The matched-turn control has to be
     // exactly that: same turns, same words, no transfer.
     let Some(sample) = room.agents.first().cloned() else {
