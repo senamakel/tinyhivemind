@@ -102,9 +102,9 @@ this fixed by giving both transcripts it compares the same desk sequence
 numbers, so it correctly proves the aside cannot buy a vote; it does not, and
 was never meant to, prove the live per-episode sequence numbering is
 unaffected. The `hive+along` and `hive+share` figures below are real
-measurements of the code as it runs today, confound included, and the direction
-of the confound (faster decay of the room's own older traces) does not favor
-the aside arms it appears in.
+measurements of the code as it runs today, confound included; this note
+records the confound rather than correcting for it, because the size and
+direction of its effect on the reported gain have not been isolated.
 
 **A free row makes continuous exchange affordable, and that is worth more than
 one question.** Once a contact costs no turn, a member can contact a peer on
