@@ -1016,9 +1016,19 @@ fn run_check_arms(
         TASK,
         false,
     )?);
+    // `Room::pooled` is not gated by `cap` -- unlike the check arms above, it
+    // has no notion of a bounded number of contacts. But `--aside-cap 0` is
+    // documented and used as the kill switch that leaves every aside arm
+    // bit-identical to `hive+`, `hive+pooled` included, so honor it here by
+    // skipping the pool rather than silently pooling regardless of the cap.
+    let ceiling = if options.aside_cap == 0 {
+        room.clone()
+    } else {
+        room.pooled()
+    };
     totals
         .hive_pooled
-        .add(&run_episode(&room.pooled(), tuned, TASK, false)?);
+        .add(&run_episode(&ceiling, tuned, TASK, false)?);
     Ok(())
 }
 
