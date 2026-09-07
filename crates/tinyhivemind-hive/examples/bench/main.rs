@@ -1004,12 +1004,15 @@ fn run_check_arms(
     totals
         .hive_aside_mute
         .add(&check(AsideMode::Private, CheckStyle::MUTE)?);
-    // The ceiling. Every reading and every fact is already in every
-    // member's hands when the episode opens, and the episode itself is
-    // an ordinary `hive+` run that opens no check and spends no turn on
-    // one. It bounds what any amount of pairwise exchange could buy.
-    // The same bounded exchange as `hive+fact`, held off the floor. It
-    // isolates what the check is worth from what its turns cost.
+    // The same aimed, fact-carrying exchange, riding alongside each member's
+    // floor move instead of replacing one: one turn, two rows, the second of
+    // which the episode cannot see. Same words and same targeting as
+    // `hive+fact`; the room simply is not charged for it.
+    totals
+        .hive_aside_alongside
+        .add(&check(AsideMode::Alongside, CheckStyle::ALONGSIDE)?);
+    // The same bounded exchange, held off the floor entirely and given oracle
+    // targeting. It bounds what the alongside arm above could reach.
     totals.hive_aside_offfloor.add(&run_episode(
         &room.pre_checked(options.aside_cap, true),
         tuned,
