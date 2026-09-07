@@ -1227,47 +1227,36 @@ fn shifting_desk_sequences_past_a_private_row_can_change_the_step() {
     // window can fall outside it, and the episode legitimately decides
     // something else.
     //
-    // Two transcripts with the *same* desk rows in the same order, differing
-    // only in the sequences those rows landed on:
+    // The two transcripts differ by exactly one row, allocated exactly as a
+    // host would: the aside takes sequence 2, so the support that would have
+    // been sequence 2 becomes sequence 3.
+    let room = Room::new();
     let policy = EpisodePolicy {
         quorum: QuorumPolicy {
-            window: 2,
+            threshold: 2,
+            window: 1,
             ..EpisodePolicy::DEFAULT.quorum
         },
+        blind_round: false,
         ..EpisodePolicy::DEFAULT
     };
-    let tight = vec![
+    let unshifted = vec![
         said(1, "planner", "!propose #stage"),
         said(2, "critic", "!support #stage ^1"),
     ];
-    // The same two moves, with one private row's worth of sequence between
-    // them — which is what a host that ran an exchange round would produce.
     let shifted = vec![
         said(1, "planner", "!propose #stage"),
         aside(2, "planner", &["scout"], "!aside @scout Between us."),
-        said(5, "critic", "!support #stage ^1"),
+        said(3, "critic", "!support #stage ^1"),
     ];
 
-    let standings_of = |transcript: &[SessionMessage]| {
-        let at = transcript
-            .iter()
-            .rfind(|message| message.audience.is_desk())
-            .map_or(Sequence(0), |message| message.sequence);
-        let traces = crate::trace::read(&live_desk_rows(transcript));
-        crate::quorum::standings(&traces, at, &policy.quorum).expect("valid policy")
-    };
-
-    // The proposal is still inside a two-sequence window in the tight
-    // transcript, and has aged out of it in the shifted one. Same rows, same
-    // order, different answer.
-    assert_ne!(standings_of(&tight), standings_of(&shifted));
+    // The proposal is inside a one-sequence window in the unshifted transcript
+    // and has aged out of it in the shifted one, so the room is at quorum in
+    // the first and still deliberating in the second. Same desk rows, same
+    // order, different `step`.
+    assert_ne!(
+        run(&room, &state(), &unshifted, &policy),
+        run(&room, &state(), &shifted, &policy),
+    );
 }
 
-/// The desk-visible rows of a transcript, which is all `step` ever folds.
-fn live_desk_rows(transcript: &[SessionMessage]) -> Vec<SessionMessage> {
-    transcript
-        .iter()
-        .filter(|message| message.audience.is_desk())
-        .cloned()
-        .collect()
-}
