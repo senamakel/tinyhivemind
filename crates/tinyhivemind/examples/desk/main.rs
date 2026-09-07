@@ -246,7 +246,13 @@ async fn main() -> Result<(), BoxError> {
         &options.workspace.to_string_lossy(),
         options.opencode_config.clone(),
         options.timeout,
-        Some(options.workspace.join(".desk")),
+        Some(
+            options
+                .transcript
+                .parent()
+                .unwrap_or(std::path::Path::new("."))
+                .join("desk-raw"),
+        ),
     );
     let store = match (&options.cortex_base, &options.cortex_key) {
         (Some(base), Some(key)) => Some(memory::Memory::new(
