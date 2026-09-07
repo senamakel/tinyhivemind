@@ -1155,10 +1155,18 @@ impl SimAgent {
             if self.style.mute {
                 continue;
             }
-            if self.style.evidence && body.contains(RULES_OUT) && !self.ruled_out.contains(&topic) {
-                self.ruled_out.push(topic.clone());
+            // A fact-bearing answer carries the fact *instead of* a number,
+            // not in addition to one -- `CheckStyle::FACT` exists precisely
+            // to ask whether that substitution beats an averaged reading, so
+            // importing the reading here too would answer a different
+            // question than the one this arm is defined to ask.
+            if self.style.evidence && body.contains(RULES_OUT) {
+                if !self.ruled_out.contains(&topic) {
+                    self.ruled_out.push(topic.clone());
+                }
+            } else {
+                self.import(&topic, reading);
             }
-            self.import(&topic, reading);
         }
     }
 
