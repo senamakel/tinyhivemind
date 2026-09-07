@@ -83,11 +83,11 @@ pub async fn project_session(
     if query.window == 0 {
         return Ok(Vec::new());
     }
-    let projected = match query.conversation.thread_root {
+    let (projected, settlements) = match query.conversation.thread_root {
         Some(_) => project_thread(log, query).await?,
         None => project_channel(log, query).await?,
     };
-    Ok(collapse_elisions(projected))
+    Ok(collapse_elisions(projected, &settlements))
 }
 
 /// The agent id a row is attributed to, or `None` for any other author.
@@ -118,24 +118,37 @@ pub(crate) fn admits(message: &LogMessage, viewer: &Viewer) -> bool {
 ///
 /// A row that is already elided is left alone: it cannot be narrowed further,
 /// and re-eliding it would lose the run it stands for.
+///
+/// One difference from [`project_session`], and it is a limitation rather than
+/// a choice: a `SessionMessage` carries no parent, so this cannot tell two
+/// closed threads apart and will merge adjacent runs between the same pair
+/// even when they belong to different threads. A caller that holds the log
+/// should project from it; this exists for one that holds only a transcript.
 #[must_use]
 pub fn project_as(messages: &[SessionMessage], viewer: &Viewer) -> Vec<SessionMessage> {
-    let narrowed = messages
+    let narrowed: Vec<(SessionMessage, Option<Sequence>)> = messages
         .iter()
         .map(|message| {
-            if message.elided.is_some() {
-                return message.clone();
-            }
-            present(
-                message.sequence,
-                message.author.clone(),
-                message.content.clone(),
-                message.audience.clone(),
-                viewer,
-            )
+            let narrowed = if message.elided.is_some() {
+                message.clone()
+            } else {
+                present(
+                    message.sequence,
+                    message.author.clone(),
+                    message.content.clone(),
+                    message.audience.clone(),
+                    viewer,
+                )
+            };
+            (narrowed, None)
         })
         .collect();
-    collapse_elisions(narrowed)
+    let settlements = Settlement::over(
+        messages
+            .iter()
+            .map(|message| (&message.sequence, &message.audience, &message.author)),
+    );
+    collapse_elisions(narrowed, &settlements)
 }
 
 /// Build one projected message, eliding its content when the viewer is not
@@ -205,66 +218,128 @@ fn participants(message: &SessionMessage) -> HashSet<&str> {
 /// is the honest one: the alternative is backfilling from older history, which
 /// would make two viewers of the same desk disagree about how far back the
 /// window reaches.
-fn collapse_elisions(projected: Vec<SessionMessage>) -> Vec<SessionMessage> {
-    if !projected.iter().any(|message| message.elided.is_some()) {
-        return projected;
+/// One desk-visible row that could settle an aside.
+///
+/// Collected from the *whole* scanned slice rather than from the projection,
+/// because channel narrowing keeps only each root's first reply: when an aside
+/// is that first reply and the settlement is a later one, the settlement is
+/// not in the projection at all and a stub built from it alone would report
+/// `settled_at: None` for an aside the room did in fact settle.
+#[derive(Clone, Debug)]
+pub(crate) struct Settlement {
+    sequence: Sequence,
+    author: Option<String>,
+}
+
+impl Settlement {
+    /// Every desk-visible, agent-authored row in a slice, in sequence order.
+    fn over<'a>(
+        rows: impl Iterator<Item = (&'a Sequence, &'a Audience, &'a SessionAuthor)>,
+    ) -> Vec<Self> {
+        rows.filter(|(_, audience, _)| audience.is_desk())
+            .map(|(sequence, _, author)| Self {
+                sequence: *sequence,
+                author: author_agent_id(author).map(str::to_owned),
+            })
+            .collect()
+    }
+}
+
+/// Collapse each consecutive run of elided rows from one aside into one stub.
+///
+/// The stub keeps the run's first sequence, records the last, counts what it
+/// stands in for, and points at where the aside settled — the first thing a
+/// participant said in the open afterwards.
+///
+/// `thread` carries each row's conversation identity: a thread root's own
+/// sequence, a reply's root, or `None` for a channel-level row. Two runs only
+/// merge when they share **both** their participants and that identity, so two
+/// distinct closed threads between the same pair stay two stubs. Without it
+/// they would collapse into one, reporting a combined range and count for
+/// exchanges that never were one exchange.
+///
+/// This runs after the window has been filled, so a viewer with asides in
+/// view receives fewer messages than one without. That is a real cost and it
+/// is the honest one: the alternative is backfilling from older history, which
+/// would make two viewers of the same desk disagree about how far back the
+/// window reaches.
+fn collapse_elisions(
+    projected: Vec<(SessionMessage, Option<Sequence>)>,
+    settlements: &[Settlement],
+) -> Vec<SessionMessage> {
+    if !projected
+        .iter()
+        .any(|(message, _)| message.elided.is_some())
+    {
+        return projected.into_iter().map(|(message, _)| message).collect();
     }
 
-    let mut collapsed: Vec<SessionMessage> = Vec::with_capacity(projected.len());
-    for message in projected {
+    let mut collapsed: Vec<(SessionMessage, Option<Sequence>)> =
+        Vec::with_capacity(projected.len());
+    for (message, thread) in projected {
         let extends = match (collapsed.last(), &message.elided) {
-            (Some(previous), Some(_)) => {
-                previous.elided.is_some() && participants(previous) == participants(&message)
+            (Some((previous, previous_thread)), Some(_)) => {
+                previous.elided.is_some()
+                    && *previous_thread == thread
+                    && participants(previous) == participants(&message)
             }
             _ => false,
         };
         if extends
-            && let Some(previous) = collapsed.last_mut()
+            && let Some((previous, _)) = collapsed.last_mut()
             && let Some(elision) = previous.elided.as_mut()
         {
             elision.through = message.sequence;
             elision.messages = elision.messages.saturating_add(1);
             continue;
         }
-        collapsed.push(message);
+        collapsed.push((message, thread));
     }
 
-    settle(&mut collapsed);
+    let mut collapsed: Vec<SessionMessage> =
+        collapsed.into_iter().map(|(message, _)| message).collect();
+    settle(&mut collapsed, settlements);
     collapsed
 }
 
 /// Point each stub at the first thing one of its participants said in the open.
-fn settle(messages: &mut [SessionMessage]) {
-    for index in 0..messages.len() {
-        if messages[index].elided.is_none() {
+fn settle(messages: &mut [SessionMessage], settlements: &[Settlement]) {
+    for message in messages.iter_mut() {
+        if message.elided.is_none() {
             continue;
         }
-        let inside = participants(&messages[index])
+        let inside = participants(message)
             .into_iter()
             .map(str::to_owned)
             .collect::<HashSet<_>>();
-        let settled_at = messages[index + 1..]
+        let after = message
+            .elided
+            .as_ref()
+            .map_or(message.sequence, |elision| elision.through);
+        let settled_at = settlements
             .iter()
-            .find(|later| {
-                later.elided.is_none()
-                    && later.audience.is_desk()
-                    && author_agent_id(&later.author).is_some_and(|id| inside.contains(id))
+            .find(|candidate| {
+                candidate.sequence > after
+                    && candidate
+                        .author
+                        .as_deref()
+                        .is_some_and(|id| inside.contains(id))
             })
-            .map(|later| later.sequence);
-        if let Some(elision) = messages[index].elided.as_mut() {
+            .map(|candidate| candidate.sequence);
+        if let Some(elision) = message.elided.as_mut() {
             elision.settled_at = settled_at;
         }
     }
 }
 
-async fn project_thread(
-    log: &(dyn SessionLog + '_),
-    query: &SessionQuery,
-) -> Result<Vec<SessionMessage>> {
+type Projection = (Vec<(SessionMessage, Option<Sequence>)>, Vec<Settlement>);
+
+async fn project_thread(log: &(dyn SessionLog + '_), query: &SessionQuery) -> Result<Projection> {
     let mut cursor = query.before;
     let mut scanned = 0_usize;
     let mut seen = Vec::new();
     let mut projected = Vec::new();
+    let mut seen_rows: Vec<(Sequence, Audience, SessionAuthor)> = Vec::new();
     let mut reached_root = false;
 
     while scanned < SCAN_LIMIT && projected.len() < query.window && !reached_root {
@@ -288,12 +363,20 @@ async fn project_thread(
                 }
                 continue;
             }
-            projected.push(present(
+            seen_rows.push((
                 message.sequence,
-                message.author.clone(),
-                message.content.clone(),
                 message.audience.clone(),
-                &query.viewer,
+                message.author.clone(),
+            ));
+            projected.push((
+                present(
+                    message.sequence,
+                    message.author.clone(),
+                    message.content.clone(),
+                    message.audience.clone(),
+                    &query.viewer,
+                ),
+                query.conversation.thread_root,
             ));
             if is_thread_root {
                 reached_root = true;
@@ -315,7 +398,13 @@ async fn project_thread(
 
     projected.truncate(query.window);
     projected.reverse();
-    Ok(projected)
+    seen_rows.reverse();
+    let settlements = Settlement::over(
+        seen_rows
+            .iter()
+            .map(|(sequence, audience, author)| (sequence, audience, author)),
+    );
+    Ok((projected, settlements))
 }
 
 /// One in-desk row held with the `parent` [`SessionMessage`] does not carry.
@@ -332,10 +421,7 @@ struct Candidate {
     audience: Audience,
 }
 
-async fn project_channel(
-    log: &(dyn SessionLog + '_),
-    query: &SessionQuery,
-) -> Result<Vec<SessionMessage>> {
+async fn project_channel(log: &(dyn SessionLog + '_), query: &SessionQuery) -> Result<Projection> {
     let mut cursor = query.before;
     let mut scanned = 0_usize;
     let mut seen = Vec::new();
@@ -394,12 +480,20 @@ async fn project_channel(
     }
 
     candidates.reverse();
+    // Settlements come from the whole scanned slice, before narrowing throws
+    // replies away: an aside that is a root's first reply is settled by a
+    // *later* reply, which narrowing drops.
+    let settlements = Settlement::over(
+        candidates
+            .iter()
+            .map(|candidate| (&candidate.sequence, &candidate.audience, &candidate.author)),
+    );
     let projected = narrow_to_roots_and_first_replies(candidates, &query.viewer);
     // Every survivor was counted by the estimate above, and the walk stops the
     // moment that estimate reaches the window, so the window needs no second
     // enforcement here — and enforcing it would have to trim the newest end.
     debug_assert!(projected.len() <= query.window);
-    Ok(projected)
+    Ok((projected, settlements))
 }
 
 /// Keep every root and each root's first reply, from a chronological slice.
@@ -410,14 +504,22 @@ async fn project_channel(
 fn narrow_to_roots_and_first_replies(
     candidates: Vec<Candidate>,
     viewer: &Viewer,
-) -> Vec<SessionMessage> {
+) -> Vec<(SessionMessage, Option<Sequence>)> {
     let roots: BTreeSet<Sequence> = candidates
         .iter()
         .filter(|candidate| candidate.parent.is_none())
         .map(|candidate| candidate.sequence)
         .collect();
+    // A parentless row that something replies to opens a thread of its own;
+    // one that nothing replies to is an ordinary channel message. That is the
+    // difference between two closed threads between the same pair — which must
+    // stay two stubs — and one run of channel asides, which is one.
+    let rooted: BTreeSet<Sequence> = candidates
+        .iter()
+        .filter_map(|candidate| candidate.parent)
+        .collect();
     let mut promoted: BTreeSet<Sequence> = BTreeSet::new();
-    let mut projected: Vec<SessionMessage> = Vec::new();
+    let mut projected: Vec<(SessionMessage, Option<Sequence>)> = Vec::new();
 
     for candidate in candidates {
         if candidate.content.trim().is_empty() {
@@ -428,12 +530,23 @@ fn narrow_to_roots_and_first_replies(
             Some(parent) => roots.contains(&parent) && promoted.insert(parent),
         };
         if keep {
-            projected.push(present(
-                candidate.sequence,
-                candidate.author,
-                candidate.content,
-                candidate.audience,
-                viewer,
+            // A promoted reply's identity is the root it hangs under; a root
+            // that owns a thread is its own; a plain channel row has none, so
+            // a run of them still collapses into one stub.
+            let thread = candidate.parent.or_else(|| {
+                rooted
+                    .contains(&candidate.sequence)
+                    .then_some(candidate.sequence)
+            });
+            projected.push((
+                present(
+                    candidate.sequence,
+                    candidate.author,
+                    candidate.content,
+                    candidate.audience,
+                    viewer,
+                ),
+                thread,
             ));
         }
     }

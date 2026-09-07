@@ -306,6 +306,13 @@ aside, every viewer projects what it projects today.
   attributed stub is chosen for auditability, latent asymmetry and citations. A
   host that wants a genuinely invisible exchange would need the row absent, and
   would then have to say what happens to a citation naming it.
+- **A settlement can arrive after its stub has shipped.** On the incremental
+  sharing path a stub delivered in one tick keeps the `settled_at: None` it was
+  sent with even when a participant settles the aside in a later tick, because
+  the watermark has already moved past the row and this crate cannot revise a
+  message it no longer holds. A re-seed shows it settled. Carrying pending-aside
+  state across ticks would be a second store to invalidate, so the field is
+  documented as a floor — "settled by here" — rather than made exact.
 - **Bound erosion is unaddressed.** `SCAN_LIMIT`, `PIN_SCAN`, `SEARCH_SCAN` and
   `THREAD_INDEX_SCAN` all count raw rows, so a viewer admitted to little of a
   desk gets proportionally less for the same cost. Stating the achieved window

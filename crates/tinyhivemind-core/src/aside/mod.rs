@@ -68,16 +68,6 @@ pub fn aside(
         return Ok(none(NoAsideReason::AuthorNotOnDesk));
     }
 
-    if policy.require_thread && input.conversation.thread_root.is_none() {
-        return Ok(none(NoAsideReason::ThreadRequired));
-    }
-    if input.spent >= policy.max_messages {
-        return Ok(none(NoAsideReason::BudgetSpent));
-    }
-    if policy.must_surface && input.unsettled {
-        return Ok(none(NoAsideReason::UnsettledAside));
-    }
-
     // Addressed ids in reading order, deduplicated on first appearance, with
     // the author removed: an author is admitted to its own row by definition,
     // so naming itself neither widens nor narrows the audience.
@@ -118,6 +108,21 @@ pub fn aside(
     }
     if members.len() > policy.max_members {
         return Ok(none(NoAsideReason::AudienceTooLarge));
+    }
+
+    // Policy rungs come last, after the audience is known to be real. A
+    // request that names an inactive target *and* sits on a channel under
+    // `require_thread` is refused for the target, not for the shape: the
+    // caller is told the thing it can act on, and is not sent to open a
+    // thread that would be refused again for the same reason.
+    if policy.require_thread && input.conversation.thread_root.is_none() {
+        return Ok(none(NoAsideReason::ThreadRequired));
+    }
+    if input.spent >= policy.max_messages {
+        return Ok(none(NoAsideReason::BudgetSpent));
+    }
+    if policy.must_surface && input.unsettled {
+        return Ok(none(NoAsideReason::UnsettledAside));
     }
 
     Ok(AsideDecision::One {

@@ -59,7 +59,7 @@ Paired bootstrap over the same rooms, 2000 resamples.
 | --- | --- | --- | --- | --- |
 | uniform, budget 15, 5000 rooms | **82.1** | 79.6 | 79.7 | 79.6 |
 | uniform, budget 40, 2000 rooms | **81.7** | 81.6 | 81.8 | 81.6 |
-| hidden profile, budget 40, 2000 rooms | **68.0** | 52.7 | 52.0 | 52.7 |
+| hidden profile, budget 40, 2000 rooms | **68.0** | 52.6 | 52.5 | 52.7 |
 
 ```text
 uniform, budget 15
@@ -73,10 +73,10 @@ uniform, budget 40
   hive+aside  − hive+ask:  -0.2 [-0.5, +0.2]
 
 hidden profile, budget 40
-  hive+aside  − hive+:    -15.3 [-17.0, -13.4]
-  hive+ask    − hive+:    -16.0 [-17.8, -14.0]
-  hive+aside! − hive+:    -15.3 [-17.2, -13.5]
-  hive+aside  − hive+ask:  +0.7 [-0.8, +2.1]
+  hive+aside  − hive+:    -15.4 [-17.1, -13.4]
+  hive+ask    − hive+:    -15.5 [-17.3, -13.6]
+  hive+aside! − hive+:    -15.3 [-17.2, -13.4]
+  hive+aside  − hive+ask:  +0.1 [-1.3, +1.6]
 ```
 
 **A1 — no, and at a tight budget it costs.** At the tuned budget the check
@@ -93,6 +93,24 @@ worth, it is worth the same whether one member reads the answer or five do.
 **A3 — no, and aiming it changes nothing.** `hive+aside!` is identical to
 `hive+aside` to the decimal in every configuration. The peer it reaches is not
 what is wrong.
+
+## A correction, and what it did not change
+
+The first published version of this note answered a check with
+`SimAgent::score`, which averages in every reading the responder had already
+absorbed. A member could therefore hand back an *already-pooled* value, letting
+one peer's signal be counted several times over — which is not the experiment
+this note describes, where an asker averages its own reading with one
+independent peer's. It was caught in review after the arm merged and is fixed:
+a responder now answers with `own_reading`, its untouched private evaluation.
+
+The numbers above are the corrected ones. At `--aside-cap 1` — the setting every
+configuration here uses — recirculation almost never had a chance to occur, so
+the uniform rows are unchanged to the decimal and the hidden-profile rows moved
+by less than a point, well inside their intervals. **No conclusion changes**, and
+the `hive+aside − hive+ask` null on the hidden profile actually tightened, from
+`+0.7 [-0.8, +2.1]` to `+0.1 [-1.3, +1.6]`. The defect was real, the fix is
+right on principle, and it happened not to be load-bearing at this cap.
 
 ## The hidden-profile result, and why it is worse than a wash
 
