@@ -475,6 +475,7 @@ pub(crate) fn run_episode_checking(
         agent.set_quorum(policy.quorum);
         agent.set_defer_cap(defer_cap);
         agent.set_aside_cap(aside_cap, style);
+        agent.set_peers(&ids);
     }
     let mut participants: Vec<&mut dyn Participant> = agents
         .iter_mut()

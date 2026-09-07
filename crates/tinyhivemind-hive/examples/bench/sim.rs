@@ -832,6 +832,13 @@ pub(crate) struct SimAgent {
     /// Options a private exchange has told this member are ruled out. Read by
     /// [`Self::score`], and by nothing the room counts.
     ruled_out: Vec<TopicId>,
+    /// The other members of this member's desk, for a continuous exchange
+    /// that has to name a peer before it has seen one speak.
+    ///
+    /// Read only by [`CheckStyle::exchange`]. Every other arm finds its peer
+    /// in the transcript, which is what confines those arms to the turns
+    /// after the blind round.
+    peers: Vec<String>,
     /// Peers this member has already contacted under
     /// [`CheckStyle::exchange`], so a continuous exchange reaches each of them
     /// once rather than the same one repeatedly.
@@ -987,6 +994,7 @@ impl SimAgent {
             aside_cap: 0,
             asides_spent: 0,
             style: CheckStyle::PLAIN,
+            peers: Vec::new(),
             contacted: Vec::new(),
             complied: false,
             ruled_out: Vec::new(),
@@ -1049,6 +1057,19 @@ impl SimAgent {
         self.handled.clear();
         self.ruled_out.clear();
         self.contacted.clear();
+    }
+
+    /// Tell the participant who else is on its desk.
+    ///
+    /// A room's membership is not private, and a host hands it to every
+    /// participant already; a continuous exchange needs it so a member can
+    /// address a peer during the blind round, before anybody has been heard.
+    pub(crate) fn set_peers(&mut self, ids: &[&str]) {
+        self.peers = ids
+            .iter()
+            .filter(|id| **id != self.id)
+            .map(|id| (*id).to_owned())
+            .collect();
     }
 
     /// Tell the participant which quorum rule the room is running.
@@ -1273,14 +1294,11 @@ impl SimAgent {
         // pick a peer for a question: it contacts whoever it has not reached
         // yet. `aside_cap` bounds how many that is.
         if self.style.exchange {
-            let peer = visible.iter().find_map(|message| match &message.author {
-                SessionAuthor::Agent { id, .. }
-                    if *id != self.id && !self.contacted.contains(id) =>
-                {
-                    Some(id.clone())
-                }
-                _ => None,
-            })?;
+            let peer = self
+                .peers
+                .iter()
+                .find(|id| !self.contacted.contains(id))
+                .cloned()?;
             self.contacted.push(peer.clone());
             return Some(format!(
                 "{ASIDE_MARKER} @{peer} What do you make of these?"
