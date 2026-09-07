@@ -283,7 +283,7 @@ contact to move.
   bounds this in practice is that windows and half-lives are large relative to
   the rows written between two desk turns — the default window is 100 against
   episodes of about eleven desk turns — and the benchmark's silence controls
-  measure the residual at `+0.0 [+0.0, +0.0]` at forty-five calls an episode.
+  measure the residual at `+0.0 [+0.0, +0.0]` at forty-five model calls an episode.
   Removing the caveat means measuring decay and windows in desk-visible rows
   rather than raw sequences, which is a change to the quorum and salience folds
   and needs its own decision. Stated rather than solved here.
