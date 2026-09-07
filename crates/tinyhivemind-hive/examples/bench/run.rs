@@ -414,6 +414,7 @@ pub(crate) fn run_episode_checking(
     aside_cap: u32,
     aside_informed: bool,
 ) -> Result<EpisodeReport, String> {
+    crate::sim::probe::set(&room.truth, room.planted.as_ref(), room.decisive.as_ref());
     let ids = room.member_ids();
     let mut agents: Vec<SimAgent> = room.agents.clone();
     for agent in &mut agents {
