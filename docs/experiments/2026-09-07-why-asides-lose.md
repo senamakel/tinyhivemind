@@ -170,7 +170,7 @@ change to how a host schedules an aside, not to the aside algebra, and it is
 outside this note; recorded here as what the numbers point at rather than as
 something demonstrated in the library.
 
-The second constraint is bandwidth. One contact captures 3 of the 21 available
+The second constraint is bandwidth. One contact captures 3 of the 31 available
 points on the hidden profile and none of the 10 on a uniform room, and raising
 `--aside-cap` off the floor does not help, because a member stops being
 uncertain once its one contact has resolved the tie. The ceiling comes from
