@@ -462,7 +462,11 @@ async fn main() -> Result<(), BoxError> {
             // but cannot make it save.
             println!(
                 "   !! {} after {:?} - asking the seat to land it",
-                if output.timed_out { "timed out" } else { "silent" },
+                if output.timed_out {
+                    "timed out"
+                } else {
+                    "silent"
+                },
                 output.elapsed
             );
             let landing = format!(
