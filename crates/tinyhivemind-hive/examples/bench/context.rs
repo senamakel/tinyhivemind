@@ -117,7 +117,10 @@ impl ContextBudget {
     ///
     /// A single row is all edge and never discounted — with nothing to be in
     /// the middle *of*, the U-curve has no middle.
-    #[expect(clippy::cast_precision_loss, reason = "a window holding more rows than an f64 can index is not a window")]
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "a window holding more rows than an f64 can index is not a window"
+    )]
     pub(crate) fn weight(&self, at: usize, held: usize) -> f64 {
         if self.is_unbounded() || held <= 1 || self.rot <= 0.0 {
             return 1.0;
