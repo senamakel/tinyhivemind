@@ -2131,6 +2131,10 @@ impl View {
 }
 
 impl crate::run::Participant for SimAgent {
+    fn context_rows(&self) -> usize {
+        self.context.len()
+    }
+
     fn id(&self) -> &str {
         &self.id
     }
