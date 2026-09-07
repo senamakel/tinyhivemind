@@ -45,8 +45,7 @@
 use std::fmt::Write as _;
 
 use tinyhivemind_hive::{
-    EpisodePolicy, HiveTurn, Phase, QuorumPolicy, Sequence, SessionAuthor, SessionMessage,
-    Visibility,
+    HiveTurn, Phase, QuorumPolicy, Sequence, SessionAuthor, SessionMessage, Visibility,
     quorum::{TopicStanding, standings},
     trace::{TopicId, Trace, TraceKind, resolve},
 };
