@@ -82,9 +82,22 @@ pub fn exchange(
     // Rounds are counted by the busiest member: a round authorizes each member
     // at most one row, so nobody can have written more rows than there have
     // been rounds. Reading it this way keeps the count folded rather than
-    // carried, at the cost of under-counting rounds in which a member declined
-    // to speak — which is the safe direction, since it can only leave a host
-    // with budget it did not use.
+    // carried, at the cost of under-counting a round in which every named
+    // member declined to write. That is *not* the safe direction: it lets
+    // `RoundsSpent` arrive later than the true round count, so a host whose
+    // participants decline every round can call `exchange` — and pay for
+    // asking each named member — more than `round_cap` times.
+    //
+    // A correct count needs a marker for "this round opened" independent of
+    // any row it produced, and this fold has nothing to read one from: no
+    // row is dropped by a decline, so no artifact of a declined round exists
+    // in the transcript, and this crate stores no counter of its own (see the
+    // module doc). Closing that gap means the host recording round-opened,
+    // not just rows-written — a protocol change, tracked as an open question
+    // in `docs/specs/off-floor-exchange.md` rather than solved by this fold.
+    // In the meantime the practical ceiling on model calls is
+    // `min(round_cap, turns already taken + 1) × members`, since a host only
+    // opens a round between turns.
     let rounds = spent.iter().map(|(_, count)| *count).max().unwrap_or(0);
     if rounds >= policy.round_cap {
         return closed(NoExchangeReason::RoundsSpent);
