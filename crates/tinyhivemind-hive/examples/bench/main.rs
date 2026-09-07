@@ -783,7 +783,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
     );
 
     let (totals, wall) = run_arms(options, rooms)?;
-    let arms: [(&str, &Aggregate); 15] = [
+    let arms: [(&str, &Aggregate); 16] = [
         ("ladder", &totals.ladder),
         ("vote", &totals.vote),
         ("hive", &totals.hive_default),
@@ -801,6 +801,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
         ("hive+ask", &totals.hive_ask),
         ("hive+aside!", &totals.hive_aside_informed),
         ("hive+fact", &totals.hive_aside_fact),
+        ("hive+fact°", &totals.hive_aside_offfloor),
         ("hive+pooled", &totals.hive_pooled),
     ];
 
@@ -837,6 +838,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
         ("hive+ask", &totals.hive_ask),
         ("hive+aside!", &totals.hive_aside_informed),
         ("hive+fact", &totals.hive_aside_fact),
+        ("hive+fact°", &totals.hive_aside_offfloor),
         ("hive+pooled", &totals.hive_pooled),
     ]
     .iter()
@@ -912,6 +914,10 @@ struct Totals {
     /// The aimed private exchange, carrying the fact that rules an option out
     /// rather than a reading of it to be averaged.
     hive_aside_fact: Aggregate,
+    /// The aimed, fact-carrying exchange again, held off the floor: the same
+    /// bounded number of contacts, spending no turn the room could have
+    /// deliberated with.
+    hive_aside_offfloor: Aggregate,
     /// The ceiling: every reading and every fact already in every member's
     /// hands before the episode opens, at no turn cost. Nothing a protocol
     /// could do beats it.
@@ -1042,6 +1048,14 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
         // member's hands when the episode opens, and the episode itself is
         // an ordinary `hive+` run that opens no check and spends no turn on
         // one. It bounds what any amount of pairwise exchange could buy.
+        // The same bounded exchange as `hive+fact`, held off the floor. It
+        // isolates what the check is worth from what its turns cost.
+        totals.hive_aside_offfloor.add(&run_episode(
+            &room.pre_checked(options.aside_cap, true),
+            &tuned,
+            TASK,
+            false,
+        )?);
         totals
             .hive_pooled
             .add(&run_episode(&room.pooled(), &tuned, TASK, false)?);

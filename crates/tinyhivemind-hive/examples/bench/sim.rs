@@ -471,6 +471,60 @@ impl Room {
         room
     }
 
+    /// The same room, with each member having spent `cap` pairwise checks
+    /// **before the episode opens**, off the floor.
+    ///
+    /// [`Self::pooled`] bounds what any exchange could be worth; this bounds
+    /// what *the aside arms' own exchange* is worth once it stops competing
+    /// with the deliberation for turns. Same trigger as
+    /// [`SimAgent::open_check`] — a member that cannot separate its two best
+    /// options — same bounded number of contacts, same payload. The one
+    /// difference is that the contact does not consume a floor turn.
+    ///
+    /// The peer is chosen at least as well as the on-floor arm chooses one:
+    /// whoever actually holds the fact, and otherwise the next member round.
+    /// So an on-floor arm cannot be losing to worse targeting than this.
+    pub(crate) fn pre_checked(&self, cap: u32, evidence: bool) -> Self {
+        let mut room = self.clone();
+        let readings: Vec<(Vec<(TopicId, i32)>, Option<TopicId>)> = self
+            .agents
+            .iter()
+            .map(|agent| (agent.evals.clone(), agent.refutes.clone()))
+            .collect();
+        let count = room.agents.len();
+        for (index, agent) in room.agents.iter_mut().enumerate() {
+            for spent in 0..cap {
+                let Some(topic) = agent.uncertain_about() else {
+                    break;
+                };
+                // Whoever holds the fact, and otherwise the next member round.
+                let peer = readings
+                    .iter()
+                    .position(|(_, refutes)| refutes.as_ref() == Some(&topic) && *refutes != None)
+                    .filter(|peer| *peer != index)
+                    .unwrap_or_else(|| {
+                        (index + 1 + spent as usize) % count.max(1)
+                    });
+                if peer == index {
+                    break;
+                }
+                let Some((evals, refutes)) = readings.get(peer) else {
+                    break;
+                };
+                if evidence
+                    && refutes.as_ref() == Some(&topic)
+                    && !agent.ruled_out.contains(&topic)
+                {
+                    agent.ruled_out.push(topic.clone());
+                }
+                if let Some((_, reading)) = evals.iter().find(|(held, _)| *held == topic) {
+                    agent.import(&topic, *reading);
+                }
+            }
+        }
+        room
+    }
+
     /// The same room, with every member opening on a deposit rather than a
     /// position.
     ///
@@ -1068,6 +1122,21 @@ impl SimAgent {
         Some(format!(
             "{ASIDE_MARKER} @{from} #{topic} My own {ASIDE_READS} {reading}."
         ))
+    }
+
+    /// The option this member cannot separate from its runner-up, if there is
+    /// one. The trigger for a pairwise check, wherever the check happens.
+    pub(crate) fn uncertain_about(&self) -> Option<TopicId> {
+        let mut ranked: Vec<(&TopicId, i32)> = self
+            .evals
+            .iter()
+            .map(|(topic, _)| (topic, self.score(topic)))
+            .collect();
+        ranked.sort_by_key(|(_, score)| std::cmp::Reverse(*score));
+        let [(best, top), (_, second), ..] = ranked.as_slice() else {
+            return None;
+        };
+        (top.saturating_sub(*second) <= ASIDE_UNCERTAINTY).then(|| (*best).clone())
     }
 
     /// Ask one peer what they read, when this member cannot separate its own
