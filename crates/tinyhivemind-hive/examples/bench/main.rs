@@ -894,6 +894,10 @@ struct Totals {
     hive_aside_fact: Aggregate,
     /// The same exchange on the same turns, with the answer discarded.
     hive_aside_mute: Aggregate,
+    /// The aimed, fact-carrying exchange again, riding alongside each
+    /// member's floor move rather than replacing one: one turn, two rows, and
+    /// the room charged for the first only.
+    hive_aside_alongside: Aggregate,
     /// The aimed, fact-carrying exchange again, held off the floor: the same
     /// bounded number of contacts, spending no turn the room could have
     /// deliberated with.
