@@ -1876,3 +1876,92 @@ fn parse_reading(body: &str) -> Option<(TopicId, i32)> {
     }
     None
 }
+
+/// The pairwise-check self-check: assert the properties the aside arms are
+/// defined to have, over rooms this file builds itself.
+///
+/// `sim.rs` is an example file, so `cargo test` never runs a `#[test]` placed
+/// in it. This is that coverage's stand-in for the check arms, and it runs in
+/// CI behind the same `--stats-check` flag the statistics module uses. Every
+/// case is a property the arm is defined to have rather than a fitted number,
+/// so a break here is always a real regression.
+pub(crate) fn check_selfcheck() -> bool {
+    let mut ok = true;
+    let room = Room::generate(
+        1,
+        5,
+        4,
+        90,
+        Expertise::HiddenProfile,
+        crate::run::DESK_ID,
+    );
+
+    // `pre_checked(0, ..)` opens no contact, so it is the identity. This is
+    // what underwrites `--aside-cap 0` leaving every check arm bit-identical
+    // to `hive+`.
+    let untouched = room.pre_checked(0, true);
+    ok &= untouched
+        .agents
+        .iter()
+        .zip(&room.agents)
+        .all(|(after, before)| after.favourite == before.favourite && after.imports.is_empty());
+
+    // The ceiling hands every member every peer's reading of every option, so
+    // each member holds exactly one import entry per option it evaluates, and
+    // every fact any peer holds.
+    let pooled = room.pooled();
+    let topics = room.agents.first().map_or(0, |agent| agent.evals.len());
+    let facts: Vec<TopicId> = room.agents.iter().filter_map(|a| a.refutes.clone()).collect();
+    ok &= pooled.agents.iter().enumerate().all(|(index, agent)| {
+        agent.imports.len() == topics
+            && facts
+                .iter()
+                .filter(|topic| room.agents.get(index).and_then(|a| a.refutes.as_ref()) != Some(*topic))
+                .all(|topic| agent.ruled_out.contains(topic))
+    });
+
+    // A muted check takes nothing in. The matched-turn control has to be
+    // exactly that: same turns, same words, no transfer.
+    let Some(sample) = room.agents.first().cloned() else {
+        return false;
+    };
+    let Some((topic, _)) = sample.evals.first().cloned() else {
+        return false;
+    };
+    let answer = format!("{ASIDE_MARKER} @a #{topic} My own {ASIDE_READS} 7.");
+    let heard = crate::run::one_agent_message("peer", &answer);
+    let mut muted = sample.clone();
+    muted.set_aside_cap(1, CheckStyle::MUTE);
+    muted.absorb(std::slice::from_ref(&heard));
+    ok &= muted.imports.is_empty() && muted.score(&topic) == sample.own_reading(&topic);
+    let mut listening = sample.clone();
+    listening.set_aside_cap(1, CheckStyle::PLAIN);
+    listening.absorb(std::slice::from_ref(&heard));
+    ok &= listening.imports.len() == 1 && listening.score(&topic) != sample.own_reading(&topic);
+
+    // A fact-carrying answer discounts the option for its reader, and a
+    // reading-only arm ignores the sentence entirely.
+    let refutation =
+        format!("{ASIDE_MARKER} @a #{topic} My own {ASIDE_READS} 7. The reading I hold {RULES_OUT}.");
+    let told = crate::run::one_agent_message("peer", &refutation);
+    let mut fact_reader = sample.clone();
+    fact_reader.set_aside_cap(1, CheckStyle::FACT);
+    fact_reader.absorb(std::slice::from_ref(&told));
+    let mut number_reader = sample.clone();
+    number_reader.set_aside_cap(1, CheckStyle::AIMED);
+    number_reader.absorb(std::slice::from_ref(&told));
+    ok &= fact_reader.score(&topic) == number_reader.score(&topic) - GROUNDS_WEIGHT;
+
+    // The informed check aims at a depositor who argues *against* the topic,
+    // even when a plain deposit on the same topic came first. Aiming at the
+    // first depositor is the defect this replaced.
+    let plain = crate::run::one_agent_message("early", &format!("!evidence #{topic} My own read of it is 9."));
+    let against = crate::run::one_agent_message(
+        "holder",
+        &format!("!evidence #{topic} My own read of it is 1. The reading I hold {RULES_OUT}."),
+    );
+    let view = View::fold(&[plain, against], QuorumPolicy::DEFAULT);
+    ok &= view.grounded_by(&topic, "asker").as_deref() == Some("holder");
+
+    ok
+}
