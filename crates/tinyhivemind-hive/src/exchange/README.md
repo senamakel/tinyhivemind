@@ -10,13 +10,32 @@ most one private row, taking no floor and producing no turn.
 The behavior is [`docs/specs/off-floor-exchange.md`][spec]; the decision and its
 reasoning are [ADR 0012][adr].
 
-## The one property everything rests on
+## The property everything rests on, and its exact limit
 
 A private row is dropped by `live_traces` before it can reach a trace, a
 standing, the sequence they fold at, the directory or the floor, and
 `EpisodeState::spent` counts turns rather than rows. So `step` returns the same
-`HiveStep` — *including the state it commits* — whether an exchange happened or
-not.
+`HiveStep` — *including the state it commits* — **for the same desk rows at the
+same sequences**.
+
+That qualifier is load-bearing and is not a formality. A private row consumes a
+sequence number, so a host allocating sequences live pushes every later desk row
+up by one per row written. `QuorumPolicy::window` and salience decay both read a
+*raw* sequence distance, so a support that was inside the window can fall
+outside it and the episode will legitimately decide something else.
+`episode::test::shifting_desk_sequences_past_a_private_row_can_change_the_step`
+demonstrates it at `window: 2`.
+
+So the honest statement is narrower than "an exchange cannot move the room": the
+**fold** ignores private rows completely, and the **sequence numbering** does
+not. What bounds the second in practice is that a window and a half-life are
+large relative to the private rows written between two desk turns —
+`QuorumPolicy::DEFAULT` uses a window of 100 against episodes of about eleven
+desk turns — and the benchmark measures the residual at zero (below). A host
+running tight windows, or writing many more private rows per turn than this,
+should measure rather than assume. Measuring decay and window in desk-visible
+rows instead of raw sequences would remove the caveat, and is a change to the
+quorum and salience folds with its own ADR.
 
 That is asserted rather than argued, and in two places, because it is the whole
 safety case:
