@@ -391,7 +391,7 @@ rather than a failure of the harness.
 | `--scenario PATH` | give the live room a real problem with private facts |
 | `--repeat N` | run a live scenario N times and count both arms |
 | `--json` | print one flat JSON object per arm, ahead of the tables |
-| `--stats-check` | run the statistics module's self-check and exit `0` or `1` |
+| `--stats-check` | run the statistics module's self-check, and the check arms' own, and exit `0` or `1` |
 | `--timeout SECS` | per-turn deadline for a live agent or HTTP request (default 180) |
 | `--api-base URL` | drive seats directly over HTTP instead of a CLI |
 | `--api-key-env NAME` | env var carrying the HTTP backend's key (default `LADDER_API_KEY`) |
