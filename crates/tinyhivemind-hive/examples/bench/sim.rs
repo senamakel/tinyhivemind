@@ -502,18 +502,14 @@ impl Room {
                     .iter()
                     .position(|(_, refutes)| refutes.as_ref() == Some(&topic) && *refutes != None)
                     .filter(|peer| *peer != index)
-                    .unwrap_or_else(|| {
-                        (index + 1 + spent as usize) % count.max(1)
-                    });
+                    .unwrap_or_else(|| (index + 1 + spent as usize) % count.max(1));
                 if peer == index {
                     break;
                 }
                 let Some((evals, refutes)) = readings.get(peer) else {
                     break;
                 };
-                if evidence
-                    && refutes.as_ref() == Some(&topic)
-                    && !agent.ruled_out.contains(&topic)
+                if evidence && refutes.as_ref() == Some(&topic) && !agent.ruled_out.contains(&topic)
                 {
                     agent.ruled_out.push(topic.clone());
                 }
