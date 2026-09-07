@@ -6,7 +6,7 @@
 `hive+fact`, `hive+fact°`, `hive+pooled`
 **Follows:** [`2026-09-07-do-asides-help.md`](2026-09-07-do-asides-help.md)
 
-**Peer-to-peer information is worth +9 to +21 points. Spending a floor turn to
+**Peer-to-peer information is worth +9 to +31 points. Spending a floor turn to
 buy it costs more than it is worth. The loss was never the privacy, the
 payload, or the peer — it was the scheduling.**
 
