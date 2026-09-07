@@ -9,8 +9,8 @@ use std::time::{Duration, Instant};
 
 use tinyhivemind_hive::{
     BidReason, Conversation, Directory, DirectoryPolicy, EpisodePolicy, EpisodeState,
-    ExchangePolicy, ExchangeRound, HiveStep, HiveTurn, Phase, Sequence, SessionAuthor,
-    SessionMessage,
+    ExchangePolicy, ExchangeRound, ExchangeState, HiveStep, HiveTurn, Phase, Sequence,
+    SessionAuthor, SessionMessage,
     desk::{Desk, DeskSet, ResponderMode},
     directory, exchange, project_for,
     roster::{Roster, RosterMember},
@@ -174,7 +174,12 @@ pub(crate) struct EpisodeReport {
     /// The sum of every speaker's own `Participant::cost_unit` across every
     /// turn taken.
     pub(crate) cost_units: u64,
-    /// Private rows written **off the floor**, in exchange rounds.
+    /// Model calls made **off the floor**, in exchange rounds.
+    ///
+    /// Members *asked* for a line, not rows appended: a member that declines
+    /// costs the same call as one that answers, and a round in which everybody
+    /// declines is the most expensive kind per row. Counting rows would report
+    /// a price lower than the one actually paid.
     ///
     /// Deliberately not folded into `cost_units`, which is defined as each
     /// speaker's own cost times its turns and is asserted to be exactly that.
@@ -916,7 +921,11 @@ pub(crate) fn drive_with(
     let mut step_time = Duration::ZERO;
     let mut step_calls = 0_u32;
     let mut turns = 0_u32;
+    // Calls made in exchange rounds, and the round count carried across them.
+    // The count is the host's because a round nobody wrote in leaves no row to
+    // fold it back out of, and that round still cost its calls.
     let mut contacts = 0_u32;
+    let mut opened = ExchangeState::opened();
     let mut trace = Vec::new();
     let mut tally = Tally::opened(member_ids);
 
@@ -968,9 +977,11 @@ pub(crate) fn drive_with(
                 // for any of it.
                 if aside_mode == AsideMode::OffFloor {
                     let members = member_ids.len();
-                    let (written, spent) =
-                        one_exchange(&mut host, agents, &last, &state, &exchange, members)?;
-                    contacts = contacts.saturating_add(written);
+                    let (ran, spent) = one_exchange(
+                        &mut host, agents, &last, &state, &exchange, opened, members,
+                    )?;
+                    contacts = contacts.saturating_add(ran.calls);
+                    opened = ran.next;
                     library_time += spent;
                 }
                 continue;
