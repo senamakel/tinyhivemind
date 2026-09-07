@@ -1229,7 +1229,6 @@ fn shifting_desk_sequences_past_a_private_row_can_change_the_step() {
     //
     // Two transcripts with the *same* desk rows in the same order, differing
     // only in the sequences those rows landed on:
-    let room = Room::new();
     let policy = EpisodePolicy {
         quorum: QuorumPolicy {
             window: 2,
@@ -1253,7 +1252,7 @@ fn shifting_desk_sequences_past_a_private_row_can_change_the_step() {
         let at = transcript
             .iter()
             .filter(|message| message.audience.is_desk())
-            .last()
+            .next_back()
             .map_or(Sequence(0), |message| message.sequence);
         let traces = crate::trace::read(&live_desk_rows(transcript));
         crate::quorum::standings(&traces, at, &policy.quorum).expect("valid policy")
