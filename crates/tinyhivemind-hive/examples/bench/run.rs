@@ -316,10 +316,14 @@ pub(crate) enum AsideMode {
     /// authored it rather than replacing one.
     ///
     /// One turn produces two rows: the member's ordinary desk-visible
-    /// contribution, and one aside. The episode cannot see the second — it
-    /// resolves no trace, folds into no standing, and `spent` counts turns
-    /// rather than rows — so the exchange costs the room nothing and cannot
-    /// outrun it.
+    /// contribution, and one aside. The episode cannot vote it — it resolves
+    /// no trace, folds into no standing, and `spent` counts turns rather than
+    /// rows — but it is not invisible to decay: the aside still takes the
+    /// next raw sequence in the one shared journal, so `salience::standing`'s
+    /// `at - trace.sequence` distance for every later desk trace is measured
+    /// against a journal one row longer than the same episode without the
+    /// aside would have reached. See the "Known limitation" note on
+    /// [ADR 0011][adr11].
     ///
     /// This is not the concurrency [ADR 0002][adr2] rules out: `HiveStep::Speak`
     /// still carries exactly one turn, no two participants ever hold the floor,
