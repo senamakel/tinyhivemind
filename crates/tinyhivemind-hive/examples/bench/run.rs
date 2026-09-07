@@ -463,23 +463,6 @@ pub(crate) fn run_episode_with(
     )
 }
 
-/// Run one full episode, letting every member spend up to `aside_cap` turns
-/// asking one peer for a second reading before it commits to a position.
-///
-/// `mode` decides who may read that exchange: the two settings cost the same
-/// turns and write the same words, which is what makes them a matched pair.
-/// `style` decides what the check does beyond costing a turn: where it is
-/// aimed, whether the answer may carry a fact rather than a number, and
-/// whether the answer is taken in at all. See [`CheckStyle`].
-///
-/// `AsideMode::Off` with `aside_cap: 0` is what every other arm passes, and a
-/// member that opens no check behaves exactly as it did before the move
-/// existed — the same discipline `defer_cap` follows.
-///
-/// # Errors
-///
-/// Returns the library's own error text if a snapshot or policy is malformed.
-#[allow(clippy::too_many_arguments)]
 /// Mean rows the room's members were holding when the episode ended.
 ///
 /// Averaged over members rather than summed: the question a window budget asks
@@ -498,6 +481,23 @@ fn mean_context_rows(agents: &[&mut dyn Participant]) -> f64 {
     total as f64 / agents.len() as f64
 }
 
+/// Run one full episode, letting every member spend up to `aside_cap` turns
+/// asking one peer for a second reading before it commits to a position.
+///
+/// `mode` decides who may read that exchange: the two settings cost the same
+/// turns and write the same words, which is what makes them a matched pair.
+/// `style` decides what the check does beyond costing a turn: where it is
+/// aimed, whether the answer may carry a fact rather than a number, and
+/// whether the answer is taken in at all. See [`CheckStyle`].
+///
+/// `AsideMode::Off` with `aside_cap: 0` is what every other arm passes, and a
+/// member that opens no check behaves exactly as it did before the move
+/// existed — the same discipline `defer_cap` follows.
+///
+/// # Errors
+///
+/// Returns the library's own error text if a snapshot or policy is malformed.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn run_episode_checking(
     room: &Room,
     policy: &EpisodePolicy,
