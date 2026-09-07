@@ -70,8 +70,9 @@ sampled.
 
 ### An exchange round
 
-Between two authorized turns — never during one — a host may run an **exchange
-round**. In a round, each eligible member may append at most one private row. No
+Between two authorized turns, or before the first one, a host may run an
+**exchange round**. Never *during* a turn: a round and a turn do not interleave,
+so the transcript a turn was composed from is never edited underneath it. In a round, each eligible member may append at most one private row. No
 member takes the floor, no `HiveStep` is produced, and `EpisodeState` does not
 advance.
 
@@ -235,8 +236,10 @@ contribution nobody was authorized to make.
   round. Consecutive stubs from one aside collapse, but stubs from *different*
   asides do not, so a heavily exchanging room costs a non-member more rows than
   a lightly exchanging one. Not addressed here beyond the existing collapse.
-- **Whether a round should be able to open before the first turn.** It cannot
-  today, because the members a round names are read from the episode's desk and
-  the exchange is defined as happening *between* turns. The benchmark's
-  `hive+pooled` arm suggests a pre-deliberation round is where most of the value
-  is, and that is a change to when rather than to what.
+- **A round before the first turn is allowed, and the blind round blunts it.**
+  `project_for` withholds every peer row under `Visibility::Blind` whatever its
+  audience, so rows written before the room opens are not readable by their
+  recipients until blindness lifts — they arrive in a batch rather than early.
+  Admitting asides through that filter was measured at `+0.5` and declined
+  ([ADR 0011](../adr/0011-an-aside-rides-alongside-a-turn.md)), so the
+  interaction stands as a known limit rather than a defect.
