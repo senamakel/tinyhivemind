@@ -199,7 +199,8 @@ fn remaining_is_clamped_per_member_rather_than_in_aggregate() {
         .collect();
     let ExchangeRound::Open {
         members, remaining, ..
-    } = open(&policy, &transcript) else {
+    } = open_after(&policy, &transcript, ExchangeState { rounds: 10 })
+    else {
         panic!("expected an open round");
     };
     // `planner` is out of contacts; `critic` and `scout` have ten each left on
@@ -278,9 +279,12 @@ fn remaining_is_clamped_by_the_rounds_still_open() {
     // Two rounds left, three members: at most six rows, not thirty.
     assert_eq!(remaining, 6);
 
-    // One round already spent by the busiest member: one round left.
-    let transcript = vec![private(1, "planner", "critic")];
-    let ExchangeRound::Open { remaining, .. } = open(&policy, &transcript) else {
+    // One round already opened: one left, so three rows rather than six. The
+    // count comes from the state the host carries, not from the rows in the
+    // log — a round nobody wrote in still spent the calls it made.
+    let ExchangeRound::Open { remaining, .. } =
+        open_after(&policy, &[], ExchangeState { rounds: 1 })
+    else {
         panic!("expected an open round");
     };
     assert_eq!(remaining, 3);
