@@ -187,7 +187,7 @@ impl Aggregate {
 
     /// Mean time inside the library per call to the state machine.
     pub(crate) fn nanos_per_step(&self) -> f64 {
-        let nanos = u64::try_from(self.library_time.as_nanos()).unwrap_or(u64::MAX);
+        let nanos = u64::try_from(self.step_time.as_nanos()).unwrap_or(u64::MAX);
         ratio(nanos, self.step_calls)
     }
 
