@@ -832,6 +832,10 @@ pub(crate) struct SimAgent {
     /// Options a private exchange has told this member are ruled out. Read by
     /// [`Self::score`], and by nothing the room counts.
     ruled_out: Vec<TopicId>,
+    /// Peers this member has already contacted under
+    /// [`CheckStyle::exchange`], so a continuous exchange reaches each of them
+    /// once rather than the same one repeatedly.
+    contacted: Vec<String>,
     /// Whether the turn this member has just composed was a real contribution
     /// rather than [`NONCOMPLIANCE`] filler.
     ///
@@ -868,6 +872,15 @@ pub(crate) struct CheckStyle {
     /// Send the check **alongside** the member's floor move rather than in
     /// place of it, so the exchange costs the room no turn at all.
     pub(crate) alongside: bool,
+    /// Contact a peer on every turn rather than only when two options cannot
+    /// be separated, and hand over a reading of *every* option rather than
+    /// one.
+    ///
+    /// This is the move a free row makes affordable and a charged one never
+    /// could: a colony's contacts are continuous and carry whatever the donor
+    /// holds, not one answer to one question. Bounded by `aside_cap`, which
+    /// under this style counts distinct peers contacted.
+    pub(crate) exchange: bool,
 }
 
 impl CheckStyle {
@@ -877,6 +890,7 @@ impl CheckStyle {
         evidence: false,
         mute: false,
         alongside: false,
+        exchange: false,
     };
     /// Aimed at whoever the room has heard ground the option.
     pub(crate) const AIMED: Self = Self {
@@ -884,6 +898,7 @@ impl CheckStyle {
         evidence: false,
         mute: false,
         alongside: false,
+        exchange: false,
     };
     /// Aimed, and carrying the fact rather than a number.
     pub(crate) const FACT: Self = Self {
@@ -891,6 +906,7 @@ impl CheckStyle {
         evidence: true,
         mute: false,
         alongside: false,
+        exchange: false,
     };
     /// The same turns, transferring nothing.
     pub(crate) const MUTE: Self = Self {
@@ -898,6 +914,7 @@ impl CheckStyle {
         evidence: false,
         mute: true,
         alongside: false,
+        exchange: false,
     };
     /// Aimed, carrying the fact, and riding alongside the floor move rather
     /// than replacing it. The mechanism the benchmark's scheduling result
@@ -907,6 +924,16 @@ impl CheckStyle {
         evidence: true,
         mute: false,
         alongside: true,
+        exchange: false,
+    };
+    /// The same free row, spent continuously and carrying everything the
+    /// donor holds rather than one answer to one question.
+    pub(crate) const EXCHANGE: Self = Self {
+        informed: false,
+        evidence: true,
+        mute: false,
+        alongside: true,
+        exchange: true,
     };
 }
 
@@ -960,6 +987,7 @@ impl SimAgent {
             aside_cap: 0,
             asides_spent: 0,
             style: CheckStyle::PLAIN,
+            contacted: Vec::new(),
             complied: false,
             ruled_out: Vec::new(),
             handled: Vec::new(),
@@ -1020,6 +1048,7 @@ impl SimAgent {
         self.asides_spent = 0;
         self.handled.clear();
         self.ruled_out.clear();
+        self.contacted.clear();
     }
 
     /// Tell the participant which quorum rule the room is running.
@@ -1929,6 +1958,21 @@ fn parse_topic(body: &str) -> Option<TopicId> {
 /// two halves of an exchange are told apart.
 fn parse_reading(body: &str) -> Option<(TopicId, i32)> {
     parse_readings(body).into_iter().next()
+}
+
+/// The option a row says it rules out, if it says so.
+///
+/// The refuted option is the last one named before the [`RULES_OUT`] phrase.
+/// A single-topic answer names only one option, so this reduces to it; a full
+/// exchange carries several readings and one refutation, and the phrase's
+/// position is what says which option the refutation is about.
+fn parse_ruled_out(body: &str) -> Option<TopicId> {
+    let stated = body.find(RULES_OUT)?;
+    body.get(..stated)?
+        .split_whitespace()
+        .filter_map(|word| word.strip_prefix('#'))
+        .next_back()
+        .map(TopicId::from)
 }
 
 /// Every topic and reading one answered check carries, in the order written.
