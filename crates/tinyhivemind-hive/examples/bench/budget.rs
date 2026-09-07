@@ -131,17 +131,16 @@ pub(crate) fn sweep(
             for room in rooms {
                 let windowed = room.with_budget(budget);
                 for (arm, report) in arms(&windowed, policy, task, aside_cap)? {
-                    match totals.iter_mut().find(|(name, _, _, _)| *name == arm) {
-                        Some((_, aggregate, rows, count)) => {
-                            aggregate.add(&report);
-                            *rows += report.context_rows as f64;
-                            *count += 1;
-                        }
-                        None => {
-                            let mut aggregate = Aggregate::default();
-                            aggregate.add(&report);
-                            totals.push((arm, aggregate, report.context_rows as f64, 1));
-                        }
+                    if let Some((_, aggregate, rows, count)) =
+                        totals.iter_mut().find(|(name, _, _, _)| *name == arm)
+                    {
+                        aggregate.add(&report);
+                        *rows += report.context_rows;
+                        *count += 1;
+                    } else {
+                        let mut aggregate = Aggregate::default();
+                        aggregate.add(&report);
+                        totals.push((arm, aggregate, report.context_rows, 1));
                     }
                 }
             }
@@ -152,6 +151,10 @@ pub(crate) fn sweep(
                     rot,
                     correct: aggregate.accuracy(),
                     decided: aggregate.decision_rate(),
+                    #[expect(
+                        clippy::cast_precision_loss,
+                        reason = "an episode count that exceeds f64's mantissa is not a run anybody makes"
+                    )]
                     rows: if count == 0 { 0.0 } else { rows / count as f64 },
                 });
             }
