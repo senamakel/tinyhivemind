@@ -1214,3 +1214,62 @@ fn a_room_that_has_only_said_things_privately_has_not_started() {
         1
     );
 }
+
+#[test]
+fn shifting_desk_sequences_past_a_private_row_can_change_the_step() {
+    // The limit of the invariance guarantee, pinned rather than assumed.
+    //
+    // `step` ignores a private row: it resolves no trace, joins no standing and
+    // costs no budget. What it cannot ignore is the *sequence* that row
+    // consumed. A host allocating sequences live pushes every later desk row up
+    // by one per private row, and both `QuorumPolicy::window` and salience
+    // decay read a raw sequence distance — so a support that was inside the
+    // window can fall outside it, and the episode legitimately decides
+    // something else.
+    //
+    // Two transcripts with the *same* desk rows in the same order, differing
+    // only in the sequences those rows landed on:
+    let room = Room::new();
+    let policy = EpisodePolicy {
+        quorum: QuorumPolicy {
+            window: 2,
+            ..EpisodePolicy::DEFAULT.quorum
+        },
+        ..EpisodePolicy::DEFAULT
+    };
+    let tight = vec![
+        said(1, "planner", "!propose #stage"),
+        said(2, "critic", "!support #stage ^1"),
+    ];
+    // The same two moves, with one private row's worth of sequence between
+    // them — which is what a host that ran an exchange round would produce.
+    let shifted = vec![
+        said(1, "planner", "!propose #stage"),
+        aside(2, "planner", &["scout"], "!aside @scout Between us."),
+        said(5, "critic", "!support #stage ^1"),
+    ];
+
+    let standings_of = |transcript: &[SessionMessage]| {
+        let at = transcript
+            .iter()
+            .filter(|message| message.audience.is_desk())
+            .last()
+            .map_or(Sequence(0), |message| message.sequence);
+        let traces = read(&live_desk_rows(transcript));
+        standings(&traces, at, &policy.quorum).expect("valid policy")
+    };
+
+    // The proposal is still inside a two-sequence window in the tight
+    // transcript, and has aged out of it in the shifted one. Same rows, same
+    // order, different answer.
+    assert_ne!(standings_of(&tight), standings_of(&shifted));
+}
+
+/// The desk-visible rows of a transcript, which is all `step` ever folds.
+fn live_desk_rows(transcript: &[SessionMessage]) -> Vec<SessionMessage> {
+    transcript
+        .iter()
+        .filter(|message| message.audience.is_desk())
+        .cloned()
+        .collect()
+}
