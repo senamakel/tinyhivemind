@@ -156,7 +156,7 @@ differently from one that does not, without a word of their content mattering.
 
 Measured, it does not: the benchmark's `hive+quiet` and `hive+hush` arms write
 the identical rows on the identical schedule and discard every answer, and both
-are `+0.0 [+0.0, +0.0]` at up to forty-five calls an episode. That makes the
+are `+0.0 [+0.0, +0.0]` at up to forty-five model calls an episode. That makes the
 sequence-distance decay harmless at these volumes rather than good design. A host
 writing far more rows than that should measure rather than assume; decaying over
 desk turns instead of raw sequences would be a library change with its own ADR.

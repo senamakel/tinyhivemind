@@ -1268,4 +1268,3 @@ fn shifting_desk_sequences_past_a_private_row_can_change_the_step() {
         run(&room, &state(), &parked, &policy),
     );
 }
-

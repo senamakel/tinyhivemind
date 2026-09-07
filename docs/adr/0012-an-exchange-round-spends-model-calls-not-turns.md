@@ -95,7 +95,7 @@ distance that feeds the attention market. So an exchange could in principle
 change who speaks next without a word of its content mattering. Two control arms
 write the identical rows on the identical schedule and discard every answer:
 `hive+quiet` for a round, `hive+hush` for an alongside row. Both are
-`+0.0 [+0.0, +0.0]` in every configuration, including at forty-five calls an
+`+0.0 [+0.0, +0.0]` in every configuration, including at forty-five model calls an
 episode.
 Every point an exchange arm gains is information. This makes the
 sequence-distance decay harmless at these volumes rather than good design — a

@@ -110,7 +110,7 @@ demonstrated at `window: 2` by
 The size of that effect has since been isolated rather than left open.
 `hive+hush` and `hive+quiet` write the identical rows on the identical schedule
 and discard every answer, so whatever they move is the sequence shift alone.
-Both are `+0.0 [+0.0, +0.0]` in every configuration, at up to forty-five calls
+Both are `+0.0 [+0.0, +0.0]` in every configuration, at up to forty-five model calls
 an episode — so the confound is real in principle and empirically empty at the
 default policy, whose window of 100 is an order of magnitude larger than the
 rows written between two desk turns. The `hive+along` and `hive+share` figures
