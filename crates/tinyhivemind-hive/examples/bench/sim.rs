@@ -1994,6 +1994,17 @@ impl crate::run::Participant for SimAgent {
         if !self.style.alongside || self.aside_cap == 0 {
             return None;
         }
+        // A round during the blind phase shows this member no peer at all, so
+        // anything it wrote would sit unread until blindness lifted and every
+        // contact it spent doing so would be gone by then. Declining is what
+        // keeps a bounded budget for the turns that can actually use it —
+        // measured, not assumed: without this the arm spends its whole cap
+        // before the room can read a word of it.
+        if !visible.iter().any(|message| {
+            matches!(&message.author, SessionAuthor::Agent { id, .. } if *id != self.id)
+        }) {
+            return None;
+        }
         self.absorb(visible);
         if let Some(line) = self.answer_check(visible) {
             return Some(line);
