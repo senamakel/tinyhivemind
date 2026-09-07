@@ -121,13 +121,23 @@ pub fn exchange(
     // be reported as reachable when `round_cap` would close the episode
     // first. Without this clamp a host sizing its remaining budget off this
     // field alone would overallocate.
-    let by_contact_cap = members
-        .iter()
-        .map(|id| policy.contact_cap.saturating_sub(contacts_of(&spent, id)))
-        .fold(0_u32, u32::saturating_add);
+    // Clamped per member, then summed — not summed and then clamped. A round
+    // gives each member at most one row, so no member can write more than
+    // `rounds_left` however much of its contact cap is left, and no member can
+    // write more than its contact cap however many rounds remain. Taking the
+    // aggregate minimum instead overreports whenever spend is uneven: one
+    // member that has spent its cap and one that has spent nothing report the
+    // second member's whole cap, when only `rounds_left` of it is reachable.
     let rounds_left = policy.round_cap.saturating_sub(rounds);
-    let by_round_cap = rounds_left.saturating_mul(u32::try_from(members.len()).unwrap_or(u32::MAX));
-    let remaining = by_contact_cap.min(by_round_cap);
+    let remaining = members
+        .iter()
+        .map(|id| {
+            policy
+                .contact_cap
+                .saturating_sub(contacts_of(&spent, id))
+                .min(rounds_left)
+        })
+        .fold(0_u32, u32::saturating_add);
 
     Ok(ExchangeRound::Open {
         members: eligible,

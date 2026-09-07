@@ -170,6 +170,29 @@ fn spend_is_read_back_out_of_the_transcript() {
 }
 
 #[test]
+fn remaining_is_clamped_per_member_rather_than_in_aggregate() {
+    // Uneven spend is where a summed-then-clamped budget overreports. One
+    // member has spent its whole cap and two have spent nothing; the round cap
+    // still allows five more rounds, so each idle member can write at most
+    // five more rows however much of its cap is left.
+    let policy = ExchangePolicy {
+        enabled: true,
+        contact_cap: 10,
+        round_cap: 15,
+    };
+    let transcript: Vec<SessionMessage> = (0..10_u64)
+        .map(|index| private(index + 1, "planner", "critic"))
+        .collect();
+    let ExchangeRound::Open { members, remaining } = open(&policy, &transcript) else {
+        panic!("expected an open round");
+    };
+    // `planner` is out of contacts; `critic` and `scout` have ten each left on
+    // paper and five rounds in which to spend them.
+    assert_eq!(members, vec!["critic".to_owned(), "scout".to_owned()]);
+    assert_eq!(remaining, 10, "five remaining rounds for each of two members");
+}
+
+#[test]
 fn a_member_that_has_spent_its_cap_is_not_named_again() {
     let policy = ExchangePolicy {
         contact_cap: 1,
