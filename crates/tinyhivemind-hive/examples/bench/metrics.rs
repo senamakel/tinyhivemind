@@ -66,6 +66,13 @@ pub(crate) struct Aggregate {
     /// Total cost, in [`crate::run::Participant::cost_unit`] units, spent
     /// across the sample.
     pub(crate) cost_units: u64,
+    /// Private rows written off the floor, summed across the sample.
+    ///
+    /// Each one is a model call the room paid for and the deliberation's turn
+    /// count does not show. The spec for the mechanism requires it be
+    /// displayed rather than folded into `cost/ep`, which is defined as each
+    /// speaker's own cost times its turns and would stop meaning that.
+    pub(crate) contacts: u64,
     /// Sum, in thousandths, of each episode's rank correlation between a
     /// member's folded directory weight and the number of turns it took --
     /// see [`Aggregate::mean_rho`].
@@ -99,6 +106,7 @@ impl Aggregate {
         self.library_time += report.library_time;
         self.correct_flags.push(report.correct);
         self.cost_units = self.cost_units.saturating_add(report.cost_units);
+        self.contacts = self.contacts.saturating_add(u64::from(report.contacts));
         self.defers = self.defers.saturating_add(u64::from(report.defers));
         if report.knows_turns > 0 {
             self.knows = self.knows.saturating_add(1);
@@ -229,6 +237,14 @@ impl Aggregate {
         ratio(self.cost_units, self.episodes.into())
     }
 
+    /// Private rows written off the floor per episode.
+    ///
+    /// The price of an off-floor exchange, in model calls the turn count does
+    /// not show.
+    pub(crate) fn contacts_per_episode(&self) -> f64 {
+        ratio(self.contacts, self.episodes.into())
+    }
+
     /// Correct decisions per thousand cost units spent -- a cost-normalised
     /// reading of accuracy, so an arm that spends more cannot look better
     /// than one that spends less for the same number of right answers.
@@ -337,7 +353,7 @@ fn deliberates(name: &str) -> bool {
 /// directory-circularity proxy.
 pub(crate) fn detail_header() -> String {
     format!(
-        "{:<8}{:>11}{:>16}{:>8}{:>9}{:>9}{:>11}{:>9}{:>9}{:>7}",
+        "{:<8}{:>11}{:>16}{:>8}{:>9}{:>9}{:>11}{:>9}{:>9}{:>10}{:>7}",
         "arm",
         "correct %",
         "95% CI",
@@ -347,6 +363,7 @@ pub(crate) fn detail_header() -> String {
         "defers/ep",
         "route %",
         "cost/ep",
+        "private/ep",
         "rho",
     )
 }
@@ -380,7 +397,7 @@ pub(crate) fn detail_row(name: &str, totals: &Aggregate) -> String {
         totals.mean_rho() / 1000.0
     });
     let rest = format!(
-        "{:>11.1}{:>16}{:>8}{:>9}{:>9}{:>11}{:>9}{:>9.2}{:>7}",
+        "{:>11.1}{:>16}{:>8}{:>9}{:>9}{:>11}{:>9}{:>9.2}{:>10}{:>7}",
         totals.accuracy(),
         ci,
         fact_pct,
@@ -389,6 +406,10 @@ pub(crate) fn detail_row(name: &str, totals: &Aggregate) -> String {
         defers,
         route_pct,
         totals.cost_per_episode(),
+        // `—` rather than `0.0` for an arm that runs no exchange at all: the
+        // column is about a mechanism most arms do not have, not a count they
+        // scored zero on.
+        dash_unless(totals.contacts > 0, || totals.contacts_per_episode()),
         rho,
     );
     row(name, &rest)
