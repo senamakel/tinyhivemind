@@ -174,9 +174,9 @@ changed: **an aside now rides alongside the turn that authored it.** One
 authorized turn produces the member's ordinary desk-visible move *and* one
 private row. It is not a second turn and cannot become one — the peer answers on
 its own next turn, which the attention market was going to give it — and the
-episode cannot tell the row is there, because `live_traces` drops a non-desk row
-before it reaches a trace, a standing, the sequence they fold at, or the floor,
-and `spent` counts turns rather than rows.
+episode cannot vote the row, because `live_traces` drops a non-desk row before
+it reaches a trace or a standing, and `spent` counts turns rather than rows.
+It is not free of a sequence, though: see "What this does not settle" below.
 
 That property is now pinned twice: a readable case in `episode::test`, and an
 *addition* invariant in the fuzz suite — arbitrary aside rows, carrying the same
