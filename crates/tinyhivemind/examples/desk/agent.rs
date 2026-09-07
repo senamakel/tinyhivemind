@@ -16,14 +16,20 @@ use std::{
 
 /// How long a turn may produce nothing at all before it is treated as stalled.
 ///
-/// A seat that is working emits an event every few seconds — a step, a tool
-/// call, a token. Silence past this means the CLI is waiting on a streamed
-/// response that will never arrive: the router's own request timeout covers a
-/// request that fails to answer, not a stream that opens and then stops, so
-/// nothing upstream will ever end it. The seat neither retries nor exits, and
-/// without this the only thing that notices is the turn deadline — which is
-/// how one hung stream came to cost a whole turn.
-const STALL_AFTER: Duration = Duration::from_secs(120);
+/// Set high on purpose, and the reason is a mistake worth recording. A
+/// reasoning model emits no events at all while it is thinking: the CLI writes
+/// a step when a call starts and when it finishes, and nothing in between. So
+/// stdout silence does not distinguish a hung stream from a seat mid-thought.
+/// At 120s this killed healthy turns three times over while the router was
+/// quietly serving twenty calls for them — the detector became the outage it
+/// was written to catch.
+///
+/// What it is still for is the genuine hang, where the CLI waits forever on a
+/// stream that opened and stopped and nothing upstream ends it. Those ran the
+/// whole turn budget with *zero* router calls. Fifteen minutes sits above the
+/// longest observed thinking gap and well below the turn deadline, so it
+/// catches that case and leaves a working seat alone.
+const STALL_AFTER: Duration = Duration::from_secs(900);
 
 /// What one turn produced.
 #[derive(Clone, Debug, Default)]

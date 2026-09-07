@@ -61,7 +61,7 @@ const ASIDES: AsidePolicy = AsidePolicy {
 };
 
 /// How many times one turn may be restarted after a stalled stream.
-const STALL_RESTARTS: usize = 3;
+const STALL_RESTARTS: usize = 1;
 
 /// How long a seat gets to land its work: write it down, then speak.
 ///
