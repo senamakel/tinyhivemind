@@ -305,6 +305,7 @@ fn rows_at_or_below_the_watermark_are_not_this_episodes_spend() {
             ..generous()
         },
         &opened,
+        ExchangeState::opened(),
         &transcript,
         &Roster::new(&people, &[], &retired),
         &DeskSet::new(&rooms, &[], &[], &[], &retired),
