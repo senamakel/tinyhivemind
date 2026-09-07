@@ -45,6 +45,22 @@ pub(crate) trait Participant {
     /// answer.
     fn speak(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Result<String, String>;
 
+    /// One private line this participant sends **alongside** the floor move it
+    /// just made, under [`AsideMode::Alongside`].
+    ///
+    /// Called once per turn, immediately after [`Participant::speak`] and over
+    /// the same projection. Returning `None` — the default, and what every
+    /// arm that is not an alongside one does — leaves the turn exactly as it
+    /// was.
+    ///
+    /// At most one row: the exchange is bounded by the floor it rides on, so a
+    /// room of `n` members writes at most `n` aside rows per round and each of
+    /// them cost its author a turn it had won anyway.
+    fn aside(&mut self, turn: &HiveTurn, visible: &[SessionMessage]) -> Option<String> {
+        let _ = (turn, visible);
+        None
+    }
+
     /// What one of this participant's turns costs, for the vote arm's charge
     /// and a deliberation's own `cost_units` total. A live agent costs the
     /// same as any other by default.
@@ -296,6 +312,28 @@ pub(crate) enum AsideMode {
     Private,
     /// The identical exchange, in the open, where every member reads it.
     Public,
+    /// The private exchange again, **riding alongside** the floor move that
+    /// authored it rather than replacing one.
+    ///
+    /// One turn produces two rows: the member's ordinary desk-visible
+    /// contribution, and one aside. The episode cannot vote it — it resolves
+    /// no trace, folds into no standing, and `spent` counts turns rather than
+    /// rows — but it is not invisible to decay: the aside still takes the
+    /// next raw sequence in the one shared journal, so `salience::standing`'s
+    /// `at - trace.sequence` distance for every later desk trace is measured
+    /// against a journal one row longer than the same episode without the
+    /// aside would have reached. See the "Known limitation" note on
+    /// [ADR 0011][adr11].
+    ///
+    /// This is not the concurrency [ADR 0002][adr2] rules out: `HiveStep::Speak`
+    /// still carries exactly one turn, no two participants ever hold the floor,
+    /// and the answer arrives on the peer's own next turn. What rides alongside
+    /// is a row, not a turn. See [ADR 0011][adr11] and the invariants pinned in
+    /// `episode::test` and `tests/fuzz_invariants.rs`.
+    ///
+    /// [adr2]: https://github.com/tinyhumansai/tinyhivemind/blob/main/docs/adr/0002-hive-episodes-are-sequential.md
+    /// [adr11]: https://github.com/tinyhumansai/tinyhivemind/blob/main/docs/adr/0011-an-aside-rides-alongside-a-turn.md
+    Alongside,
 }
 
 /// The audience one authored line is committed under.
@@ -312,7 +350,9 @@ fn audience_for(
     content: &str,
     policy: AsidePolicy,
 ) -> Audience {
-    if mode != AsideMode::Private || !content.trim_start().starts_with(ASIDE_MARKER) {
+    if !matches!(mode, AsideMode::Private | AsideMode::Alongside)
+        || !content.trim_start().starts_with(ASIDE_MARKER)
+    {
         return Audience::Desk;
     }
     let roster = host.roster();
@@ -439,6 +479,7 @@ pub(crate) fn run_episode_checking(
         agent.set_quorum(policy.quorum);
         agent.set_defer_cap(defer_cap);
         agent.set_aside_cap(aside_cap, style);
+        agent.set_peers(&ids);
     }
     let mut participants: Vec<&mut dyn Participant> = agents
         .iter_mut()
@@ -627,17 +668,40 @@ pub(crate) fn drive_with(
                         visible.len(),
                     ));
                 }
+                // An alongside aside is asked for over the same projection the
+                // floor move was composed from, before either row is appended,
+                // so the private line sees exactly what the public one saw.
+                let private = if aside_mode == AsideMode::Alongside {
+                    agent.aside(&turn, &visible)
+                } else {
+                    None
+                };
                 tally.record(&turn, &content, agent.cost_unit(), turns);
-                let audience = audience_for(
-                    aside_mode,
-                    &host,
-                    &turn.agent_id,
-                    &content,
-                    aside_policy(member_ids.len()),
-                );
+                let policy = aside_policy(member_ids.len());
+                let audience = audience_for(aside_mode, &host, &turn.agent_id, &content, policy);
                 // Durably append the turn, then commit the state it returned.
                 // That ordering is what the `next_state` contract requires.
                 host.agent_to(&turn.agent_id, content, audience);
+                // The aside rides along: one more row on the same turn, at the
+                // next sequence, addressed privately. It is appended *after*
+                // the floor move so the desk-visible row is what a reader meets
+                // first. `spent` is already fixed in `turn.next_state`, and
+                // `live_traces` drops a non-desk row before it can reach a
+                // trace or a standing, so this cannot buy the room a vote.
+                // It does spend a sequence: the next desk turn lands one raw
+                // sequence higher than it would have without this row, which
+                // `salience::standing`'s sequence-distance decay reads. See
+                // the "Known limitation" note on ADR 0011.
+                if let Some(line) = private {
+                    let audience =
+                        audience_for(AsideMode::Alongside, &host, &turn.agent_id, &line, policy);
+                    // A refused audience would put the line on the desk, where
+                    // it would be a second floor contribution on one turn. The
+                    // safe direction here is the opposite one: drop it.
+                    if !audience.is_desk() {
+                        host.agent_to(&turn.agent_id, line, audience);
+                    }
+                }
                 state = turn.next_state;
                 turns = turns.saturating_add(1);
                 continue;

@@ -3,7 +3,8 @@
 **Date:** 2026-09-07
 **Status:** Recorded
 **Code:** `crates/tinyhivemind-hive/examples/bench` — arms `hive+mute`,
-`hive+fact`, `hive+fact°`, `hive+pooled`
+`hive+fact`, `hive+along`, `hive+share`, `hive+fact°`, `hive+pooled`
+**Decision:** [ADR 0011](../adr/0011-an-aside-rides-alongside-a-turn.md)
 **Follows:** [`2026-09-07-do-asides-help.md`](2026-09-07-do-asides-help.md)
 
 **Peer-to-peer information is worth +9 to +31 points. Spending a floor turn to
@@ -26,6 +27,8 @@ the explanation does not survive them.
 | --- | --- |
 | `hive+mute` | the identical check on the identical turns, with the answer **discarded**. What it loses against `hive+` is what the turns cost. |
 | `hive+fact` | the aimed check, carrying the fact that rules an option out rather than a number to be averaged. |
+| `hive+along` | the aimed, fact-carrying check again, **riding alongside** the member's floor move: one turn, two rows, the second of which the episode cannot see. |
+| `hive+share` | the same free row spent **continuously** — a contact on every turn, carrying a reading of every option rather than an answer to one. |
 | `hive+fact°` | the same bounded exchange, held **off the floor** — before the episode opens, spending no turn the room could have deliberated with. |
 | `hive+pooled` | the **ceiling** *for equal-weight pooling*: every reading and every fact already in every member's hands, free, averaged with no regard for whose reading it is. No protocol that treats every peer's reading as equally reliable beats it; a protocol that could tell a specialist's reading from a lay guess (`--specialists`, not measured here) could in principle do better by weighting instead of averaging. |
 
@@ -44,6 +47,8 @@ Paired bootstrap against `hive+` over the same rooms, 2000 resamples.
 | `hive+aside!` | 79.6 | 81.6 | 50.9 |
 | `hive+fact` | 79.6 | 81.6 | 51.1 |
 | `hive+mute` | 79.6 | 81.5 | 52.3 |
+| `hive+along` | 82.1 | 81.8 | 68.5 |
+| `hive+share` | 82.1 | 81.7 | 69.4 |
 | `hive+fact°` | 80.9 | 81.5 | 71.2 |
 | `hive+pooled` | **91.5** | **91.6** | **98.8** |
 
@@ -52,14 +57,18 @@ hidden profile, budget 40
   hive+mute   − hive+:   -15.7 [-17.6, -13.8]     the turns alone
   hive+aside  − hive+:   -15.4 [-17.1, -13.4]
   hive+fact   − hive+:   -16.9 [-18.9, -15.1]
-  hive+fact°  − hive+:    +3.2 [ +2.1,  +4.2]     the same exchange, off the floor
-  hive+pooled − hive+:   +30.8 [+28.7, +32.9]     the ceiling
+  hive+along  − hive+:    +0.5 [ +0.1,  +0.9]     the same exchange, riding along
+  hive+share  − hive+:    +1.4 [ +0.4,  +2.4]     a contact every turn, carrying everything
+  hive+fact°  − hive+:    +3.2 [ +2.1,  +4.1]     the same exchange, off the floor
+  hive+pooled − hive+:   +30.8 [+28.8, +33.0]     the ceiling
 
 uniform, budget 15
   hive+mute   − hive+:    -2.5 [-3.0, -2.1]
   hive+aside  − hive+:    -2.5 [-3.0, -2.0]
-  hive+fact°  − hive+:    -1.2 [-2.2, -0.1]
-  hive+pooled − hive+:    +9.4 [+8.5, +10.4]
+  hive+along  − hive+:    +0.0 [+0.0, +0.1]
+  hive+share  − hive+:    +0.0 [-0.1, +0.2]
+  hive+fact°  − hive+:    -1.2 [-2.2, -0.2]
+  hive+pooled − hive+:    +9.4 [+8.6, +10.4]
 ```
 
 ## What this settles
@@ -158,35 +167,93 @@ once). Corrected, `hive+fact` (−16.9) and the aimed reading-only arm,
 the fact instead of a number does not measurably change what the aimed check
 is worth, and neither comes close to paying for the turn.
 
-## What follows for the design
+## The fix, and what it recovered
 
-The mechanism is not what is limiting the room; the accounting is. An aside
-resolves no trace, adds no supporter and moves no standing
-([ADR 0010](../adr/0010-an-aside-carries-information-never-support.md)) — it is
-by construction not a floor move, and charging it a floor turn is what makes it
-lose. The measured shape of the fix is: **let a private exchange run concurrently
-with the deliberation rather than in place of a turn of it.** That is a real
-change to how a host schedules an aside, not to the aside algebra, and it is
-outside this note; recorded here as what the numbers point at rather than as
-something demonstrated in the library.
+The mechanism was never limiting the room; the accounting was. So the accounting
+changed: **an aside now rides alongside the turn that authored it.** One
+authorized turn produces the member's ordinary desk-visible move *and* one
+private row. It is not a second turn and cannot become one — the peer answers on
+its own next turn, which the attention market was going to give it — and the
+episode cannot vote the row, because `live_traces` drops a non-desk row before
+it reaches a trace or a standing, and `spent` counts turns rather than rows.
+It is not free of a sequence, though: see "What this does not settle" below.
 
-The second constraint is bandwidth. One contact captures 3 of the 31 available
-points on the hidden profile and none of the 10 on a uniform room, and raising
-`--aside-cap` off the floor does not help, because a member stops being
-uncertain once its one contact has resolved the tie. The ceiling comes from
-every member reading everything, continuously — which is again the colony, and
-again not one question at a time.
+That property is now pinned twice: a readable case in `episode::test`, and an
+*addition* invariant in the fuzz suite — arbitrary aside rows, carrying the same
+fuzzed grammar as the desk rows, interleaved anywhere in an arbitrary
+transcript, leave `step` exactly where it was. Both go red if the audience
+filter is removed.
+
+`hive+along` is the same check as `hive+fact` — same words, same targeting, same
+bound — differing only in that the room is not charged for it. It moves from
+`-16.9 [-18.9, -15.1]` to `+0.5 [+0.1, +0.9]`. **A 17.4-point swing, bought by
+changing nothing about the exchange itself.** On uniform rooms the −2.5 becomes
+±0.0: the move stops being a tax everywhere.
+
+## What a free row makes affordable
+
+One question when you cannot separate two options is the shape a *charged* row
+forces. A colony's contacts are continuous and carry whatever the donor holds.
+`hive+share` is that: a contact on every turn, to a peer not yet reached,
+handing over a reading of every option and any fact its author holds. It gains
+`+1.4 [+0.4, +2.4]` on the hidden profile — much of the way to the `+3.2` that an
+off-floor exchange with oracle targeting reaches.
+
+## What is still unreached, and why it is not the accounting
+
+The ceiling is `+30.8` and the best arm inside the turn contract reaches `+1.4`.
+The remaining constraint is that an aside still *rides* on a turn: a room
+converging in eleven turns can write at most eleven aside rows, which in a room
+of five is about two contacts each, against the twenty full exchanges `pooled`
+performs for free. Raising `--aside-cap` does not help, because turns rather than
+the cap are what bind.
+
+Closing that would mean letting members the library did **not** authorize append
+rows between turns. The invariant above says `step` could not tell — but that is
+not a licence: a host running *n* participants per authorized turn is the failure
+mode the charter's third rule exists to prevent, and *n* model calls per turn is
+a real price this harness would have to display rather than hide. Left as an open
+question in the spec, with `hive+pooled` bounding it.
+
+**Blindness was tested and is not the barrier.** Half of a hidden-profile episode
+is the blind round, during which `project_for` withholds every peer row, so an
+exchange cannot begin until positions have already formed — an obvious suspect
+for the missing points. Admitting an aside addressed to the viewer through that
+filter is worth `+0.5`, inside the noise of the arms above. It would put a
+channel the library cannot inspect through the one filter
+[ADR 0005](../adr/0005-a-blind-round-may-be-concurrent.md) measures 24 points of
+value on, and it does not pay for that risk. `project_for` is unchanged.
 
 ## What this does not settle
 
 Everything the first note listed, still: conformity (arithmetic participants
 cannot be sycophantic), the settlement pointer (no simulated participant acts on
-one), and rooms whose members are wrong in *different* directions. It also does
-not demonstrate the concurrent-aside scheduling it points at — `hive+fact°`
-bounds what that would be worth, at +3.2, and does not implement it. And, as
-noted above, `hive+fact°`'s peer selection is an oracle rather than a
-transcript-matched replica of `hive+fact`'s, so +3.2 is an upper bound on the
-off-floor benefit rather than an isolation of scheduling from targeting.
+one), and rooms whose members are wrong in *different* directions. And now the
+off-floor exchange above, which `hive+pooled` bounds at `+30.8` and no arm here
+implements. Note also that `hive+fact°`'s peer selection is an oracle rather
+than a transcript-matched replica of `hive+fact`'s, so its `+3.2` is an upper
+bound on the off-floor benefit rather than an isolation of scheduling from
+targeting alone — `hive+along`, which *is* transcript-matched, is the clean
+comparison.
+
+Also unsettled: `hive+along` and `hive+share` are not insulated from an aside's
+*presence*, only from its content counting as a vote. Sequence numbers are
+unique across the one shared journal (the runtime crate rejects a duplicate),
+so each alongside row still takes the next one, and every later desk turn in
+those two arms therefore lands at a higher raw sequence than the same episode
+without the aside would have reached. `salience::standing` scores recency from
+that raw `at - trace.sequence` distance, and salience feeds the floor-holder
+choice, so a run that fires more asides reaches any given desk-turn count at a
+larger sequence, which very slightly speeds decay of the room's own older
+traces relative to a no-aside control. The fuzz invariant in `episode::test`
+and `tests/fuzz_invariants.rs` holds desk sequence numbers fixed across the
+transcripts it compares, so it correctly proves an aside cannot buy a vote —
+it was never a claim about live per-episode sequence numbering, and does not
+cover this. The `+0.5` and `+1.4` above are real measurements of the code as it
+runs today, confound included; this note records the confound rather than
+correcting for it, because the size and direction of its effect on the
+reported gain have not been isolated. See the "Known limitation" note on
+[ADR 0011](../adr/0011-an-aside-rides-alongside-a-turn.md).
 
 ## Retraction
 
@@ -206,4 +273,5 @@ $B --episodes 5000
 $B --episodes 2000 --budget 40
 $B --episodes 2000 --budget 40 --hidden-profile --blind-evidence
 $B --episodes 500  --budget 40 --hidden-profile --blind-evidence --aside-cap 5
+$B --episodes 500  --budget 40 --hidden-profile --blind-evidence --aside-cap 0  # every arm identical to hive+
 ```

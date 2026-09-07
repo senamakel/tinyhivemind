@@ -788,7 +788,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
     );
 
     let (totals, wall) = run_arms(options, rooms)?;
-    let arms: [(&str, &Aggregate); 17] = [
+    let arms: [(&str, &Aggregate); 19] = [
         ("ladder", &totals.ladder),
         ("vote", &totals.vote),
         ("hive", &totals.hive_default),
@@ -807,6 +807,8 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
         ("hive+aside!", &totals.hive_aside_informed),
         ("hive+fact", &totals.hive_aside_fact),
         ("hive+mute", &totals.hive_aside_mute),
+        ("hive+along", &totals.hive_aside_alongside),
+        ("hive+share", &totals.hive_aside_exchange),
         ("hive+fact°", &totals.hive_aside_offfloor),
         ("hive+pooled", &totals.hive_pooled),
     ];
@@ -894,6 +896,13 @@ struct Totals {
     hive_aside_fact: Aggregate,
     /// The same exchange on the same turns, with the answer discarded.
     hive_aside_mute: Aggregate,
+    /// The aimed, fact-carrying exchange again, riding alongside each
+    /// member's floor move rather than replacing one: one turn, two rows, and
+    /// the room charged for the first only.
+    hive_aside_alongside: Aggregate,
+    /// The free row spent continuously: a contact on every turn, carrying
+    /// every reading its author holds. Bounded by `--aside-cap` peers.
+    hive_aside_exchange: Aggregate,
     /// The aimed, fact-carrying exchange again, held off the floor: the same
     /// bounded number of contacts, spending no turn the room could have
     /// deliberated with.
@@ -944,6 +953,8 @@ fn check_arm_diffs(options: &Options, totals: &Totals) {
         ("hive+aside!", &totals.hive_aside_informed),
         ("hive+fact", &totals.hive_aside_fact),
         ("hive+mute", &totals.hive_aside_mute),
+        ("hive+along", &totals.hive_aside_alongside),
+        ("hive+share", &totals.hive_aside_exchange),
         ("hive+fact°", &totals.hive_aside_offfloor),
         ("hive+pooled", &totals.hive_pooled),
     ]
@@ -1004,12 +1015,21 @@ fn run_check_arms(
     totals
         .hive_aside_mute
         .add(&check(AsideMode::Private, CheckStyle::MUTE)?);
-    // The ceiling. Every reading and every fact is already in every
-    // member's hands when the episode opens, and the episode itself is
-    // an ordinary `hive+` run that opens no check and spends no turn on
-    // one. It bounds what any amount of pairwise exchange could buy.
-    // The same bounded exchange as `hive+fact`, held off the floor. It
-    // isolates what the check is worth from what its turns cost.
+    // The same aimed, fact-carrying exchange, riding alongside each member's
+    // floor move instead of replacing one: one turn, two rows, the second of
+    // which the episode cannot see. Same words and same targeting as
+    // `hive+fact`; the room simply is not charged for it.
+    totals
+        .hive_aside_alongside
+        .add(&check(AsideMode::Alongside, CheckStyle::ALONGSIDE)?);
+    // The same free row, spent continuously: a contact on every turn carrying
+    // every reading its author holds, bounded by how many distinct peers
+    // `--aside-cap` allows. This is the arm a charged row could never afford.
+    totals
+        .hive_aside_exchange
+        .add(&check(AsideMode::Alongside, CheckStyle::EXCHANGE)?);
+    // The same bounded exchange, held off the floor entirely and given oracle
+    // targeting. It bounds what the alongside arm above could reach.
     totals.hive_aside_offfloor.add(&run_episode(
         &room.pre_checked(options.aside_cap, true),
         tuned,
