@@ -226,19 +226,26 @@ is the version a host could actually run.
 `cost/ep`, which is defined as each speaker's own cost times its turns. The curve
 is the honest way to read the mechanism:
 
-| `--exchange-cap` | correct % | private rows/ep |
+| `--exchange-cap` | correct % | model calls/ep |
 | --- | --- | --- |
 | 0 (off) | 68.0 | — |
-| 1 | 69.5 | 5.0 |
-| 2 | 69.2 | 10.0 |
-| 4 (default) | **71.2** | 20.0 |
-| 8 | 72.4 | 27.8 |
-| 16 | 72.4 | 27.8 |
+| 1 | 69.5 | 30.0 |
+| 2 | 69.2 | 35.0 |
+| 4 (default) | **71.2** | 45.0 |
+| 8 | 72.4 | 53.9 |
+| 16 | 72.4 | 54.1 |
 
 It saturates: at cap 8 a member runs out of peers to contact before it runs out
 of budget, and rows stop being written at all rather than being written and
-wasted. Twenty rows to buy three points is a real trade a host can now make
+wasted. Forty-five calls to buy three points is a real trade a host can now make
 deliberately, and one it could not price before.
+
+**The column counts calls, not rows, and the difference is large.** A member
+asked for a line costs a model call whether or not it has anything to say, and a
+round in which everybody declines is the most expensive kind per row. An earlier
+version of this table reported rows — twenty against the forty-five actually
+paid — which understated the price by more than half. The mechanism is sold on
+its cost being visible, so the metric has to be the thing you are billed for.
 
 One participant-side detail is load-bearing and was measured rather than
 assumed. A round during the blind phase shows a member no peer at all, so
@@ -292,8 +299,8 @@ need its own ADR.
 
 ## What is still unreached, and why it is not the accounting
 
-The ceiling is `+30.8` and the best off-floor arm reaches `+3.2`, at twenty
-private rows an episode. What is left is not the accounting and not the carrier
+The ceiling is `+30.8` and the best off-floor arm reaches `+3.2`, at forty-five model
+calls an episode. What is left is not the accounting and not the carrier
 — both of those have now been removed — but **reach and timing**. `pooled` puts
 every member's reading of every option into every other member before a word is
 spoken; `hive+rounds` diffuses the same information pairwise, mid-episode, after
