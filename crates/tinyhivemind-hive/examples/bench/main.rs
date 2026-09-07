@@ -788,7 +788,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
     );
 
     let (totals, wall) = run_arms(options, rooms)?;
-    let arms: [(&str, &Aggregate); 19] = [
+    let arms: [(&str, &Aggregate); 20] = [
         ("ladder", &totals.ladder),
         ("vote", &totals.vote),
         ("hive", &totals.hive_default),
@@ -904,6 +904,11 @@ struct Totals {
     /// The free row spent continuously: a contact on every turn, carrying
     /// every reading its author holds. Bounded by `--aside-cap` peers.
     hive_aside_exchange: Aggregate,
+    /// The same continuous exchange, run **off the floor** in rounds between
+    /// turns: nobody takes the floor for it, so its volume is set by the
+    /// policy rather than by how many turns the room happens to take. Its
+    /// price is the `private/ep` column.
+    hive_exchange_rounds: Aggregate,
     /// The aimed, fact-carrying exchange again, held off the floor: the same
     /// bounded number of contacts, spending no turn the room could have
     /// deliberated with.
@@ -1030,6 +1035,12 @@ fn run_check_arms(
     totals
         .hive_aside_exchange
         .add(&check(AsideMode::Alongside, CheckStyle::EXCHANGE)?);
+    // The same continuous exchange, run off the floor: one round between every
+    // pair of turns, bounded by `ExchangePolicy` rather than by the number of
+    // turns the room takes. Priced in `private/ep`.
+    totals
+        .hive_exchange_rounds
+        .add(&check(AsideMode::OffFloor, CheckStyle::EXCHANGE)?);
     // The same bounded exchange, held off the floor entirely and given oracle
     // targeting. It bounds what the alongside arm above could reach.
     totals.hive_aside_offfloor.add(&run_episode(
