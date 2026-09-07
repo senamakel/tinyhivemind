@@ -33,7 +33,7 @@ mod test;
 
 mod types;
 
-pub use types::{ExchangePolicy, ExchangeRound, NoExchangeReason};
+pub use types::{ExchangePolicy, ExchangeRound, ExchangeState, NoExchangeReason};
 
 use tinyhivemind::{SessionAuthor, SessionMessage, desk::DeskSet, roster::Roster};
 
@@ -58,6 +58,7 @@ use crate::{EpisodeState, Result};
 pub fn exchange(
     policy: &ExchangePolicy,
     state: &EpisodeState,
+    opened: ExchangeState,
     transcript: &[SessionMessage],
     roster: &Roster<'_>,
     desks: &DeskSet<'_>,

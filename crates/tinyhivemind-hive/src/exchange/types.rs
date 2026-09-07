@@ -40,6 +40,46 @@ impl Default for ExchangePolicy {
     }
 }
 
+/// How many exchange rounds this episode has already opened.
+///
+/// Carried by the host, not folded from the transcript, and that is the whole
+/// point: a round in which every named member declines to write leaves no row
+/// behind, so nothing in the log distinguishes it from a round that never
+/// happened. Inferring the count from authored rows therefore under-counts
+/// exactly the rounds that cost the most per row — and a host whose
+/// participants decline can pay for asking each of them, without limit, while
+/// `round_cap` never closes.
+///
+/// The host already knows how many times it called [`crate::exchange`]. It
+/// carries this the same way it carries [`crate::EpisodeState`]: opened once,
+/// advanced by the value the last round returned, and never stored by this
+/// crate.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ExchangeState {
+    /// Rounds opened so far.
+    pub rounds: u32,
+}
+
+impl ExchangeState {
+    /// A fresh episode, with no round opened yet.
+    #[must_use]
+    pub const fn opened() -> Self {
+        Self { rounds: 0 }
+    }
+
+    /// The state after opening one more round.
+    ///
+    /// Saturating, so a host that runs past `u32::MAX` rounds stops counting
+    /// rather than wrapping back under its own cap.
+    #[must_use]
+    pub const fn advanced(self) -> Self {
+        Self {
+            rounds: self.rounds.saturating_add(1),
+        }
+    }
+}
+
 /// Why no exchange round is open.
 ///
 /// A closed round always names a reason; there is no silent no-op, for the
@@ -71,7 +111,14 @@ pub enum ExchangeRound {
         /// The members this round authorizes, in desk order.
         members: Vec<String>,
         /// Private rows this episode may still write, across every member.
-        remaining: u32,
+        ///
+        /// `u64`, because it is a sum over members of a `u32` cap and a `u32`
+        /// sum would saturate silently — reporting `u32::MAX` for a policy
+        /// whose real capacity is larger, which is a worse answer than a big
+        /// one.
+        remaining: u64,
+        /// The state to carry into the next call, having opened this round.
+        next: ExchangeState,
     },
     /// No round, and why.
     Closed {
