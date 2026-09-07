@@ -690,10 +690,7 @@ pub(crate) fn drive_with(
                     // A refused audience would put the line on the desk, where
                     // it would be a second floor contribution on one turn. The
                     // safe direction here is the opposite one: drop it.
-                    if audience.is_desk() {
-                        if std::env::var("PROBE").is_ok() { eprintln!("DROPPED {line}"); }
-                    } else {
-                        if std::env::var("PROBE").is_ok() { eprintln!("ASIDE {line}"); }
+                    if !audience.is_desk() {
                         host.agent_to(&turn.agent_id, line, audience);
                     }
                 }
