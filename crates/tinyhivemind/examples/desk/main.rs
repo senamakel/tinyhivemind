@@ -123,6 +123,7 @@ struct Options {
     rounds: usize,
     max_turns: usize,
     max_hops: u32,
+    chair_every: usize,
     window: usize,
     timeout: Duration,
     cortex_base: Option<String>,
@@ -146,6 +147,7 @@ impl Options {
             rounds: 8,
             max_turns: 40,
             max_hops: 6,
+            chair_every: 6,
             window: 40,
             timeout: Duration::from_secs(2400),
             cortex_base: std::env::var("CORTEX_BASE").ok(),
@@ -170,6 +172,7 @@ impl Options {
                 "--rounds" => options.rounds = value()?.parse()?,
                 "--max-turns" => options.max_turns = value()?.parse()?,
                 "--max-hops" => options.max_hops = value()?.parse()?,
+                "--chair-every" => options.chair_every = value()?.parse()?,
                 "--window" => options.window = value()?.parse()?,
                 "--timeout" => options.timeout = Duration::from_secs(value()?.parse()?),
                 "--cortex-base" => options.cortex_base = Some(value()?),
@@ -323,13 +326,24 @@ async fn main() -> Result<(), BoxError> {
     let mut turns = 0_usize;
     let mut rounds = 0_usize;
     let mut next_seat = 0_usize;
+    let mut since_chair = 0_usize;
     let mut tokens = 0_u64;
     while turns < options.max_turns {
-        let job = queue
-            .pending
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .pop_front();
+        // The chair speaks on a cadence, not only when the room falls silent.
+        // A chain of two seats naming each other never goes quiet, so a purely
+        // reactive chair never gets a word in — and this desk spent six turns
+        // refining a settled fact while the one open implementation step went
+        // unbuilt, with nobody whose job it was to say so.
+        let due = options.chair_every > 0 && since_chair >= options.chair_every;
+        let job = if due {
+            None
+        } else {
+            queue
+                .pending
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .pop_front()
+        };
         let job = if let Some(job) = job {
             job
         } else {
@@ -350,6 +364,7 @@ async fn main() -> Result<(), BoxError> {
                     break;
                 }
                 rounds += 1;
+                since_chair = 0;
                 let spoken: Vec<String> = transcript
                     .rows()
                     .into_iter()
@@ -410,6 +425,7 @@ async fn main() -> Result<(), BoxError> {
             continue;
         };
         turns += 1;
+        since_chair += 1;
 
         let viewer = Viewer::Agent {
             id: seat.id.clone(),
