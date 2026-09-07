@@ -84,27 +84,15 @@ pub fn exchange(
     }
 
     let spent = spent_by(transcript, state, &members);
-    // Rounds are counted by the busiest member: a round authorizes each member
-    // at most one row, so nobody can have written more rows than there have
-    // been rounds. Reading it this way keeps the count folded rather than
-    // carried, at the cost of under-counting a round in which every named
-    // member declined to write. That is *not* the safe direction: it lets
-    // `RoundsSpent` arrive later than the true round count, so a host whose
-    // participants decline every round can call `exchange` — and pay for
-    // asking each named member — more than `round_cap` times.
-    //
-    // A correct count needs a marker for "this round opened" independent of
-    // any row it produced, and this fold has nothing to read one from: no
-    // row is dropped by a decline, so no artifact of a declined round exists
-    // in the transcript, and this crate stores no counter of its own (see the
-    // module doc). Closing that gap means the host recording round-opened,
-    // not just rows-written — a protocol change, tracked as an open question
-    // in `docs/specs/off-floor-exchange.md` rather than solved by this fold.
-    // In the meantime the practical ceiling on model calls is
-    // `min(round_cap, turns already taken + 1) × members`, since a host only
-    // opens a round between turns.
-    let rounds = spent.iter().map(|(_, count)| *count).max().unwrap_or(0);
-    if rounds >= policy.round_cap {
+    // Rounds come from the count the host carries, never from the rows in the
+    // log. A round in which every named member declined to write leaves no row
+    // behind, so the transcript cannot tell it from a round that never
+    // happened — and those are the rounds that cost the most per row, because
+    // the host paid to ask each member and got nothing back. Inferring the
+    // count from authored rows would let `RoundsSpent` arrive arbitrarily late
+    // and leave the model-call budget unbounded, which is the one thing the
+    // round cap exists to prevent.
+    if opened.rounds >= policy.round_cap {
         return closed(NoExchangeReason::RoundsSpent);
     }
 
@@ -117,36 +105,30 @@ pub fn exchange(
         return closed(NoExchangeReason::ContactsSpent);
     }
 
-    // What the episode may still write in total, so a host can size a round
-    // without recomputing the fold. Saturating because a host that exceeded
-    // its authorization should read zero rather than wrap.
-    //
-    // Clamped by the rounds still open: each remaining round authorizes at
-    // most one row per eligible member, so a generous `contact_cap` must not
-    // be reported as reachable when `round_cap` would close the episode
-    // first. Without this clamp a host sizing its remaining budget off this
-    // field alone would overallocate.
     // Clamped per member, then summed — not summed and then clamped. A round
-    // gives each member at most one row, so no member can write more than
-    // `rounds_left` however much of its contact cap is left, and no member can
-    // write more than its contact cap however many rounds remain. Taking the
-    // aggregate minimum instead overreports whenever spend is uneven: one
-    // member that has spent its cap and one that has spent nothing report the
-    // second member's whole cap, when only `rounds_left` of it is reachable.
-    let rounds_left = policy.round_cap.saturating_sub(rounds);
-    let remaining = members
+    // gives each member at most one row, so no member can write more than the
+    // rounds that remain however much of its contact cap is left, and none can
+    // write more than its cap however many rounds remain. Taking the aggregate
+    // minimum instead overreports whenever spend is uneven: one member that has
+    // spent its cap and one that has spent nothing report the second member's
+    // whole cap, when only `rounds_left` of it is reachable.
+    let rounds_left = policy.round_cap.saturating_sub(opened.rounds);
+    let remaining: u64 = members
         .iter()
         .map(|id| {
-            policy
-                .contact_cap
-                .saturating_sub(contacts_of(&spent, id))
-                .min(rounds_left)
+            u64::from(
+                policy
+                    .contact_cap
+                    .saturating_sub(contacts_of(&spent, id))
+                    .min(rounds_left),
+            )
         })
-        .fold(0_u32, u32::saturating_add);
+        .sum();
 
     Ok(ExchangeRound::Open {
         members: eligible,
         remaining,
+        next: opened.advanced(),
     })
 }
 

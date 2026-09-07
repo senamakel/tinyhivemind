@@ -142,7 +142,9 @@ pub use episode::{
     EpisodePolicy, EpisodeState, HiveStep, HiveTurn, Phase, Visibility, project_for, step,
 };
 pub use error::{Error, Result};
-pub use exchange::{ExchangePolicy, ExchangeRound, NoExchangeReason, exchange};
+pub use exchange::{
+    ExchangePolicy, ExchangeRound, ExchangeState, NoExchangeReason, exchange,
+};
 pub use quorum::{ConsensusState, QuorumPolicy, TopicStanding, consensus, standings};
 pub use salience::{Salience, SalienceWeights, salience};
 pub use trace::{TRACE_CAP, TopicId, Trace, TraceKind, read, resolve};
