@@ -705,6 +705,18 @@ fn exchange_policy(contact_cap: u32, round_cap: u32) -> ExchangePolicy {
     }
 }
 
+/// One line of the `--trace` view: who spoke, why, under what visibility and
+/// phase, how much they were shown, and what they said.
+fn trace_line(turn: &HiveTurn, content: &str, saw: usize) -> String {
+    format!(
+        "{:>10}  {:<10} {:<6} {:<11} saw {saw:>2}  {content}",
+        turn.agent_id,
+        format!("{:?}", turn.reason).to_lowercase(),
+        format!("{:?}", turn.visibility).to_lowercase(),
+        format!("{:?}", turn.phase).to_lowercase(),
+    )
+}
+
 /// Append one authorized turn, and the private row riding alongside it.
 ///
 /// Durably append the turn, then the caller commits the state it returned:
@@ -870,14 +882,7 @@ pub(crate) fn drive_with(
                 };
                 let content = agent.speak(&turn, &visible)?;
                 if keep_trace {
-                    trace.push(format!(
-                        "{:>10}  {:<10} {:<6} {:<11} saw {:>2}  {content}",
-                        turn.agent_id,
-                        format!("{:?}", turn.reason).to_lowercase(),
-                        format!("{:?}", turn.visibility).to_lowercase(),
-                        format!("{:?}", turn.phase).to_lowercase(),
-                        visible.len(),
-                    ));
+                    trace.push(trace_line(&turn, &content, visible.len()));
                 }
                 // An alongside aside is asked for over the same projection the
                 // floor move was composed from, before either row is appended,
