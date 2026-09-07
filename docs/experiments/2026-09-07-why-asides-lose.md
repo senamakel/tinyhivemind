@@ -80,17 +80,29 @@ points against not taking it in — small, and in the *helpful* direction. That
 paragraph of the earlier note is retracted below.
 
 **The information is worth a great deal.** `hive+pooled` beats `hive+` by
-**+21.2** on the hidden profile and by **+9.4 to +10.0** on uniform rooms, and
-does it in *fewer* turns (10.22 against 10.98). This is the largest effect
+**+30.8** on the hidden profile and by **+9.4 to +10.0** on uniform rooms, and
+does it in *fewer* turns (10.31 against 10.98). This is the largest effect
 anywhere in this benchmark. A room whose members can read each other's private
 evaluations is a substantially better room. The intuition that peer-to-peer
 exchange should make a hive mind smarter is correct, and this is the size of it.
 
-**The whole gap is scheduling.** `hive+fact°` runs the *same* bounded exchange,
-with the same payload, the same targeting and the same number of contacts as
-`hive+fact` — and differs only in that it does not spend a floor turn. It moves
-from **−15.0 to +3.0**, an interval clear of zero. Eighteen points of the
-difference between the two is nothing but when the exchange happens.
+**Most of the gap is scheduling.** `hive+fact°` runs the same bounded exchange,
+with the same payload and the same number of contacts as `hive+fact` — off the
+floor rather than on it. It moves from **−15.0 to +4.9**, an interval clear of
+zero. Close to twenty points of the difference between the two is when the
+exchange happens.
+
+One caveat on "the same targeting": `hive+fact°` chooses its peer from private
+room state — it always reaches the actual fact-holder. `hive+fact` chooses its
+peer through `View::grounded_by`, reading only the transcript built so far, and
+falls back to the first peer that has spoken when the holder has not deposited
+yet. The two are not guaranteed to resolve to the same peer on a given episode,
+so `hive+fact°` is better read as an upper bound on what the exchange is worth
+off the floor with at-least-as-good targeting, not as a comparison that varies
+scheduling alone. Matching the two exactly would mean deriving `hive+fact°`'s
+peer from the transcript a live episode would have produced by that point,
+which this benchmark does not attempt because `pre_checked` runs before any
+transcript exists.
 
 ## Why, in one paragraph
 
