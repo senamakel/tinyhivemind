@@ -54,8 +54,11 @@ decision as much as the mechanism is.
 
 - **N turns.** A round starts none. No member gains the floor, no `HiveStep` is
   produced, the turn budget is untouched, and `step` returns the same step —
-  including the state it commits — whether the round happened or not. That is
-  asserted by a fuzz invariant over arbitrary transcripts, not by argument.
+  including the state it commits — for the same desk rows at the same sequences.
+  That is asserted by a fuzz invariant over arbitrary transcripts, not by
+  argument. It is a statement about the fold, not about sequence allocation: a
+  private row consumes a sequence, and a window measured in raw sequences can
+  therefore age a desk row out. See the consequence below.
 - **Could start.** The danger is unboundedness through cascade: `@everyone`
   mentions N agents, each of whom may mention N more. A row authored in an
   exchange round is never handed to `mention_dispatch`, so rows do not beget
@@ -76,8 +79,17 @@ ceilings are explicit, and the benchmark reports private rows in a column of
 their own so a reader sees the spend beside the gain. A mechanism whose price a
 table hides would be worse than one that loses.
 
-**Writing the rows moves nothing by itself, and that was measured rather than
-argued.** A private row buys no trace, standing or budget, but it does consume a
+**Writing the rows costs a sequence, and that bounds the guarantee.** The fold
+ignores a private row completely; the numbering does not. `QuorumPolicy::window`
+and salience decay read raw sequence distance, so a host allocating sequences
+live shifts later desk rows and can age one out of a window it was inside —
+demonstrated at `window: 2` by
+`episode::test::shifting_desk_sequences_past_a_private_row_can_change_the_step`.
+The claim is therefore "the fold is indifferent to private rows", not "an
+exchange cannot move the room". Measuring decay in desk-visible rows would close
+it, and is a change to two folds with its own ADR.
+
+**What that residual is worth was measured rather than argued.** A private row buys no trace, standing or budget, but it does consume a
 sequence number, and `salience::standing` reads recency as a raw sequence
 distance that feeds the attention market. So an exchange could in principle
 change who speaks next without a word of its content mattering. Two control arms

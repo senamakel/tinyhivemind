@@ -143,10 +143,14 @@ deliberately, so unlike `defer_cap` it is not an error.
 Four prohibitions, and the first three are already properties of the algebra
 rather than new promises:
 
-1. **It may not move the episode.** A private row is dropped by `live_traces`
-   before it reaches a trace, a standing, the sequence they fold at, the
-   directory or the floor, and `EpisodeState::spent` counts turns rather than
-   rows. `step` is therefore invariant under the *addition* of private rows.
+1. **It may not move the episode's fold.** A private row is dropped by
+   `live_traces` before it reaches a trace, a standing, the sequence they fold
+   at, the directory or the floor, and `EpisodeState::spent` counts turns rather
+   than rows. `step` is therefore invariant under the addition of private rows
+   **for the same desk rows at the same sequences**. It is not invariant under
+   the sequence *shift* a live host produces by writing them: `window` and
+   salience decay read raw sequence distance, so a later desk row can fall out
+   of a window it was inside. See the invariant below, and the open question.
 2. **It may not start a turn.** A host does not hand a row authored in an
    exchange round to `mention_dispatch`. The exchange cannot cascade: rows do
    not beget rows, and the only thing that produces more of them is the next
@@ -207,7 +211,12 @@ contribution nobody was authorized to make.
 ## Invariants and constraints
 
 - `step` returns the same `HiveStep`, including `next_state`, for a transcript
-  with and without any number of private rows interleaved anywhere.
+  with and without any number of private rows interleaved anywhere, **holding
+  the desk rows' own sequences fixed**. Under live allocation the private rows
+  shift later desk sequences, and `QuorumPolicy::window` and salience decay read
+  that distance raw, so the fold's indifference to private rows does not extend
+  to the numbering. Pinned by
+  `episode::test::shifting_desk_sequences_past_a_private_row_can_change_the_step`.
 - An episode's total private rows never exceed the policy's computed worst case,
   and its total rounds never exceed `round_cap` — including rounds in which
   every named member declined to write.
@@ -266,6 +275,18 @@ contact to move.
   Admitting asides through that filter was measured at `+0.5` and declined
   ([ADR 0011](../adr/0011-an-aside-rides-alongside-a-turn.md)), so the
   interaction stands as a known limit rather than a defect.
+- **Decay and windows read raw sequences, so writing rows is not perfectly
+  neutral.** The fold ignores a private row entirely, but the sequence it
+  consumed shifts every later desk row, and `QuorumPolicy::window` and
+  `salience::standing` both measure a raw sequence distance. A support inside a
+  tight window can therefore fall outside it because an exchange happened. What
+  bounds this in practice is that windows and half-lives are large relative to
+  the rows written between two desk turns — the default window is 100 against
+  episodes of about eleven desk turns — and the benchmark's silence controls
+  measure the residual at `+0.0 [+0.0, +0.0]` at forty-five calls an episode.
+  Removing the caveat means measuring decay and windows in desk-visible rows
+  rather than raw sequences, which is a change to the quorum and salience folds
+  and needs its own decision. Stated rather than solved here.
 - **A declining participant still costs its call, and the budget now says so.**
   Both halves of this were defects and both are fixed. `round_cap` counts rounds
   the host opened rather than rows the log happens to carry, so a room whose
