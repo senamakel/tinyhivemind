@@ -350,24 +350,41 @@ async fn main() -> Result<(), BoxError> {
                     break;
                 }
                 rounds += 1;
-                let last = transcript
+                let spoken: Vec<String> = transcript
                     .rows()
                     .into_iter()
-                    .rev()
-                    .find_map(|row| match row.author {
+                    .filter_map(|row| match row.author {
                         SessionAuthor::Agent { id, .. } => Some(id),
                         _ => None,
-                    });
-                let seat = if let Some(seat) = last.as_deref().and_then(|id| spec.agent(id)) {
-                    seat
-                } else {
-                    let seat = &spec.agents[next_seat % spec.agents.len()];
-                    next_seat += 1;
-                    seat
+                    })
+                    .collect();
+                // Alternate. Even rounds go back to whoever spoke last, because
+                // a chain usually dies with that seat holding the unfinished
+                // work. Odd rounds go to a seat that has never spoken, because
+                // one-message-one-turn lets a pair that keeps naming each other
+                // run a four-seat desk between them: over sixteen turns here,
+                // two seats spoke and the other two never did. A desk whose
+                // checker never checks is not a desk.
+                let starved = spec
+                    .agents
+                    .iter()
+                    .find(|seat| !spoken.iter().any(|who| who == &seat.id));
+                let seat = match (rounds % 2, starved) {
+                    (1, Some(seat)) => seat,
+                    _ => spoken
+                        .last()
+                        .and_then(|id| spec.agent(id))
+                        .unwrap_or_else(|| {
+                            let seat = &spec.agents[next_seat % spec.agents.len()];
+                            next_seat += 1;
+                            seat
+                        }),
                 };
                 let nudge = format!(
-                    "@{} the room has gone quiet — round {rounds}. Post your next concrete \
-                     step or result, and name the seat you need next.",
+                    "@{} the room has gone quiet — round {rounds}. Read NOTES.md and the \
+                     transcript, then post one concrete step or result and name the seat \
+                     you need next. If the room has been round the same loop twice, say so \
+                     and change what it is doing.",
                     seat.id
                 );
                 sequence = transcript.append(
