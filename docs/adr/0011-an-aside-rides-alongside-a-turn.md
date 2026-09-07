@@ -83,8 +83,28 @@ the same rooms without the move:
 | uniform, budget 40 | `-0.1 [-0.6, +0.5]` | `+0.1 [+0.0, +0.3]` |
 
 A 17.4-point swing on the hidden profile, bought by changing nothing about who
-reads the exchange, what it says, or who it is aimed at. The move stops being a
-tax and becomes free.
+reads the exchange, what it says, or who it is aimed at. The move stops costing
+the room a vote and a turn.
+
+**Known limitation: a row still costs a sequence.** "The episode cannot see it"
+means no trace, standing, or `spent` count ever sees an aside row — it does
+*not* mean the aside is invisible to every fold. Sequence numbers are unique
+across the one shared journal (the runtime crate rejects a duplicate), so an
+aside row still takes the next one, and every later desk turn therefore lands
+at a higher raw sequence than the same episode without that aside would have
+reached. `salience::standing` scores recency from `at.0 - trace.sequence.0`
+(`crates/tinyhivemind-hive/src/salience/mod.rs`), and that score feeds
+`bids`/`floor_holder` — the fold that decides who speaks next. A run that fires
+more alongside asides therefore reaches any given desk-turn count at a larger
+raw sequence than a no-aside control, which very slightly speeds the apparent
+decay of older traces relative to that control. The fuzz invariant above holds
+this fixed by giving both transcripts it compares the same desk sequence
+numbers, so it correctly proves the aside cannot buy a vote; it does not, and
+was never meant to, prove the live per-episode sequence numbering is
+unaffected. The `hive+along` and `hive+share` figures below are real
+measurements of the code as it runs today, confound included, and the direction
+of the confound (faster decay of the room's own older traces) does not favor
+the aside arms it appears in.
 
 **A free row makes continuous exchange affordable, and that is worth more than
 one question.** Once a contact costs no turn, a member can contact a peer on
