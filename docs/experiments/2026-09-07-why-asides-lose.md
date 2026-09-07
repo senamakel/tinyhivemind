@@ -139,32 +139,70 @@ refutation carries in `View::posterior` — a belief, not a trace, so the room
 still counts nothing from an aside. It is worth +2.1 against the aimed
 reading-only arm and does not come close to paying for the turn.
 
-## What follows for the design
+## The fix, and what it recovered
 
-The mechanism is not what is limiting the room; the accounting is. An aside
-resolves no trace, adds no supporter and moves no standing
-([ADR 0010](../adr/0010-an-aside-carries-information-never-support.md)) — it is
-by construction not a floor move, and charging it a floor turn is what makes it
-lose. The measured shape of the fix is: **let a private exchange run concurrently
-with the deliberation rather than in place of a turn of it.** That is a real
-change to how a host schedules an aside, not to the aside algebra, and it is
-outside this note; recorded here as what the numbers point at rather than as
-something demonstrated in the library.
+The mechanism was never limiting the room; the accounting was. So the accounting
+changed: **an aside now rides alongside the turn that authored it.** One
+authorized turn produces the member's ordinary desk-visible move *and* one
+private row. It is not a second turn and cannot become one — the peer answers on
+its own next turn, which the attention market was going to give it — and the
+episode cannot tell the row is there, because `live_traces` drops a non-desk row
+before it reaches a trace, a standing, the sequence they fold at, or the floor,
+and `spent` counts turns rather than rows.
 
-The second constraint is bandwidth. One contact captures 3 of the 21 available
-points on the hidden profile and none of the 10 on a uniform room, and raising
-`--aside-cap` off the floor does not help, because a member stops being
-uncertain once its one contact has resolved the tie. The ceiling comes from
-every member reading everything, continuously — which is again the colony, and
-again not one question at a time.
+That property is now pinned twice: a readable case in `episode::test`, and an
+*addition* invariant in the fuzz suite — arbitrary aside rows, carrying the same
+fuzzed grammar as the desk rows, interleaved anywhere in an arbitrary
+transcript, leave `step` exactly where it was. Both go red if the audience
+filter is removed.
+
+`hive+along` is the same check as `hive+fact` — same words, same targeting, same
+bound — differing only in that the room is not charged for it. It moves from
+`-15.0 [-16.9, -13.1]` to `+0.5 [+0.1, +1.0]`. **A 15.5-point swing, bought by
+changing nothing about the exchange itself.** On uniform rooms the −2.5 becomes
+±0.0: the move stops being a tax everywhere.
+
+## What a free row makes affordable
+
+One question when you cannot separate two options is the shape a *charged* row
+forces. A colony's contacts are continuous and carry whatever the donor holds.
+`hive+share` is that: a contact on every turn, to a peer not yet reached,
+handing over a reading of every option and any fact its author holds. It gains
+`+1.9 [+0.8, +3.0]` on the hidden profile — most of the way to the `+3.0` that an
+off-floor exchange with oracle targeting reaches.
+
+## What is still unreached, and why it is not the accounting
+
+The ceiling is `+21.2` and the best arm inside the turn contract reaches `+1.9`.
+The remaining constraint is that an aside still *rides* on a turn: a room
+converging in eleven turns can write at most eleven aside rows, which in a room
+of five is about two contacts each, against the twenty full exchanges `pooled`
+performs for free. Raising `--aside-cap` does not help, because turns rather than
+the cap are what bind.
+
+Closing that would mean letting members the library did **not** authorize append
+rows between turns. The invariant above says `step` could not tell — but that is
+not a licence: a host running *n* participants per authorized turn is the failure
+mode the charter's third rule exists to prevent, and *n* model calls per turn is
+a real price this harness would have to display rather than hide. Left as an open
+question in the spec, with `hive+pooled` bounding it.
+
+**Blindness was tested and is not the barrier.** Half of a hidden-profile episode
+is the blind round, during which `project_for` withholds every peer row, so an
+exchange cannot begin until positions have already formed — an obvious suspect
+for the missing points. Admitting an aside addressed to the viewer through that
+filter is worth `+0.5`, inside the noise of the arms above. It would put a
+channel the library cannot inspect through the one filter
+[ADR 0005](../adr/0005-a-blind-round-may-be-concurrent.md) measures 24 points of
+value on, and it does not pay for that risk. `project_for` is unchanged.
 
 ## What this does not settle
 
 Everything the first note listed, still: conformity (arithmetic participants
 cannot be sycophantic), the settlement pointer (no simulated participant acts on
-one), and rooms whose members are wrong in *different* directions. It also does
-not demonstrate the concurrent-aside scheduling it points at — `hive+fact°`
-bounds what that would be worth, at +3.0, and does not implement it.
+one), and rooms whose members are wrong in *different* directions. And now the
+off-floor exchange above, which `hive+pooled` bounds at `+21.2` and no arm here
+implements.
 
 ## Retraction
 
@@ -184,4 +222,5 @@ $B --episodes 5000
 $B --episodes 2000 --budget 40
 $B --episodes 2000 --budget 40 --hidden-profile --blind-evidence
 $B --episodes 500  --budget 40 --hidden-profile --blind-evidence --aside-cap 5
+$B --episodes 500  --budget 40 --hidden-profile --blind-evidence --aside-cap 0  # every arm identical to hive+
 ```
