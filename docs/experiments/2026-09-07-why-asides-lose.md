@@ -65,10 +65,12 @@ uniform, budget 15
 ## What this settles
 
 **The loss is the turns, entirely.** `hive+mute` transfers nothing and loses
-*more* than the arms that transfer something (−15.7 against −15.0 for
-`hive+fact`). Every informative arm sits inside a point of the mute control in
-every configuration. Whatever an aside costs, it costs it before a single word
-of content has changed hands.
+*more* than the matched-turn arms that transfer something (−15.7 against −15.0
+for `hive+fact`; `hive+aside` and `hive+ask` land within a point of it too).
+`hive+aside!` is the one exception: aimed at the fact-holder, it loses
+−17.1 — *more* than muting the answer entirely, for the reason the next
+section gives. Whatever a matched-turn aside costs, it costs it before a
+single word of content has changed hands.
 
 **So the pooling explanation is wrong.** The first note argued that averaging a
 peer's reading imports the room's shared bias and moves a member toward the
