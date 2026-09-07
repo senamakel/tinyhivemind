@@ -57,7 +57,7 @@ information.
 | `--task PATH` | the chair's opening message (required) |
 | `--workspace DIR` | where seats read, write, and run code |
 | `--transcript PATH` | the JSONL log; an existing one is resumed |
-| `--agent-cmd CMD` | the agent CLI; the prompt is appended as its last argument |
+| `--agent-cmd CMD` | the agent CLI; the prompt is appended as its last argument. Name the workspace here too (`--dir`), not only through the child's working directory — see obligation 4 |
 | `--rounds N` | how many times the chair may nudge a room that went quiet |
 | `--max-turns N` | hard ceiling on turns |
 | `--max-hops N` | `MentionDispatchPolicy::max_hops`: how long one chain may run |
@@ -85,7 +85,7 @@ attention on it, and wants that to end in something the room can read.
 The budget is folded out of the journal rather than stored, so this host keeps
 no state the transcript does not already carry.
 
-## Four host obligations found by running it
+## Five host obligations found by running it
 
 Both are the same shape as the ones `../../../tinyhivemind-hive/examples/bench/LIVE.md`
 records: things the library cannot impose and a host has to.
@@ -104,7 +104,16 @@ records: things the library cannot impose and a host has to.
    through a plain completion where there is no tool to call. Asking the CLI
    nicely does not work: told in as many words not to run anything, it ran
    eight more commands and hit the deadline again.
-4. **`max_tokens` is spent on reasoning first.** That wrap-up came back empty
+4. **Setting the child's working directory is not enough.** The seats wrote
+   their notes and their code into the *repository checkout* rather than the
+   workspace: an agent CLI resolves a write against its own project root,
+   which it finds by walking up for a `.git`, not against the working
+   directory its parent handed it. This run's own commit history is the
+   evidence — an auto-commit hook filed four of the seats' scratch files into
+   the branch before anyone noticed. Pass the workspace on the command line —
+   `opencode run --dir <workspace>` — and check where the first file actually
+   lands before trusting a room to accumulate anything.
+5. **`max_tokens` is spent on reasoning first.** That wrap-up came back empty
    with `finish_reason: length` at a 1200-token cap, and again at 8000 — the
    whole budget went to reasoning tokens and `content` was the empty string,
    on both DeepSeek tiers. Uncapped, the same call answers in 350 tokens. A
