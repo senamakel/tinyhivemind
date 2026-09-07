@@ -1300,9 +1300,7 @@ impl SimAgent {
                 .find(|id| !self.contacted.contains(id))
                 .cloned()?;
             self.contacted.push(peer.clone());
-            return Some(format!(
-                "{ASIDE_MARKER} @{peer} What do you make of these?"
-            ));
+            return Some(format!("{ASIDE_MARKER} @{peer} What do you make of these?"));
         }
         let mut ranked: Vec<(&TopicId, i32)> = self
             .evals
@@ -2043,9 +2041,9 @@ fn parse_readings(body: &str) -> Vec<(TopicId, i32)> {
             topic = Some(TopicId::from(name));
         } else if word == ASIDE_READS
             && let Some(held) = topic.take()
-            && let Some(value) = words.next().and_then(|word| {
-                word.trim_end_matches(['.', ',']).parse::<i32>().ok()
-            })
+            && let Some(value) = words
+                .next()
+                .and_then(|word| word.trim_end_matches(['.', ',']).parse::<i32>().ok())
         {
             readings.push((held, value));
         }
@@ -2148,7 +2146,8 @@ pub(crate) fn check_selfcheck() -> bool {
     let mut donor = sample.clone();
     donor.set_aside_cap(1, CheckStyle::EXCHANGE);
     donor.import(&topic, 999);
-    let asked = crate::run::one_agent_message("peer", &format!("{ASIDE_MARKER} @{} Well?", donor.id));
+    let asked =
+        crate::run::one_agent_message("peer", &format!("{ASIDE_MARKER} @{} Well?", donor.id));
     let Some(offered) = donor.answer_check(std::slice::from_ref(&asked)) else {
         return false;
     };
@@ -2159,7 +2158,9 @@ pub(crate) fn check_selfcheck() -> bool {
             .all(|(held, reading)| *reading == sample.own_reading(held));
     let mut taker = sample.clone();
     taker.set_aside_cap(1, CheckStyle::EXCHANGE);
-    taker.absorb(std::slice::from_ref(&crate::run::one_agent_message("peer", &offered)));
+    taker.absorb(std::slice::from_ref(&crate::run::one_agent_message(
+        "peer", &offered,
+    )));
     ok &= taker.imports.len() == sample.evals.len();
 
     // A refutation inside a multi-option row names the option it rules out,

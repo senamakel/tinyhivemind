@@ -674,8 +674,7 @@ pub(crate) fn drive_with(
                 };
                 tally.record(&turn, &content, agent.cost_unit(), turns);
                 let policy = aside_policy(member_ids.len());
-                let audience =
-                    audience_for(aside_mode, &host, &turn.agent_id, &content, policy);
+                let audience = audience_for(aside_mode, &host, &turn.agent_id, &content, policy);
                 // Durably append the turn, then commit the state it returned.
                 // That ordering is what the `next_state` contract requires.
                 host.agent_to(&turn.agent_id, content, audience);

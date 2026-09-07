@@ -1207,5 +1207,10 @@ fn a_room_that_has_only_said_things_privately_has_not_started() {
         run(&room, &state(), &private, &policy),
         run(&room, &state(), &bare, &policy),
     );
-    assert_eq!(speaking(run(&room, &state(), &private, &policy)).next_state.spent, 1);
+    assert_eq!(
+        speaking(run(&room, &state(), &private, &policy))
+            .next_state
+            .spent,
+        1
+    );
 }
