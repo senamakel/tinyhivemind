@@ -977,6 +977,12 @@ impl SimAgent {
         };
         let topic = parse_topic(request.readable()?)?;
         self.handled.push(request.sequence);
+        if probe::on() {
+            probe::bump(&probe::ANSWERED);
+            if probe::decisive().as_deref() == Some(self.id.as_str()) {
+                probe::bump(&probe::ANSWER_BY_DECISIVE);
+            }
+        }
         // The member's *own* reading, not `score()`. `score` averages in every
         // reading this member has already absorbed, so answering with it would
         // echo an already-pooled value back into the room: a later asker would
