@@ -1051,7 +1051,7 @@ fn run_arms(options: &Options, rooms: &[Room]) -> Result<(Totals, std::time::Dur
         // The same bounded exchange as `hive+fact`, held off the floor. It
         // isolates what the check is worth from what its turns cost.
         totals.hive_aside_offfloor.add(&run_episode(
-            &room.pre_checked(options.aside_cap, true),
+            &room.pre_checked(options.aside_cap, std::env::var("BENCH_OFFFLOOR_READING_ONLY").is_err()),
             &tuned,
             TASK,
             false,
