@@ -103,7 +103,8 @@ use crate::metrics::{
 };
 use crate::rng::mix;
 use crate::run::{
-    AsideMode, Participant, drive, run_episode, run_episode_checking, run_episode_with,
+    AsideMode, Participant, drive, run_episode, run_episode_checking, run_episode_exchanging,
+    run_episode_with,
 };
 use crate::scenario::{Scenario, ScenarioAgent};
 use crate::sim::{CheckStyle, Expertise, Room, SPECIALIST_COST_UNIT};
