@@ -199,6 +199,16 @@ struct Options {
     /// each other only in who may read the answer. `0` turns both off, and
     /// makes them bit-identical to `hive+`.
     aside_cap: u32,
+    /// Private rows one member may write **off the floor**, read by
+    /// `hive+rounds`.
+    ///
+    /// Separate from `aside_cap` because it bounds a different resource: an
+    /// on-floor check spends the room's turns, of which there are a handful,
+    /// while an off-floor row spends a model call, of which a host may buy as
+    /// many as it will pay for. Sharing one number would understate the
+    /// mechanism and misprice the comparison. `0` disables the exchange
+    /// entirely, leaving `hive+rounds` bit-identical to `hive+`.
+    exchange_cap: u32,
     /// Prior episodes of `hive+` the `ladder+dir` arm earns its directory
     /// from, on the same room.
     history: u32,
@@ -269,6 +279,7 @@ impl Options {
             blind_evidence: false,
             defer_cap: 1,
             aside_cap: 1,
+            exchange_cap: 4,
             history: 3,
             json: false,
             timeout: 180,
@@ -411,6 +422,7 @@ fn apply_expertise_flag(
         "--hidden-profile" => options.expertise = Expertise::HiddenProfile,
         "--defer-cap" => options.defer_cap = next_number(args).unwrap_or(1).max(1),
         "--aside-cap" => options.aside_cap = next_number(args).unwrap_or(1),
+        "--exchange-cap" => options.exchange_cap = next_number(args).unwrap_or(4),
         "--history" => options.history = next_number(args).unwrap_or(3),
         "--cost-tiers" => options.cost = true,
         "--blind-evidence" => options.blind_evidence = true,
@@ -1038,9 +1050,13 @@ fn run_check_arms(
     // The same continuous exchange, run off the floor: one round between every
     // pair of turns, bounded by `ExchangePolicy` rather than by the number of
     // turns the room takes. Priced in `private/ep`.
-    totals
-        .hive_exchange_rounds
-        .add(&check(AsideMode::OffFloor, CheckStyle::EXCHANGE)?);
+    totals.hive_exchange_rounds.add(&run_episode_exchanging(
+        room,
+        tuned,
+        TASK,
+        false,
+        options.exchange_cap,
+    )?);
     // The same bounded exchange, held off the floor entirely and given oracle
     // targeting. It bounds what the alongside arm above could reach.
     totals.hive_aside_offfloor.add(&run_episode(
