@@ -18,7 +18,7 @@ use tinyhivemind_hive::{
 };
 
 use crate::metrics::spearman_milli;
-use crate::sim::{Room, SimAgent};
+use crate::sim::{Room, SimAgent, CheckStyle};
 use tinyhivemind_hive::aside::{AsideDecision, AsideInput, AsidePolicy, Audience, aside};
 use tinyhivemind_hive::dispatch::DispatchConversation;
 use tinyhivemind_hive::mention::{MentionAuthor, resolve as resolve_mentions};
@@ -385,8 +385,7 @@ pub(crate) fn run_episode_with(
         defer_cap,
         AsideMode::Off,
         0,
-        false,
-        false,
+        CheckStyle::PLAIN,
     )
 }
 
@@ -395,9 +394,9 @@ pub(crate) fn run_episode_with(
 ///
 /// `mode` decides who may read that exchange: the two settings cost the same
 /// turns and write the same words, which is what makes them a matched pair.
-/// `aside_informed` aims the question at whoever the room has heard ground
-/// the option, and `aside_evidence` lets a member holding the fact that rules
-/// an option out say so rather than hand over a number to be averaged.
+/// `style` decides what the check does beyond costing a turn: where it is
+/// aimed, whether the answer may carry a fact rather than a number, and
+/// whether the answer is taken in at all. See [`CheckStyle`].
 ///
 /// `AsideMode::Off` with `aside_cap: 0` is what every other arm passes, and a
 /// member that opens no check behaves exactly as it did before the move
@@ -415,15 +414,14 @@ pub(crate) fn run_episode_checking(
     defer_cap: u32,
     aside_mode: AsideMode,
     aside_cap: u32,
-    aside_informed: bool,
-    aside_evidence: bool,
+    style: CheckStyle,
 ) -> Result<EpisodeReport, String> {
     let ids = room.member_ids();
     let mut agents: Vec<SimAgent> = room.agents.clone();
     for agent in &mut agents {
         agent.set_quorum(policy.quorum);
         agent.set_defer_cap(defer_cap);
-        agent.set_aside_cap(aside_cap, aside_informed, aside_evidence);
+        agent.set_aside_cap(aside_cap, style);
     }
     let mut participants: Vec<&mut dyn Participant> = agents
         .iter_mut()
