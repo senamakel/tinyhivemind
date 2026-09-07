@@ -31,6 +31,12 @@ pub(crate) struct TurnOutput {
     /// What the seat actually ran and saw, so a wrap-up summarizes evidence
     /// rather than inventing it.
     pub(crate) work_log: String,
+    /// Whether the seat actually marked a message for the room.
+    ///
+    /// Unmarked trailing text is narration — "Now I have the full picture, let
+    /// me write the solver" — and posting it wastes a turn and tells the room
+    /// nothing. A turn that did not mark a post has not spoken.
+    pub(crate) posted: bool,
 }
 
 /// A configured agent CLI: one process per turn.
@@ -210,6 +216,7 @@ fn parse_events(stdout: &str) -> TurnOutput {
             _ => {}
         }
     }
+    turn.posted = text.contains("<<<POST");
     turn.message = extract_post(&text);
     turn
 }

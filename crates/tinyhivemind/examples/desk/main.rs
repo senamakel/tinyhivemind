@@ -489,7 +489,7 @@ async fn main() -> Result<(), BoxError> {
             if let Some(id) = landed.session.clone() {
                 sessions.insert(seat.id.clone(), id);
             }
-            let salvage = if landed.message.trim().is_empty() {
+            let salvage = if !landed.posted || landed.message.trim().is_empty() {
                 let wrap = format!(
                     "{prompt}\n\n## What you actually ran this turn\n{}\n\nYou have no \
                      tools. Your working turn ended before you posted anything. Write the \
