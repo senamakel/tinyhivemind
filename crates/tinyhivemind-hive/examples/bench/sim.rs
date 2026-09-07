@@ -2028,7 +2028,9 @@ pub(crate) fn check_selfcheck() -> bool {
     ok &= fact_reader.imports.is_empty()
         && fact_reader.ruled_out.contains(&topic)
         && fact_reader.score(&topic)
-            == fact_reader.own_reading(&topic).saturating_sub(GROUNDS_WEIGHT);
+            == fact_reader
+                .own_reading(&topic)
+                .saturating_sub(GROUNDS_WEIGHT);
     let mut number_reader = sample.clone();
     number_reader.set_aside_cap(1, CheckStyle::AIMED);
     number_reader.absorb(std::slice::from_ref(&told));
