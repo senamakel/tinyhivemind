@@ -1956,7 +1956,7 @@ pub(crate) fn check_selfcheck() -> bool {
     let mut number_reader = sample.clone();
     number_reader.set_aside_cap(1, CheckStyle::AIMED);
     number_reader.absorb(std::slice::from_ref(&told));
-    ok &= fact_reader.score(&topic) == number_reader.score(&topic) - GROUNDS_WEIGHT;
+    ok &= fact_reader.score(&topic) == number_reader.score(&topic).saturating_sub(GROUNDS_WEIGHT);
 
     // The informed check aims at a depositor who argues *against* the topic,
     // even when a plain deposit on the same topic came first. Aiming at the
