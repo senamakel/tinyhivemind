@@ -358,13 +358,12 @@ async fn main() -> Result<(), BoxError> {
                         SessionAuthor::Agent { id, .. } => Some(id),
                         _ => None,
                     });
-                let seat = match last.as_deref().and_then(|id| spec.agent(id)) {
-                    Some(seat) => seat,
-                    None => {
-                        let seat = &spec.agents[next_seat % spec.agents.len()];
-                        next_seat += 1;
-                        seat
-                    }
+                let seat = if let Some(seat) = last.as_deref().and_then(|id| spec.agent(id)) {
+                    seat
+                } else {
+                    let seat = &spec.agents[next_seat % spec.agents.len()];
+                    next_seat += 1;
+                    seat
                 };
                 let nudge = format!(
                     "@{} the room has gone quiet — round {rounds}. Post your next concrete \
