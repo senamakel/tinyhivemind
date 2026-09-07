@@ -1933,7 +1933,10 @@ pub(crate) fn check_selfcheck() -> bool {
     // an off-floor control had just injected, so the arm executed the rest of
     // the episode without the fact it was built to carry.
     let checked = room.pre_checked(1, true);
-    ok &= checked.agents.iter().any(|agent| !agent.ruled_out.is_empty());
+    ok &= checked
+        .agents
+        .iter()
+        .any(|agent| !agent.ruled_out.is_empty());
     let mut after_reset = checked.clone();
     for agent in &mut after_reset.agents {
         agent.set_aside_cap(0, CheckStyle::PLAIN);
