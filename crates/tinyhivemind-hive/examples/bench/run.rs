@@ -685,9 +685,13 @@ pub(crate) fn drive_with(
                 // The aside rides along: one more row on the same turn, at the
                 // next sequence, addressed privately. It is appended *after*
                 // the floor move so the desk-visible row is what a reader meets
-                // first, and it moves nothing the library counts — `spent` is
-                // already fixed in `turn.next_state`, and `live_traces` drops a
-                // non-desk row before it can reach a standing. See ADR 0011.
+                // first. `spent` is already fixed in `turn.next_state`, and
+                // `live_traces` drops a non-desk row before it can reach a
+                // trace or a standing, so this cannot buy the room a vote.
+                // It does spend a sequence: the next desk turn lands one raw
+                // sequence higher than it would have without this row, which
+                // `salience::standing`'s sequence-distance decay reads. See
+                // the "Known limitation" note on ADR 0011.
                 if let Some(line) = private {
                     let audience =
                         audience_for(AsideMode::Alongside, &host, &turn.agent_id, &line, policy);
