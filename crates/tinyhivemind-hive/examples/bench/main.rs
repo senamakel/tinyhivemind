@@ -200,6 +200,14 @@ struct Options {
     /// each other only in who may read the answer. `0` turns both off, and
     /// makes them bit-identical to `hive+`.
     aside_cap: u32,
+    /// Rows each member's context window holds. `0` disables the window model
+    /// entirely, which is the default and is bit-identical to a build without
+    /// it.
+    context: usize,
+    /// How hard the middle of that window is discounted, `0.0..=1.0`.
+    rot: f64,
+    /// Sweep the window model instead of comparing arms once.
+    context_sweep: bool,
     /// Prior episodes of `hive+` the `ladder+dir` arm earns its directory
     /// from, on the same room.
     history: u32,
@@ -270,6 +278,9 @@ impl Options {
             blind_evidence: false,
             defer_cap: 1,
             aside_cap: 1,
+            context: 0,
+            rot: 0.0,
+            context_sweep: false,
             history: 3,
             json: false,
             timeout: 180,
@@ -412,6 +423,15 @@ fn apply_expertise_flag(
         "--hidden-profile" => options.expertise = Expertise::HiddenProfile,
         "--defer-cap" => options.defer_cap = next_number(args).unwrap_or(1).max(1),
         "--aside-cap" => options.aside_cap = next_number(args).unwrap_or(1),
+        "--context" => options.context = next_number(args).unwrap_or(0) as usize,
+        "--rot" => {
+            options.rot = args
+                .next()
+                .and_then(|value| value.parse::<f64>().ok())
+                .unwrap_or(0.0)
+                .clamp(0.0, 1.0);
+        }
+        "--context-sweep" => options.context_sweep = true,
         "--history" => options.history = next_number(args).unwrap_or(3),
         "--cost-tiers" => options.cost = true,
         "--blind-evidence" => options.blind_evidence = true,
