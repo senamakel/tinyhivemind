@@ -794,18 +794,35 @@ fn one_exchange(
     last: &HiveTurn,
     state: &EpisodeState,
     policy: &ExchangePolicy,
+    opened: ExchangeState,
     members: usize,
-) -> Result<(u32, Duration), String> {
+) -> Result<(Round, Duration), String> {
     let started = Instant::now();
     let round = {
         let roster = host.roster();
         let desks = host.desks();
-        exchange(policy, state, &host.journal, &roster, &desks)
+        exchange(policy, state, opened, &host.journal, &roster, &desks)
             .map_err(|error| error.to_string())?
     };
-    let spent = started.elapsed();
-    let written = exchange_round(host, agents, last, &round, aside_policy(members));
-    Ok((written, spent))
+    let mut library = started.elapsed();
+    let next = match &round {
+        ExchangeRound::Open { next, .. } => *next,
+        ExchangeRound::Closed { .. } => opened,
+    };
+    let ran = exchange_round(host, agents, last, &round, aside_policy(members), &mut library);
+    Ok((Round { next, ..ran }, library))
+}
+
+/// What one exchange round did.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Round {
+    /// Members actually asked for a line — the model calls this round paid for,
+    /// whether or not the member had anything to say.
+    pub(crate) calls: u32,
+    /// Private rows appended.
+    pub(crate) rows: u32,
+    /// The exchange state to carry into the next round.
+    pub(crate) next: ExchangeState,
 }
 
 /// Run one exchange round, and return how many private rows it wrote.
@@ -821,11 +838,12 @@ fn exchange_round(
     last: &HiveTurn,
     round: &ExchangeRound,
     policy: AsidePolicy,
-) -> u32 {
+    library: &mut Duration,
+) -> Round {
     let ExchangeRound::Open { members, .. } = round else {
-        return 0;
+        return Round::default();
     };
-    let mut written = 0_u32;
+    let mut ran = Round::default();
     for member in members {
         // The turn-holder's own projection, addressed to this member: same
         // visibility, same watermark, this reader's audience.
@@ -833,21 +851,29 @@ fn exchange_round(
             agent_id: member.clone(),
             ..last.clone()
         };
+        let started = Instant::now();
         let visible = project_for(&as_member, &host.journal);
+        *library += started.elapsed();
         let Some(agent) = agents.iter_mut().find(|agent| agent.id() == member) else {
             continue;
         };
+        // Asked, and therefore paid for, whether or not it answers. This is
+        // the number the price column reports: a declined round costs the same
+        // calls as a productive one.
+        ran.calls = ran.calls.saturating_add(1);
         let Some(line) = agent.exchange(&visible) else {
             continue;
         };
+        let started = Instant::now();
         let audience = audience_for(AsideMode::OffFloor, host, member, &line, policy);
+        *library += started.elapsed();
         if audience.is_desk() {
             continue;
         }
         host.agent_to(member, line, audience);
-        written = written.saturating_add(1);
+        ran.rows = ran.rows.saturating_add(1);
     }
-    written
+    ran
 }
 
 /// The aside policy every arm that opens a check runs under.
