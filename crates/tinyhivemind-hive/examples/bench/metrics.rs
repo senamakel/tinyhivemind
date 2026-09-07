@@ -552,6 +552,13 @@ pub(crate) fn json_line(name: &str, totals: &Aggregate) -> String {
             hive_like && totals.rank_rho_count > 0,
             totals.mean_rho() / 1000.0
         ),
+        // Private rows written off the floor, per episode -- the same figure
+        // the `private/ep` column reports, dashed there when no arm in the
+        // run wrote any. `0.0` here rather than `null` when nothing was
+        // written, matching `cost_per_episode`'s zero rather than every
+        // other `hive_like`-gated field's `null`, since this is a total
+        // rather than a rate that only a hive-like arm can even attempt.
+        json_f64(totals.contacts_per_episode()),
     );
     line
 }
