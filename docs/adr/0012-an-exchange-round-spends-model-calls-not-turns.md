@@ -62,7 +62,7 @@ decision as much as the mechanism is.
 - **Could start.** The danger is unboundedness through cascade: `@everyone`
   mentions N agents, each of whom may mention N more. A row authored in an
   exchange round is never handed to `mention_dispatch`, so rows do not beget
-  rows. The worst case is `min(members × contact_cap, round_cap × members)`, a
+  rows. The worst case is `round_cap × max_active_members`, a
   constant a host reads off its own policy before starting.
 - **Without an approval in sight.** The policy *is* the approval: off by default,
   set by the host rather than by a participant, and finite.

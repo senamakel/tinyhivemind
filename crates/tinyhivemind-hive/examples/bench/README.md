@@ -95,7 +95,7 @@ library authorized ever writes, and it writes at most one private row per turn.
 `hive+rounds` takes the floor out of it altogether — members contact each other
 in rounds *between* turns, bounded by the library's `exchange` fold rather than
 by how talkative the room is — and reaches `+3.2 [+1.8, +4.5]` at forty-five model
-calls an episode. That is not free, and `private/ep` is there so the price sits
+calls an episode. That is not free, and `calls/ep` is there so the price sits
 beside the gain. Every one of these arms is a null on uniform rooms: a room whose
 members differ only by independent noise has no concentrated information for a
 contact to move.
