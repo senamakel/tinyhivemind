@@ -291,6 +291,45 @@ fn remaining_is_clamped_by_the_rounds_still_open() {
 }
 
 #[test]
+fn a_round_nobody_wrote_in_still_counts_against_the_round_cap() {
+    // The defect that made the count host-carried rather than folded. A round
+    // in which every named member declines leaves no row behind, so the log
+    // cannot distinguish it from a round that never happened — and those are
+    // the rounds that cost most per row, because the host paid to ask each
+    // member and got nothing. Counting rows would leave the model-call budget
+    // unbounded, which is the one thing `round_cap` exists to prevent.
+    let policy = ExchangePolicy {
+        enabled: true,
+        contact_cap: 10,
+        round_cap: 2,
+    };
+    // An empty transcript: nobody has written anything, ever.
+    assert!(matches!(
+        open_after(&policy, &[], ExchangeState { rounds: 1 }),
+        ExchangeRound::Open { .. }
+    ));
+    assert_eq!(
+        open_after(&policy, &[], ExchangeState { rounds: 2 }),
+        ExchangeRound::Closed {
+            reason: NoExchangeReason::RoundsSpent,
+        },
+        "two opened rounds exhaust a cap of two even with an empty log",
+    );
+}
+
+#[test]
+fn an_open_round_hands_back_the_state_to_carry() {
+    // The host advances its count from what the round returned rather than
+    // incrementing a number of its own, so the two cannot drift.
+    let ExchangeRound::Open { next, .. } =
+        open_after(&generous(), &[], ExchangeState { rounds: 1 })
+    else {
+        panic!("expected an open round");
+    };
+    assert_eq!(next, ExchangeState { rounds: 2 });
+}
+
+#[test]
 fn rows_at_or_below_the_watermark_are_not_this_episodes_spend() {
     // The watermark is what separates this episode from the conversation that
     // led into it, for spend exactly as for votes.
