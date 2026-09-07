@@ -514,11 +514,15 @@ impl Room {
                 let Some((evals, refutes)) = readings.get(peer) else {
                     break;
                 };
-                if evidence && refutes.as_ref() == Some(&topic) && !agent.ruled_out.contains(&topic)
-                {
-                    agent.ruled_out.push(topic.clone());
-                }
-                if let Some((_, reading)) = evals.iter().find(|(held, _)| *held == topic) {
+                // A fact-bearing peer hands over the fact *instead of* its
+                // reading, matching the on-floor `CheckStyle::FACT` exchange
+                // in `absorb` -- otherwise `hive+fact°` would carry both the
+                // fact and the reading `hive+fact` never gets to average in.
+                if evidence && refutes.as_ref() == Some(&topic) {
+                    if !agent.ruled_out.contains(&topic) {
+                        agent.ruled_out.push(topic.clone());
+                    }
+                } else if let Some((_, reading)) = evals.iter().find(|(held, _)| *held == topic) {
                     agent.import(&topic, *reading);
                 }
             }
