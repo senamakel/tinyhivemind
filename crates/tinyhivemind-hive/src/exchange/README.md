@@ -106,9 +106,18 @@ pub struct ExchangePolicy {
 }
 ```
 
-Both finite, both readable before the episode starts. The total an episode can
-produce is at most `min(members × contact_cap, round_cap × members)`, so a host
-reads its worst case off its own policy rather than discovering it.
+`round_cap` bounds rounds absolutely, and a round asks at most one row of each
+**currently active** member, so an episode produces at most
+`round_cap × max_active_members` private rows — where the max is over the
+episode, because membership is the host's and this fold does not freeze it. A
+desk that grows mid-episode has more members to ask, and a newcomer arrives with
+its own untouched `contact_cap`; a host that adds members should read its
+ceiling off the largest desk it will allow.
+
+Freezing the opening roster in `ExchangeState` would make the ceiling a single
+number, and was rejected: it would silently exclude a member the host
+legitimately added, which is worse than a ceiling stated correctly. Each member
+remains independently bounded by `contact_cap` whenever it joined.
 
 `ExchangeRound::Open::remaining` is clamped **per member and then summed**, not
 summed and then clamped. A round gives each member at most one row, so no member
