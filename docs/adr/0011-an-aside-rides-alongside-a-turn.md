@@ -48,13 +48,14 @@ one.
 Three properties make this sound, and all three are already true of the algebra
 rather than newly asserted by it:
 
-1. **The episode cannot see it.** `live_traces` drops a non-desk row before it
-   reaches the traces, the standings, the sequence they fold at, the directory or
-   the floor, and `EpisodeState::spent` counts turns rather than rows. `step` is
-   therefore invariant under the *addition* of aside rows anywhere in a
-   transcript — a strictly stronger property than the idempotence under
-   redelivery and reordering the fuzz suite already asserted, and now asserted
-   beside it.
+1. **The episode cannot vote it.** `live_traces` drops a non-desk row before it
+   reaches the traces, the standings, the sequence they fold at, or the
+   directory, and `EpisodeState::spent` counts turns rather than rows. `step`
+   is therefore invariant under the *addition* of aside rows to a transcript
+   whose desk rows keep the sequence numbers they already had — a strictly
+   stronger property than the idempotence under redelivery and reordering the
+   fuzz suite already asserted, and now asserted beside it. That "already had"
+   is load-bearing: see the known limitation below for what it does not cover.
 2. **It starts no turn.** The peer answers on its own next turn, which the
    attention market was going to give it anyway. A host must not hand an aside
    row to `mention_dispatch` inside an episode; the exchange completes over the
