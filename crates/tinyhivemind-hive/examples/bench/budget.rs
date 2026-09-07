@@ -59,7 +59,7 @@ const CAPACITIES: [usize; 6] = [0, 4, 8, 16, 32, 64];
 const ROTS: [f64; 3] = [0.0, 0.5, 1.0];
 
 /// One arm's result at one window setting.
-struct Point {
+pub(crate) struct Point {
     arm: &'static str,
     capacity: usize,
     rot: f64,
@@ -173,7 +173,7 @@ pub(crate) fn render(points: &[Point], rooms: usize) -> String {
 
     let _ = writeln!(
         out,
-        "context sweep over {rooms} rooms — correct %, and mean rows a member held\n"
+        "context sweep over {rooms} rooms — correct %, decided %, and mean rows a member held\n"
     );
     let _ = writeln!(
         out,
@@ -213,7 +213,12 @@ pub(crate) fn render(points: &[Point], rooms: usize) -> String {
                     .find(|point| point.arm == *arm && point.capacity == capacity)
                     .map_or_else(
                         || format!("{:>26}", "—"),
-                        |point| format!("{:>18.1} {:>6.1}r", point.correct, point.rows),
+                        |point| {
+                            format!(
+                                "{:>12.1} {:>5.0}% {:>6.1}r",
+                                point.correct, point.decided, point.rows
+                            )
+                        },
                     );
                 let _ = write!(row, "{cell}");
             }
