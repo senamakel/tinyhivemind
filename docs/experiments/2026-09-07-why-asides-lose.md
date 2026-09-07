@@ -149,8 +149,14 @@ carried refutations in `!evidence`; an answered check could only ever hand back
 a scalar. `CheckStyle::FACT` lets a member holding the fact say so, and the
 asker discounts the option for itself at the same weight a desk-visible
 refutation carries in `View::posterior` — a belief, not a trace, so the room
-still counts nothing from an aside. It is worth +2.1 against the aimed
-reading-only arm and does not come close to paying for the turn.
+still counts nothing from an aside. A fact-bearing answer replaces the
+reading rather than adding to it (a second defect, caught the same way: the
+first cut of `CheckStyle::FACT` recorded the discount and still averaged in
+the number that came with it, so `hive+fact` was measuring both channels at
+once). Corrected, `hive+fact` (−16.9) and the aimed reading-only arm,
+`hive+aside!` (−17.1), are within their intervals of each other — carrying
+the fact instead of a number does not measurably change what the aimed check
+is worth, and neither comes close to paying for the turn.
 
 ## What follows for the design
 
