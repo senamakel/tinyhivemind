@@ -154,6 +154,9 @@ impl Aggregate {
         self.turns = self.turns.saturating_add(u64::from(report.turns));
         self.step_calls = self.step_calls.saturating_add(1);
         self.library_time += report.library_time;
+        // A control arm never opens an exchange round, so all of its library
+        // time is step time.
+        self.step_time += report.library_time;
         self.correct_flags.push(report.correct);
         // A control arm charges what its own speakers cost, which is one unit
         // per turn unless the room was generated with `--cost-tiers` and a
