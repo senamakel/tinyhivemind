@@ -973,13 +973,28 @@ impl SimAgent {
             }
             None => self.imports.push((topic.clone(), i64::from(reading), 1)),
         }
+        self.recompute_favourite();
+        true
+    }
+
+    /// Recompute [`Self::favourite`] from every option this member holds a
+    /// current [`Self::score`] for.
+    ///
+    /// `import` calls this on every reading it takes, but a caller that
+    /// updates `ruled_out` directly -- `Room::pooled` and `Room::pre_checked`
+    /// both do, to install a fact rather than a number -- must call this
+    /// itself afterward. `score` reads `ruled_out`, so a ruled-out topic
+    /// installed after the last `import` call for a member would otherwise
+    /// leave `favourite` pointing at an option that member's own state has
+    /// since ruled out, and every turn that reads `favourite` would keep
+    /// advocating it.
+    fn recompute_favourite(&mut self) {
         self.favourite = self
             .evals
             .iter()
             .map(|(topic, _)| topic.clone())
             .max_by_key(|topic| self.score(topic))
             .unwrap_or_else(|| self.favourite.clone());
-        true
     }
 
     /// Tell the participant how many turns it may spend asking one peer for a
