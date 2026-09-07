@@ -124,8 +124,12 @@ so unlike `defer_cap` it is not an error.
 
 **A host must not dispatch an exchange row.** A row authored in a round is never
 handed to `mention_dispatch`. That is what stops rows begetting rows: the
-exchange cannot cascade, and its worst case stays the constant above. The peer
-answers on its own next turn, which the attention market was going to give it.
+exchange cannot cascade, and its worst case stays the constant above.
+
+An answer therefore arrives whenever the peer is next *asked* — on its own next
+turn if the aside rode alongside one, or in the next round that names it if the
+exchange is off the floor. Neither costs a turn the room would not otherwise
+have spent, and neither is a turn this module starts.
 
 **A refused audience is dropped, not published.** If the `aside` fold declines to
 make a row private, the row is not written. Falling back to the desk would put a
@@ -136,8 +140,11 @@ transcript a turn was composed from is never edited underneath it.
 
 **The price is model calls, and it is the host's to authorize.** A round is *n*
 of them. That is why the policy is off by default and its ceilings explicit, and
-why the benchmark reports private rows in a column of their own rather than
-folding them into a cost figure that means something else.
+why the benchmark reports them in a `calls/ep` column of their own rather than
+folding them into a cost figure that means something else. It counts members
+*asked*, not rows written: a member that declines costs the same call as one
+that answers, so counting rows would report a price below the one paid — 20
+against the 45 actually spent, at the default cap.
 
 ## What it does spend
 

@@ -280,9 +280,9 @@ and **throw every answer away**:
 | `hive+hush` | `hive+share`'s rows, saying nothing | `+0.0 [+0.0, +0.0]` |
 | `hive+quiet` | `hive+rounds`' rows, saying nothing | `+0.0 [+0.0, +0.0]` |
 
-Zero, exactly, in every configuration — including `hive+quiet`, which writes
-forty-five calls an episode. The concern is a real mechanism and an empty one
-here:
+Zero, exactly, in every configuration — including `hive+quiet`, which makes
+forty-five model calls an episode. The concern is a real mechanism and an empty
+one here:
 **every point any exchange arm gains is information, not perturbation.**
 
 The reason differs between the two, which is why both were run. An exchange
