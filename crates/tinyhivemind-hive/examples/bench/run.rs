@@ -126,7 +126,20 @@ pub(crate) struct EpisodeReport {
     /// Calls into [`step`], including the terminal one.
     pub(crate) step_calls: u32,
     /// Time spent inside the library, excluding the simulated agents.
+    ///
+    /// Includes an off-floor exchange round's own library time (see
+    /// [`crate::metrics::Aggregate::episodes_per_second`], which wants the
+    /// full library cost a host would pay), but **not** [`Self::step_time`],
+    /// which [`crate::metrics::Aggregate::nanos_per_step`] divides by
+    /// [`Self::step_calls`] and must stay one call to `step` for exactly one
+    /// unit of time, matching the `ns/step` column's documented meaning.
     pub(crate) library_time: Duration,
+    /// Time spent inside [`step`] calls alone, excluding an exchange round's
+    /// own library time. The numerator `nanos_per_step` actually divides by
+    /// `step_calls` — kept separate from [`Self::library_time`] so an
+    /// off-floor arm's exchange rounds do not inflate its reported ns/step
+    /// against arms that never call `exchange`.
+    pub(crate) step_time: Duration,
     /// One line per turn, for the trace view.
     pub(crate) trace: Vec<String>,
     /// Author of the first `!propose` for the topic the episode decided.
