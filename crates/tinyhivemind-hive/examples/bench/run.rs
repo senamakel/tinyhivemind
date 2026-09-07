@@ -8,10 +8,11 @@
 use std::time::{Duration, Instant};
 
 use tinyhivemind_hive::{
-    BidReason, Conversation, Directory, DirectoryPolicy, EpisodePolicy, EpisodeState, HiveStep,
-    HiveTurn, Phase, Sequence, SessionAuthor, SessionMessage,
+    BidReason, Conversation, Directory, DirectoryPolicy, EpisodePolicy, EpisodeState,
+    ExchangePolicy, ExchangeRound, HiveStep, HiveTurn, Phase, Sequence, SessionAuthor,
+    SessionMessage,
     desk::{Desk, DeskSet, ResponderMode},
-    directory, project_for,
+    directory, exchange, project_for,
     roster::{Roster, RosterMember},
     step,
     trace::{TopicId, Trace, TraceKind, resolve},
@@ -712,6 +713,7 @@ pub(crate) fn drive_with(
     task: &str,
     keep_trace: bool,
     aside_mode: AsideMode,
+    exchange: ExchangePolicy,
 ) -> Result<EpisodeReport, String> {
     let mut host = Host::new(member_ids);
     host.operator(task);
@@ -720,6 +722,7 @@ pub(crate) fn drive_with(
     let mut library_time = Duration::ZERO;
     let mut step_calls = 0_u32;
     let mut turns = 0_u32;
+    let mut contacts = 0_u32;
     let mut trace = Vec::new();
     let mut tally = Tally::opened(member_ids);
 
@@ -782,8 +785,34 @@ pub(crate) fn drive_with(
                         host.agent_to(&turn.agent_id, line, audience);
                     }
                 }
+                let last = HiveTurn {
+                    next_state: turn.next_state.clone(),
+                    ..turn.clone()
+                };
                 state = turn.next_state;
                 turns = turns.saturating_add(1);
+
+                // An exchange round, between turns and never during one. The
+                // library says whether one is open and who it names; the
+                // episode's own state is already committed and does not move
+                // for any of it.
+                if aside_mode == AsideMode::OffFloor {
+                    let started = Instant::now();
+                    let round = {
+                        let roster = host.roster();
+                        let desks = host.desks();
+                        crate::run::exchange(&exchange, &state, &host.journal, &roster, &desks)
+                            .map_err(|error| error.to_string())?
+                    };
+                    library_time += started.elapsed();
+                    contacts = contacts.saturating_add(exchange_round(
+                        &mut host,
+                        agents,
+                        &last,
+                        &round,
+                        aside_policy(member_ids.len()),
+                    ));
+                }
                 continue;
             }
             HiveStep::Converged { topic, .. } => (Ending::Converged, Some(topic)),
