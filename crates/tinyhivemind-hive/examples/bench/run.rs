@@ -37,6 +37,16 @@ pub(crate) trait Participant {
     /// Canonical agent id, matching a desk member.
     fn id(&self) -> &str;
 
+    /// Rows this participant is currently holding in its context window.
+    ///
+    /// `0` for any participant that does not model a window — a live agent
+    /// driven over HTTP has a real one, but this harness does not measure it,
+    /// and reporting a made-up number for it would be worse than reporting
+    /// none. Only the simulated participant answers this meaningfully.
+    fn context_rows(&self) -> usize {
+        0
+    }
+
     /// Produce the body of one turn, given exactly what it may see.
     ///
     /// # Errors
@@ -476,11 +486,11 @@ pub(crate) fn run_episode_with(
 /// is what *one participant* has to carry, and a protocol whose cost is
 /// "everybody holds everything" is expensive per member precisely because the
 /// room is large.
-fn mean_context_rows(agents: &[SimAgent]) -> f64 {
+fn mean_context_rows(agents: &[&mut dyn Participant]) -> f64 {
     if agents.is_empty() {
         return 0.0;
     }
-    let total: usize = agents.iter().map(SimAgent::context_rows).sum();
+    let total: usize = agents.iter().map(|agent| agent.context_rows()).sum();
     total as f64 / agents.len() as f64
 }
 
@@ -759,7 +769,7 @@ pub(crate) fn drive_with(
             decided,
             correct: false,
             turns,
-            context_rows: mean_context_rows(&agents),
+            context_rows: mean_context_rows(agents),
             step_calls,
             library_time,
             trace,
