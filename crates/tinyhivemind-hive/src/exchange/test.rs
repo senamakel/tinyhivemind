@@ -224,6 +224,31 @@ fn the_round_cap_bounds_the_episode_independently_of_the_contact_cap() {
 }
 
 #[test]
+fn remaining_is_clamped_by_the_rounds_still_open() {
+    // Three members, a generous per-member cap, and a round cap that closes
+    // long before any member reaches it. `remaining` must report what the
+    // round cap actually still allows — one row per member per remaining
+    // round — not what `contact_cap` alone would allow.
+    let policy = ExchangePolicy {
+        enabled: true,
+        contact_cap: 10,
+        round_cap: 2,
+    };
+    let ExchangeRound::Open { remaining, .. } = open(&policy, &[]) else {
+        panic!("expected an open round");
+    };
+    // Two rounds left, three members: at most six rows, not thirty.
+    assert_eq!(remaining, 6);
+
+    // One round already spent by the busiest member: one round left.
+    let transcript = vec![private(1, "planner", "critic")];
+    let ExchangeRound::Open { remaining, .. } = open(&policy, &transcript) else {
+        panic!("expected an open round");
+    };
+    assert_eq!(remaining, 3);
+}
+
+#[test]
 fn rows_at_or_below_the_watermark_are_not_this_episodes_spend() {
     // The watermark is what separates this episode from the conversation that
     // led into it, for spend exactly as for votes.
