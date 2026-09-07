@@ -1887,14 +1887,7 @@ fn parse_reading(body: &str) -> Option<(TopicId, i32)> {
 /// so a break here is always a real regression.
 pub(crate) fn check_selfcheck() -> bool {
     let mut ok = true;
-    let room = Room::generate(
-        1,
-        5,
-        4,
-        90,
-        Expertise::HiddenProfile,
-        crate::run::DESK_ID,
-    );
+    let room = Room::generate_with(1, 5, 4, 90, Expertise::HiddenProfile, false);
 
     // `pre_checked(0, ..)` opens no contact, so it is the identity. This is
     // what underwrites `--aside-cap 0` leaving every check arm bit-identical

@@ -344,6 +344,24 @@ fn audience_for(
     }
 }
 
+/// One desk-visible agent message, for the self-checks in `sim.rs`.
+///
+/// Sequence `1` and no thread: the checks that use it read the author and the
+/// body and nothing else.
+pub(crate) fn one_agent_message(author: &str, body: &str) -> SessionMessage {
+    SessionMessage {
+        sequence: Sequence::from(1),
+        author: SessionAuthor::Agent {
+            id: author.to_owned(),
+            name: Some(author.to_owned()),
+        },
+        content: body.to_owned(),
+        audience: Audience::Desk,
+        elided: None,
+        thread_root: None,
+    }
+}
+
 /// Run one full episode over a simulated room.
 ///
 /// # Errors

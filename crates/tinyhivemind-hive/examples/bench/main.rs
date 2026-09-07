@@ -720,6 +720,11 @@ fn stats_check() -> bool {
     let (diff_low, diff_high) = paired_bootstrap(&flags, &flags, 7, 256);
     ok &= diff_low == 0.0 && diff_high == 0.0;
 
+    // The check arms have properties of their own, and `sim.rs` is an example
+    // file too. Folded in here rather than behind a second flag so CI keeps
+    // running one command.
+    ok &= crate::sim::check_selfcheck();
+
     ok
 }
 
