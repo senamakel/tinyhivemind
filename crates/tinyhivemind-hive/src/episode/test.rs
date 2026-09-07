@@ -1214,3 +1214,57 @@ fn a_room_that_has_only_said_things_privately_has_not_started() {
         1
     );
 }
+
+#[test]
+fn shifting_desk_sequences_past_a_private_row_can_change_the_step() {
+    // The limit of the invariance guarantee, pinned rather than assumed.
+    //
+    // `step` ignores a private row: it resolves no trace, joins no standing and
+    // costs no budget. What it cannot ignore is the *sequence* that row
+    // consumed. A host allocating sequences live pushes every later desk row up
+    // by one per private row, and both `QuorumPolicy::window` and salience
+    // decay read a raw sequence distance — so a support that was inside the
+    // window can fall outside it, and the episode legitimately decides
+    // something else.
+    //
+    // The two transcripts differ by exactly one row, allocated exactly as a
+    // host would: the aside takes sequence 2, so the support that would have
+    // been sequence 2 becomes sequence 3.
+    let room = Room::new();
+    let policy = EpisodePolicy {
+        quorum: QuorumPolicy {
+            threshold: 2,
+            window: 1,
+            ..EpisodePolicy::DEFAULT.quorum
+        },
+        blind_round: false,
+        ..EpisodePolicy::DEFAULT
+    };
+    let unshifted = vec![
+        said(1, "planner", "!propose #stage"),
+        said(2, "critic", "!support #stage ^1"),
+    ];
+    let shifted = vec![
+        said(1, "planner", "!propose #stage"),
+        aside(2, "planner", &["scout"], "!aside @scout Between us."),
+        said(3, "critic", "!support #stage ^1"),
+    ];
+
+    // The proposal is inside a one-sequence window in the unshifted transcript
+    // and has aged out of it in the shifted one, so the room is at quorum in
+    // the first and still deliberating in the second. Same desk rows, same
+    // order, different `step`.
+    assert_ne!(
+        run(&room, &state(), &unshifted, &policy),
+        run(&room, &state(), &shifted, &policy),
+    );
+
+    // And the difference is the *shift*, not the row: the same aside parked at
+    // a sequence that displaces nothing leaves the step exactly as it was.
+    let mut parked = unshifted.clone();
+    parked.push(aside(9, "planner", &["scout"], "!aside @scout Between us."));
+    assert_eq!(
+        run(&room, &state(), &unshifted, &policy),
+        run(&room, &state(), &parked, &policy),
+    );
+}

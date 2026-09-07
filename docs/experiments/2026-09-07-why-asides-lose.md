@@ -3,8 +3,9 @@
 **Date:** 2026-09-07
 **Status:** Recorded
 **Code:** `crates/tinyhivemind-hive/examples/bench` — arms `hive+mute`,
-`hive+fact`, `hive+along`, `hive+share`, `hive+fact°`, `hive+pooled`
-**Decision:** [ADR 0011](../adr/0011-an-aside-rides-alongside-a-turn.md)
+`hive+fact`, `hive+along`, `hive+share`, `hive+fact°`, `hive+rounds`, `hive+pooled`
+**Decision:** [ADR 0011](../adr/0011-an-aside-rides-alongside-a-turn.md),
+[ADR 0012](../adr/0012-an-exchange-round-spends-model-calls-not-turns.md)
 **Follows:** [`2026-09-07-do-asides-help.md`](2026-09-07-do-asides-help.md)
 
 **Peer-to-peer information is worth +9 to +31 points. Spending a floor turn to
@@ -29,6 +30,7 @@ the explanation does not survive them.
 | `hive+fact` | the aimed check, carrying the fact that rules an option out rather than a number to be averaged. |
 | `hive+along` | the aimed, fact-carrying check again, **riding alongside** the member's floor move: one turn, two rows, the second of which the episode cannot see. |
 | `hive+share` | the same free row spent **continuously** — a contact on every turn, carrying a reading of every option rather than an answer to one. |
+| `hive+rounds` | the same continuous exchange run **off the floor**, in rounds between turns: nobody takes the floor for it, so its volume is set by a policy rather than by how many turns the room takes. |
 | `hive+fact°` | the same bounded exchange, held **off the floor** — before the episode opens, spending no turn the room could have deliberated with. |
 | `hive+pooled` | the **ceiling** *for equal-weight pooling*: every reading and every fact already in every member's hands, free, averaged with no regard for whose reading it is. No protocol that treats every peer's reading as equally reliable beats it; a protocol that could tell a specialist's reading from a lay guess (`--specialists`, not measured here) could in principle do better by weighting instead of averaging. |
 
@@ -49,6 +51,9 @@ Paired bootstrap against `hive+` over the same rooms, 2000 resamples.
 | `hive+mute` | 79.6 | 81.5 | 52.3 |
 | `hive+along` | 82.1 | 81.8 | 68.5 |
 | `hive+share` | 82.1 | 81.7 | 69.4 |
+| `hive+hush` | 82.1 | 81.7 | 68.0 |
+| `hive+rounds` | 82.2 | 81.5 | 71.2 |
+| `hive+quiet` | 82.1 | 81.7 | 68.0 |
 | `hive+fact°` | 80.9 | 81.5 | 71.2 |
 | `hive+pooled` | **91.5** | **91.6** | **98.8** |
 
@@ -59,7 +64,10 @@ hidden profile, budget 40
   hive+fact   − hive+:   -16.9 [-18.9, -15.1]
   hive+along  − hive+:    +0.5 [ +0.1,  +0.9]     the same exchange, riding along
   hive+share  − hive+:    +1.4 [ +0.4,  +2.4]     a contact every turn, carrying everything
-  hive+fact°  − hive+:    +3.2 [ +2.1,  +4.1]     the same exchange, off the floor
+  hive+hush   − hive+:    +0.0 [ +0.0,  +0.0]     alongside rows, saying nothing
+  hive+rounds − hive+:    +3.2 [ +1.8,  +4.5]     the same exchange, off the floor entirely
+  hive+quiet  − hive+:    +0.0 [ +0.0,  +0.0]     the same rows, saying nothing
+  hive+fact°  − hive+:    +3.2 [ +2.1,  +4.1]     one contact each, off the floor, oracle-aimed
   hive+pooled − hive+:   +30.8 [+28.8, +33.0]     the ceiling
 
 uniform, budget 15
@@ -178,7 +186,7 @@ episode cannot vote the row, because `live_traces` drops a non-desk row before
 it reaches a trace or a standing, and `spent` counts turns rather than rows.
 It is not free of a sequence, though: see "What this does not settle" below.
 
-That property is now pinned twice: a readable case in `episode::test`, and an
+That property is pinned twice — a readable case in `episode::test`, and an
 *addition* invariant in the fuzz suite — arbitrary aside rows, carrying the same
 fuzzed grammar as the desk rows, interleaved anywhere in an arbitrary
 transcript, leave `step` exactly where it was. Both go red if the audience
@@ -199,21 +207,118 @@ handing over a reading of every option and any fact its author holds. It gains
 `+1.4 [+0.4, +2.4]` on the hidden profile — much of the way to the `+3.2` that an
 off-floor exchange with oracle targeting reaches.
 
+## Taking the floor out of it entirely
+
+`hive+share` still rides on turns, so a room converging in eleven of them writes
+at most eleven private rows. [ADR 0012](../adr/0012-an-exchange-round-spends-model-calls-not-turns.md)
+removes that carrier: between turns, a host may run an **exchange round** in
+which each member the library names appends one private row, taking no floor and
+producing no turn. The volume is then set by a policy the host writes rather than
+by how talkative the room happens to be.
+
+`hive+rounds` reaches **`+3.2 [+1.8, +4.5]`** on the hidden profile, matching
+what one oracle-aimed contact each reaches off the floor (`hive+fact°`, `+3.2`)
+— but reaching it from the transcript rather than from private room state, which
+is the version a host could actually run.
+
+**It is not free, and the table says so.** A round is *n* model calls, and the
+`calls/ep` column exists so the price sits beside the gain rather than inside
+`cost/ep`, which is defined as each speaker's own cost times its turns. The curve
+is the honest way to read the mechanism:
+
+| `--exchange-cap` | correct % | model calls/ep |
+| --- | --- | --- |
+| 0 (off) | 68.0 | — |
+| 1 | 69.5 | 30.0 |
+| 2 | 69.2 | 35.0 |
+| 4 (default) | **71.2** | 45.0 |
+| 8 | 72.4 | 53.9 |
+| 16 | 72.4 | 54.1 |
+
+It saturates: at cap 8 a member runs out of peers to contact before it runs out
+of budget, and rows stop being written at all rather than being written and
+wasted. Forty-five calls to buy three points is a real trade a host can now make
+deliberately, and one it could not price before.
+
+**The column counts calls, not rows, and the difference is large.** A member
+asked for a line costs a model call whether or not it has anything to say, and a
+round in which everybody declines is the most expensive kind per row. An earlier
+version of this table reported rows — twenty against the forty-five actually
+paid — which understated the price by more than half. The mechanism is sold on
+its cost being visible, so the metric has to be the thing you are billed for.
+
+One participant-side detail is load-bearing and was measured rather than
+assumed. A round during the blind phase shows a member no peer at all, so
+anything written then sits unread until blindness lifts — and a member that
+spends its whole cap there has none left for the turns that could use it.
+Declining a round it cannot use is most of the mechanism: without it the arm
+spends its whole cap writing into a blind round and lands on `hive+`.
+
+**Uniform rooms are still a null**: `+0.2 [-0.1, +0.4]` at budget 15 and
+`-0.1 [-0.5, +0.3]` at budget 40. Every exchange arm is worthless there, and for
+the same reason — a room whose members differ only by independent noise has no
+concentrated information for a contact to move, and the fold across five members
+already does the averaging.
+
+## Does writing a private row move the room by itself?
+
+A private row buys no trace, no standing and no budget — that is pinned by two
+tests and a fuzz invariant. But it does consume a **sequence number**, and
+`salience::standing` reads recency as a raw `at - trace.sequence` distance which
+feeds the attention market's choice of who speaks next. So a room that writes
+private rows could in principle decide differently from one that does not,
+without a word of their content mattering. Review of
+[ADR 0011](../adr/0011-an-aside-rides-alongside-a-turn.md) raised this, and the
+honest answer was that the invariant never covered it: it holds desk sequence
+numbers fixed across the two transcripts it compares.
+
+So it is measured. Two arms write the identical rows on the identical schedule
+and **throw every answer away**:
+
+| arm | what it controls | hidden profile, budget 40 |
+| --- | --- | --- |
+| `hive+hush` | `hive+share`'s rows, saying nothing | `+0.0 [+0.0, +0.0]` |
+| `hive+quiet` | `hive+rounds`' rows, saying nothing | `+0.0 [+0.0, +0.0]` |
+
+Zero, exactly, in every configuration — including `hive+quiet`, which makes
+forty-five model calls an episode. The concern is a real mechanism and an empty
+one here:
+**every point any exchange arm gains is information, not perturbation.**
+
+The reason differs between the two, which is why both were run. An exchange
+round appends the same number of rows after every turn, so every inter-turn gap
+grows by the same constant and the *ranking* salience produces is untouched. An
+alongside row lands only on turns whose author wanted one, so it stretches gaps
+unevenly — the case with no such argument available, and the one that had to be
+measured rather than reasoned about. It too is zero.
+
+None of this makes the sequence-distance decay a good design; it makes it
+harmless at these volumes. It is a real limit on the guarantee, not only on the
+measurement: `step`'s indifference to private rows holds for the same desk rows
+at the same sequences, and a host allocating sequences live shifts them.
+`episode::test::shifting_desk_sequences_past_a_private_row_can_change_the_step`
+demonstrates a support ageing out of a tight window because an exchange
+happened. What keeps it academic here is that the default window is 100 against
+episodes of about eleven desk turns. A host writing far more private rows than this
+benchmark does should re-measure rather than assume, and the real fix — decay
+over desk turns rather than raw sequences — remains a library change that would
+need its own ADR.
+
 ## What is still unreached, and why it is not the accounting
 
-The ceiling is `+30.8` and the best arm inside the turn contract reaches `+1.4`.
-The remaining constraint is that an aside still *rides* on a turn: a room
-converging in eleven turns can write at most eleven aside rows, which in a room
-of five is about two contacts each, against the twenty full exchanges `pooled`
-performs for free. Raising `--aside-cap` does not help, because turns rather than
-the cap are what bind.
+The ceiling is `+30.8` and the best off-floor arm reaches `+3.2`, at forty-five model
+calls an episode. What is left is not the accounting and not the carrier
+— both of those have now been removed — but **reach and timing**. `pooled` puts
+every member's reading of every option into every other member before a word is
+spoken; `hive+rounds` diffuses the same information pairwise, mid-episode, after
+positions have begun to form, and saturates once each member has met each peer
+once.
 
-Closing that would mean letting members the library did **not** authorize append
-rows between turns. The invariant above says `step` could not tell — but that is
-not a licence: a host running *n* participants per authorized turn is the failure
-mode the charter's third rule exists to prevent, and *n* model calls per turn is
-a real price this harness would have to display rather than hide. Left as an open
-question in the spec, with `hive+pooled` bounding it.
+Two things would narrow it and neither is free. Contacting more than one peer per
+round multiplies the model calls again. Starting the exchange before the room
+opens runs into the blind round, which withholds peer rows whatever their
+audience — admitting asides through that filter was measured at `+0.5` and
+declined below.
 
 **Blindness was tested and is not the barrier.** Half of a hidden-profile episode
 is the blind round, during which `project_for` withholds every peer row, so an
@@ -228,9 +333,10 @@ value on, and it does not pay for that risk. `project_for` is unchanged.
 
 Everything the first note listed, still: conformity (arithmetic participants
 cannot be sycophantic), the settlement pointer (no simulated participant acts on
-one), and rooms whose members are wrong in *different* directions. And now the
-off-floor exchange above, which `hive+pooled` bounds at `+30.8` and no arm here
-implements. Note also that `hive+fact°`'s peer selection is an oracle rather
+one), and rooms whose members are wrong in *different* directions. And the gap between the
+best off-floor arm and the `+30.8` ceiling, which is reach rather than
+accounting: no arm here contacts more than one peer per round, or exchanges
+before the room opens. Note also that `hive+fact°`'s peer selection is an oracle rather
 than a transcript-matched replica of `hive+fact`'s, so its `+3.2` is an upper
 bound on the off-floor benefit rather than an isolation of scheduling from
 targeting alone — `hive+along`, which *is* transcript-matched, is the clean
@@ -273,5 +379,6 @@ $B --episodes 5000
 $B --episodes 2000 --budget 40
 $B --episodes 2000 --budget 40 --hidden-profile --blind-evidence
 $B --episodes 500  --budget 40 --hidden-profile --blind-evidence --aside-cap 5
-$B --episodes 500  --budget 40 --hidden-profile --blind-evidence --aside-cap 0  # every arm identical to hive+
+$B --episodes 2000 --budget 40 --hidden-profile --blind-evidence --exchange-cap 8
+$B --episodes 500  --budget 40 --hidden-profile --blind-evidence --aside-cap 0 --exchange-cap 0  # every arm identical to hive+
 ```

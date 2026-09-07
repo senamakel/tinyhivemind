@@ -49,7 +49,10 @@ Every arm decides the same rooms from the same private evaluations.
 | `hive+fact` | The aimed check again, carrying the fact that rules an option out rather than a number to be averaged into an error the pair may share. |
 | `hive+mute` | The identical check on the identical turns, with the answer **discarded**. Targets the way `hive+aside`/`hive+ask` do — whoever spoke first — so it is a matched-turn control for those two: what it loses against `hive+` is what the turns cost. Against `hive+fact`/`hive+aside!`, which are aimed at the fact-holder, the comparison also carries a targeting difference, not content value alone. |
 | `hive+along` | The aimed, fact-carrying check again, **riding alongside** the member's floor move rather than replacing it: one authorized turn, two rows, and the episode unable to see the second. Unlike `hive+fact°` it picks its peer from the transcript exactly as `hive+fact` does, so it is the clean isolation of scheduling. See [ADR 0011](../../../../docs/adr/0011-an-aside-rides-alongside-a-turn.md). |
+| `hive+hush` | `hive+share` with the answers **discarded**: the same rows on the same turns, consuming the same sequence numbers, saying nothing. Alongside rows land unevenly, so this is the control that says whether that unevenness moves the room by itself. |
 | `hive+share` | The same free row spent **continuously** — a contact on every turn, to a peer not yet reached, carrying a reading of every option rather than an answer to one. What a colony's contacts actually look like, and what only a free row can afford. |
+| `hive+rounds` | The same continuous exchange run **off the floor**, in rounds between turns: nobody takes the floor for it, so its volume is set by `--exchange-cap` rather than by how many turns the room takes. Priced in the `calls/ep` column. See [ADR 0012](../../../../docs/adr/0012-an-exchange-round-spends-model-calls-not-turns.md). |
+| `hive+quiet` | `hive+rounds` with the answers **discarded**: the same rounds, the same rows, the same sequence numbers consumed, and no information transferred. The control that separates what an off-floor exchange *says* from what merely writing its rows does to salience decay. |
 | `hive+fact°` | The same bounded exchange as `hive+fact`, held **off the floor** — before the episode opens, spending no turn the room could have deliberated with. Its peer is chosen from private room state rather than the transcript, so it bounds what the exchange is worth off the floor rather than isolating scheduling alone. |
 | `hive+pooled` | The **ceiling for equal-weight pooling**: every private reading and every fact already in every member's hands, free, averaged with no regard for whose reading it is. No amount of pairwise exchange beats it on the rooms this benchmark measures (uniform and hidden-profile, where every peer's reading is equally reliable) — under `--specialists`, where readings genuinely differ in reliability, a protocol that could tell them apart could in principle beat indiscriminate averaging. |
 | `ladder+dir` | The responder ladder again, with a directory the room *earned* over `--history` prior episodes of `hive+` on the same room. The selector's candidates carry that directory's per-agent lines as their `description`, the request names the topic the call turns on, and a router that reads the descriptions picks the heaviest holder of it. Validated through the real `accept_selection`. |
@@ -88,6 +91,14 @@ each member's floor move instead of in place of one, and moves from `-16.9` to
 `hive+share` then spends the free row continuously and reaches
 `+1.4 [+0.4, +2.4]`. Both stay inside the turn contract: only the member the
 library authorized ever writes, and it writes at most one private row per turn.
+
+`hive+rounds` takes the floor out of it altogether — members contact each other
+in rounds *between* turns, bounded by the library's `exchange` fold rather than
+by how talkative the room is — and reaches `+3.2 [+1.8, +4.5]` at forty-five model
+calls an episode. That is not free, and `calls/ep` is there so the price sits
+beside the gain. Every one of these arms is a null on uniform rooms: a room whose
+members differ only by independent noise has no concentrated information for a
+contact to move.
 [`docs/experiments/2026-09-07-why-asides-lose.md`](../../../../docs/experiments/2026-09-07-why-asides-lose.md)
 carries the numbers and the argument;
 [`2026-09-07-do-asides-help.md`](../../../../docs/experiments/2026-09-07-do-asides-help.md)
@@ -474,6 +485,8 @@ changes hands between blocks is a claim about the model. Both are reported.
 | `--rot F` | how hard the middle of that window is discounted, `0.0..=1.0` (default `0.0`) |
 | `--context-sweep` | run the window ladder instead of comparing arms once |
 | `--aside-cap N` | pairwise checks one member may open (default 1); under `hive+share` it caps distinct peers contacted instead; `0` makes every aside arm bit-identical to `hive+` |
+| `--aside-cap N` | pairwise checks one member may open (default 1); under `hive+share` it caps distinct peers contacted instead; `0` makes every on-floor and alongside aside arm bit-identical to `hive+` |
+| `--exchange-cap N` | private rows one member may write **off the floor** across an episode, read by `hive+rounds` (default 4); a separate knob because it bounds model calls rather than the room's turns; `0` makes `hive+rounds` bit-identical to `hive+` |
 | `--history N` | prior episodes of `hive+` the `ladder+dir` arm earns its directory from (default 3) |
 | `--budget N` `--quorum N` `--window N` | episode policy, overriding the tuned values |
 | `--dominance N` `--repetition N` `--no-blind` | episode policy |
@@ -488,6 +501,7 @@ changes hands between blocks is a claim about the model. Both are reported.
 | `--repeat N` | run a live scenario N times and count both arms |
 | `--json` | print one flat JSON object per arm, ahead of the tables |
 | `--stats-check` | run the statistics module's self-check, and the check arms' own, and exit `0` or `1` |
+| `calls/ep` (column) | model calls made in off-floor exchange rounds per episode — members *asked*, not rows written, so a declined round costs what it actually cost. Kept out of `cost/ep`, which is each speaker's own cost times its turns |
 | `--timeout SECS` | per-turn deadline for a live agent or HTTP request (default 180) |
 | `--api-base URL` | drive seats directly over HTTP instead of a CLI |
 | `--api-key-env NAME` | env var carrying the HTTP backend's key (default `LADDER_API_KEY`) |

@@ -69,6 +69,8 @@
 //! | `--specialist-model NAME` | model for a seat the scenario marks as a specialist |
 //! | `--specialists N`, `--hidden-profile` | how expertise is distributed |
 //! | `--defer-cap N`, `--history N`, `--cost-tiers` | the delegation arms |
+//! | `--aside-cap N` | pairwise checks one member may open (default 1); `0` makes every on-floor and alongside aside arm identical to `hive+` |
+//! | `--exchange-cap N` | private rows one member may write off the floor (default 4); `0` disables `hive+rounds` |
 //! | `--blind-evidence` | members open the blind round with a deposit, not a position |
 //! | `--directory` | fold the directory into the traced episode's own policy |
 //! | `--thinking on\|off` | whether the HTTP backend reasons before answering |
@@ -105,7 +107,8 @@ use crate::metrics::{
 };
 use crate::rng::mix;
 use crate::run::{
-    AsideMode, Participant, drive, run_episode, run_episode_checking, run_episode_with,
+    AsideMode, Participant, drive, run_episode, run_episode_checking, run_episode_exchanging_with,
+    run_episode_with,
 };
 use crate::scenario::{Scenario, ScenarioAgent};
 use crate::sim::{CheckStyle, Expertise, Room, SPECIALIST_COST_UNIT};
@@ -207,6 +210,16 @@ struct Options {
     context: usize,
     /// How hard the middle of that window is discounted, `0.0..=1.0`.
     rot: f64,
+    /// Private rows one member may write **off the floor**, read by
+    /// `hive+rounds`.
+    ///
+    /// Separate from `aside_cap` because it bounds a different resource: an
+    /// on-floor check spends the room's turns, of which there are a handful,
+    /// while an off-floor row spends a model call, of which a host may buy as
+    /// many as it will pay for. Sharing one number would understate the
+    /// mechanism and misprice the comparison. `0` disables the exchange
+    /// entirely, leaving `hive+rounds` bit-identical to `hive+`.
+    exchange_cap: u32,
     /// Prior episodes of `hive+` the `ladder+dir` arm earns its directory
     /// from, on the same room.
     history: u32,
@@ -282,6 +295,7 @@ impl Options {
             aside_cap: 1,
             context: 0,
             rot: 0.0,
+            exchange_cap: 4,
             history: 3,
             json: false,
             timeout: 180,
@@ -433,6 +447,7 @@ fn apply_expertise_flag(
                 .clamp(0.0, 1.0);
         }
         "--context-sweep" => options.mode = Mode::ContextSweep,
+        "--exchange-cap" => options.exchange_cap = next_number(args).unwrap_or(4),
         "--history" => options.history = next_number(args).unwrap_or(3),
         "--cost-tiers" => options.cost = true,
         "--blind-evidence" => options.blind_evidence = true,
@@ -811,7 +826,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
     );
 
     let (totals, wall) = run_arms(options, rooms)?;
-    let arms: [(&str, &Aggregate); 19] = [
+    let arms: [(&str, &Aggregate); 22] = [
         ("ladder", &totals.ladder),
         ("vote", &totals.vote),
         ("hive", &totals.hive_default),
@@ -832,6 +847,9 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
         ("hive+mute", &totals.hive_aside_mute),
         ("hive+along", &totals.hive_aside_alongside),
         ("hive+share", &totals.hive_aside_exchange),
+        ("hive+hush", &totals.hive_aside_hush),
+        ("hive+rounds", &totals.hive_exchange_rounds),
+        ("hive+quiet", &totals.hive_exchange_quiet),
         ("hive+fact°", &totals.hive_aside_offfloor),
         ("hive+pooled", &totals.hive_pooled),
     ];
@@ -926,6 +944,21 @@ struct Totals {
     /// The free row spent continuously: a contact on every turn, carrying
     /// every reading its author holds. Bounded by `--aside-cap` peers.
     hive_aside_exchange: Aggregate,
+    /// The same continuous exchange, run **off the floor** in rounds between
+    /// turns: nobody takes the floor for it, so its volume is set by the
+    /// policy rather than by how many turns the room happens to take. Its
+    /// price is the `calls/ep` column.
+    hive_exchange_rounds: Aggregate,
+    /// `hive+share` with every answer discarded: the same rows riding
+    /// alongside the same turns, transferring nothing. Alongside rows land
+    /// unevenly — only on turns whose author wanted one — so unlike a round
+    /// they do not shift every gap by a constant, and this is what says
+    /// whether that unevenness moves the room on its own.
+    hive_aside_hush: Aggregate,
+    /// The off-floor rounds again with every answer discarded: same rows,
+    /// same sequence numbers consumed, nothing transferred. What it moves is
+    /// what writing the rows does to salience decay, not what they said.
+    hive_exchange_quiet: Aggregate,
     /// The aimed, fact-carrying exchange again, held off the floor: the same
     /// bounded number of contacts, spending no turn the room could have
     /// deliberated with.
@@ -978,6 +1011,9 @@ fn check_arm_diffs(options: &Options, totals: &Totals) {
         ("hive+mute", &totals.hive_aside_mute),
         ("hive+along", &totals.hive_aside_alongside),
         ("hive+share", &totals.hive_aside_exchange),
+        ("hive+hush", &totals.hive_aside_hush),
+        ("hive+rounds", &totals.hive_exchange_rounds),
+        ("hive+quiet", &totals.hive_exchange_quiet),
         ("hive+fact°", &totals.hive_aside_offfloor),
         ("hive+pooled", &totals.hive_pooled),
     ]
@@ -1051,6 +1087,36 @@ fn run_check_arms(
     totals
         .hive_aside_exchange
         .add(&check(AsideMode::Alongside, CheckStyle::EXCHANGE)?);
+    // `hive+share` saying nothing: the control for an *alongside* row, whose
+    // sequence lands unevenly rather than once per turn.
+    totals
+        .hive_aside_hush
+        .add(&check(AsideMode::Alongside, CheckStyle::QUIET)?);
+    // The same continuous exchange, run off the floor: one round between every
+    // pair of turns, bounded by `ExchangePolicy` rather than by the number of
+    // turns the room takes. Priced in `calls/ep`.
+    totals
+        .hive_exchange_rounds
+        .add(&run_episode_exchanging_with(
+            room,
+            tuned,
+            TASK,
+            false,
+            options.exchange_cap,
+            CheckStyle::EXCHANGE,
+        )?);
+    // The same rounds writing the same rows, with every answer discarded. The
+    // difference between this and `hive+rounds` is what the exchange said; what
+    // this arm moves on its own is what writing private rows does to a decay
+    // that reads recency off raw sequence distance.
+    totals.hive_exchange_quiet.add(&run_episode_exchanging_with(
+        room,
+        tuned,
+        TASK,
+        false,
+        options.exchange_cap,
+        CheckStyle::QUIET,
+    )?);
     // The same bounded exchange, held off the floor entirely and given oracle
     // targeting. It bounds what the alongside arm above could reach.
     totals.hive_aside_offfloor.add(&run_episode(

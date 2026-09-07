@@ -84,6 +84,8 @@ See [`example-retry-policy.md`](example-retry-policy.md) for a complete sample.
 An accepted specification cites the record that settled its contested question
 rather than restating it. Two run across several specifications:
 
+- [`off-floor-exchange.md`](off-floor-exchange.md) — draft: private exchange
+  in rounds between turns, taking no floor and bounded by a host-set budget.
 - [ADR 0008](../adr/0008-an-approval-decision-is-total.md) — an approval
   decision denies rather than fails, so a gate cannot be bypassed by failing.
 - [ADR 0009](../adr/0009-a-refusal-renders-what-the-caller-already-holds.md) —

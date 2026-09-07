@@ -4,11 +4,12 @@
 
 use tinyhivemind::aside::Audience;
 use tinyhivemind_hive::{
-    Conversation, DirectoryPolicy, EpisodePolicy, EpisodeState, QuorumPolicy, SalienceWeights,
-    Sequence, SessionAuthor, SessionMessage, TRACE_CAP,
+    Conversation, DirectoryPolicy, EpisodePolicy, EpisodeState, ExchangePolicy, ExchangeRound,
+    ExchangeState, NoExchangeReason, QuorumPolicy, SalienceWeights, Sequence, SessionAuthor,
+    SessionMessage, TRACE_CAP,
     attention::{BidContext, bids},
     desk::{Desk, DeskSet, ResponderMode},
-    directory, read,
+    directory, exchange, read,
     roster::{Roster, RosterMember},
     standings, step,
 };
@@ -248,6 +249,125 @@ fn asides_interleaved_into_an_arbitrary_transcript_do_not_move_the_episode() {
             step(&opened(), &desk, &roster, &desk_set, &episode).expect("valid policy"),
             step(&opened(), &interleaved, &roster, &desk_set, &episode).expect("valid policy"),
         );
+    }
+}
+
+/// Driving exchange rounds to exhaustion terminates, stays inside the policy's
+/// worst case, and never moves the episode.
+///
+/// The three properties the mechanism is sold on, asserted together against a
+/// host that runs every round it is offered and writes a row for every member
+/// the round names — the most a well-behaved host can spend.
+#[test]
+fn exchange_rounds_terminate_inside_their_budget_without_moving_the_episode() {
+    let people = roster_members();
+    let rooms = desks();
+    let retired: Vec<String> = Vec::new();
+    let roster = Roster::new(&people, &[], &retired);
+    let desk_set = DeskSet::new(&rooms, &[], &[], &[], &retired);
+    let episode = EpisodePolicy::DEFAULT;
+    let floor: Vec<SessionMessage> = (0..4_u64)
+        .map(|index| SessionMessage {
+            sequence: Sequence(index * 2),
+            author: author(index),
+            content: "!propose #stage".to_owned(),
+            audience: Audience::Desk,
+            elided: None,
+        })
+        .collect();
+    let before = step(&opened(), &floor, &roster, &desk_set, &episode).expect("valid policy");
+
+    for contact_cap in 1..4_u32 {
+        for round_cap in 1..4_u32 {
+            let policy = ExchangePolicy {
+                enabled: true,
+                contact_cap,
+                round_cap,
+            };
+            let mut transcript = floor.clone();
+            let mut written = 0_u32;
+            let mut next = 1_u64;
+            let mut opened_rounds = ExchangeState::opened();
+            // A bound well above any legitimate one, so a fold that failed to
+            // charge spend fails this test rather than hanging it.
+            for _ in 0..64 {
+                let round = exchange(
+                    &policy,
+                    &opened(),
+                    opened_rounds,
+                    &transcript,
+                    &roster,
+                    &desk_set,
+                )
+                .expect("valid snapshots");
+                let ExchangeRound::Open {
+                    members,
+                    remaining,
+                    next: carried,
+                } = round
+                else {
+                    break;
+                };
+                opened_rounds = carried;
+                assert!(remaining > 0, "an open round must have budget left");
+                for member in &members {
+                    transcript.push(SessionMessage {
+                        sequence: Sequence(next * 2 + 1),
+                        author: SessionAuthor::Agent {
+                            id: member.clone(),
+                            label: member.clone(),
+                        },
+                        content: format!("!aside @peer !support #stage ^0 {member}"),
+                        audience: Audience::Aside {
+                            members: vec!["agent-0".to_owned()],
+                        },
+                        elided: None,
+                    });
+                    next += 1;
+                    written += 1;
+                }
+                transcript.sort_by_key(|message| message.sequence);
+            }
+
+            let seats = u32::try_from(MEMBERS.len()).expect("small");
+            let worst = seats.saturating_mul(contact_cap).min(round_cap * seats);
+            assert!(
+                written <= worst,
+                "wrote {written} rows against a worst case of {worst}",
+            );
+            assert!(written > 0, "a policy with budget must open one round");
+            assert_eq!(
+                exchange(
+                    &policy,
+                    &opened(),
+                    opened_rounds,
+                    &transcript,
+                    &roster,
+                    &desk_set,
+                )
+                .expect("valid snapshots"),
+                ExchangeRound::Closed {
+                    // A host writing one row per named member each round takes
+                    // `min(contact_cap, round_cap)` rounds to exhaust itself,
+                    // so the round cap is what bit whenever it is the smaller
+                    // of the two — and the fold checks it first on a tie.
+                    reason: if round_cap <= contact_cap {
+                        NoExchangeReason::RoundsSpent
+                    } else {
+                        NoExchangeReason::ContactsSpent
+                    },
+                },
+                "the round must close once the budget is gone",
+            );
+
+            // And the whole point: the episode cannot tell any of it happened,
+            // even though every private row carries a `!support` that would
+            // carry real weight on the desk.
+            assert_eq!(
+                step(&opened(), &transcript, &roster, &desk_set, &episode).expect("valid policy"),
+                before,
+            );
+        }
     }
 }
 

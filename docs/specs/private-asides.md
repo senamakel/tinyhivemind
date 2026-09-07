@@ -351,16 +351,15 @@ aside, every viewer projects what it projects today.
   `THREAD_INDEX_SCAN` all count raw rows, so a viewer admitted to little of a
   desk gets proportionally less for the same cost. Stating the achieved window
   is honest but is not a fix, and a per-viewer multiplier was not attempted.
-- **An aside that does not ride on a turn at all.** An aside now rides alongside
-  the turn that authored it, which is what makes it free; but it still rides on
-  one, so a room converging in eleven turns can write at most eleven aside rows.
-  The ceiling on peer information is `+30.8` and the best arm that stays inside
-  the turn contract reaches `+1.4`. Closing that gap means letting members the
-  library did not authorize append rows between turns. `step` provably could not
-  tell — but a host running *n* participants per authorized turn is what the
-  charter's third rule exists to prevent, and the cost in model calls is real and
-  is not the library's to hide. Not taken; `hive+pooled` bounds what it is worth.
-  See [`../experiments/2026-09-07-why-asides-lose.md`](../experiments/2026-09-07-why-asides-lose.md).
+- **An aside that does not ride on a turn at all** — now specified separately in
+  [`off-floor-exchange.md`](off-floor-exchange.md) and
+  [ADR 0012](../adr/0012-an-exchange-round-spends-model-calls-not-turns.md).
+  An aside riding alongside a turn is free but still rationed by the floor: a
+  room converging in eleven turns writes at most eleven aside rows, and the arm
+  that stays inside the turn contract reaches `+1.4` against a `+30.8` ceiling.
+  An exchange round lifts the ration at an explicit, finite, host-set price in
+  model calls. See
+  [`../experiments/2026-09-07-why-asides-lose.md`](../experiments/2026-09-07-why-asides-lose.md).
 - **Whether an aside should reach its member during a blind round.** It does not
   today: `project_for` withholds every peer row under `Visibility::Blind`, so an
   exchange cannot begin until positions have formed. Letting an aside through
