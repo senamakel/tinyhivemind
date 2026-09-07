@@ -705,6 +705,35 @@ fn exchange_policy(contact_cap: u32, round_cap: u32) -> ExchangePolicy {
     }
 }
 
+/// Ask the library for a round and run it, returning the rows written and the
+/// time spent inside the library.
+///
+/// Split out of [`drive_with`] so the step loop stays readable and so the
+/// library call is timed the same way [`step`] is.
+///
+/// # Errors
+///
+/// Returns the library's own error text if a snapshot is malformed.
+fn one_exchange(
+    host: &mut Host,
+    agents: &mut [&mut dyn Participant],
+    last: &HiveTurn,
+    state: &EpisodeState,
+    policy: &ExchangePolicy,
+    members: usize,
+) -> Result<(u32, Duration), String> {
+    let started = Instant::now();
+    let round = {
+        let roster = host.roster();
+        let desks = host.desks();
+        exchange(policy, state, &host.journal, &roster, &desks)
+            .map_err(|error| error.to_string())?
+    };
+    let spent = started.elapsed();
+    let written = exchange_round(host, agents, last, &round, aside_policy(members));
+    Ok((written, spent))
+}
+
 /// Run one exchange round, and return how many private rows it wrote.
 ///
 /// Each member the library named is asked for one line, over a projection
@@ -861,21 +890,16 @@ pub(crate) fn drive_with(
                 // episode's own state is already committed and does not move
                 // for any of it.
                 if aside_mode == AsideMode::OffFloor {
-                    let started = Instant::now();
-                    let round = {
-                        let roster = host.roster();
-                        let desks = host.desks();
-                        crate::run::exchange(&exchange, &state, &host.journal, &roster, &desks)
-                            .map_err(|error| error.to_string())?
-                    };
-                    library_time += started.elapsed();
-                    contacts = contacts.saturating_add(exchange_round(
+                    let (written, spent) = one_exchange(
                         &mut host,
                         agents,
                         &last,
-                        &round,
-                        aside_policy(member_ids.len()),
-                    ));
+                        &state,
+                        &exchange,
+                        member_ids.len(),
+                    )?;
+                    contacts = contacts.saturating_add(written);
+                    library_time += spent;
                 }
                 continue;
             }
