@@ -50,6 +50,7 @@ Every arm decides the same rooms from the same private evaluations.
 | `hive+mute` | The identical check on the identical turns, with the answer **discarded**. The matched-turn control: what it loses against `hive+` is what the turns cost, and what any arm above gains over it is what the answer is worth. |
 | `hive+along` | The aimed, fact-carrying check again, **riding alongside** the member's floor move rather than replacing it: one authorized turn, two rows, and the episode unable to see the second. See [ADR 0011](../../../../docs/adr/0011-an-aside-rides-alongside-a-turn.md). |
 | `hive+share` | The same free row spent **continuously** — a contact on every turn, to a peer not yet reached, carrying a reading of every option rather than an answer to one. What a colony's contacts actually look like, and what only a free row can afford. |
+| `hive+rounds` | The same continuous exchange run **off the floor**, in rounds between turns: nobody takes the floor for it, so its volume is set by `--exchange-cap` rather than by how many turns the room takes. Priced in the `private/ep` column. See [ADR 0012](../../../../docs/adr/0012-an-exchange-round-spends-model-calls-not-turns.md). |
 | `hive+fact°` | The same bounded exchange as `hive+fact`, held **off the floor** — before the episode opens, spending no turn the room could have deliberated with. It isolates the scheduling from everything else. |
 | `hive+pooled` | The **ceiling**: every private reading and every fact already in every member's hands, free. No amount of pairwise exchange beats it, so it bounds the whole question. |
 | `ladder+dir` | The responder ladder again, with a directory the room *earned* over `--history` prior episodes of `hive+` on the same room. The selector's candidates carry that directory's per-agent lines as their `description`, the request names the topic the call turns on, and a router that reads the descriptions picks the heaviest holder of it. Validated through the real `accept_selection`. |
@@ -76,6 +77,14 @@ each member's floor move instead of in place of one, and moves from `-15.0` to
 `hive+share` then spends the free row continuously and reaches
 `+1.9 [+0.8, +3.0]`. Both stay inside the turn contract: only the member the
 library authorized ever writes, and it writes at most one private row per turn.
+
+`hive+rounds` takes the floor out of it altogether — members contact each other
+in rounds *between* turns, bounded by the library's `exchange` fold rather than
+by how talkative the room is — and reaches `+4.9 [+3.5, +6.2]` at twenty private
+rows an episode. That is not free, and `private/ep` is there so the price sits
+beside the gain. Every one of these arms is a null on uniform rooms: a room whose
+members differ only by independent noise has no concentrated information for a
+contact to move.
 [`docs/experiments/2026-09-07-why-asides-lose.md`](../../../../docs/experiments/2026-09-07-why-asides-lose.md)
 carries the numbers and the argument;
 [`2026-09-07-do-asides-help.md`](../../../../docs/experiments/2026-09-07-do-asides-help.md)
@@ -386,7 +395,8 @@ rather than a failure of the harness.
 | `--blind-evidence` | a member's first turn, while the room is blind, is a deposit rather than a position (off by default) |
 | `--directory` | fold the directory into the traced episode's own policy, so `--trace` can show a `knows` turn |
 | `--defer-cap N` | turns a member may spend deferring to a topic's expert instead of arguing outside its own specialty (default 1, minimum 1); read by `hive+defer` and `hive+dir+defer` |
-| `--aside-cap N` | pairwise checks one member may open (default 1); under `hive+share` it caps distinct peers contacted instead; `0` makes every aside arm bit-identical to `hive+` |
+| `--aside-cap N` | pairwise checks one member may open (default 1); under `hive+share` it caps distinct peers contacted instead; `0` makes every on-floor and alongside aside arm bit-identical to `hive+` |
+| `--exchange-cap N` | private rows one member may write **off the floor** across an episode, read by `hive+rounds` (default 4); a separate knob because it bounds model calls rather than the room's turns; `0` makes `hive+rounds` bit-identical to `hive+` |
 | `--history N` | prior episodes of `hive+` the `ladder+dir` arm earns its directory from (default 3) |
 | `--budget N` `--quorum N` `--window N` | episode policy, overriding the tuned values |
 | `--dominance N` `--repetition N` `--no-blind` | episode policy |
@@ -401,6 +411,7 @@ rather than a failure of the harness.
 | `--repeat N` | run a live scenario N times and count both arms |
 | `--json` | print one flat JSON object per arm, ahead of the tables |
 | `--stats-check` | run the statistics module's self-check, and the check arms' own, and exit `0` or `1` |
+| `private/ep` (column) | private rows written off the floor per episode — the price of an exchange, kept out of `cost/ep`, which is each speaker's own cost times its turns |
 | `--timeout SECS` | per-turn deadline for a live agent or HTTP request (default 180) |
 | `--api-base URL` | drive seats directly over HTTP instead of a CLI |
 | `--api-key-env NAME` | env var carrying the HTTP backend's key (default `LADDER_API_KEY`) |
