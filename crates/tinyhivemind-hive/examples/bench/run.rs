@@ -148,6 +148,13 @@ pub(crate) struct EpisodeReport {
     /// The sum of every speaker's own `Participant::cost_unit` across every
     /// turn taken.
     pub(crate) cost_units: u64,
+    /// Private rows written **off the floor**, in exchange rounds.
+    ///
+    /// Deliberately not folded into `cost_units`, which is defined as each
+    /// speaker's own cost times its turns and is asserted to be exactly that.
+    /// This is the separate price of an off-floor exchange, and the table
+    /// prints it in a column of its own so it cannot hide inside `cost/ep`.
+    pub(crate) contacts: u32,
     /// The turn index at which each agent id first deposited a topiced
     /// `!evidence` line, in first-depositing order.
     ///
@@ -312,6 +319,14 @@ pub(crate) enum AsideMode {
     Private,
     /// The identical exchange, in the open, where every member reads it.
     Public,
+    /// Members exchange privately **off the floor**, in rounds between turns.
+    ///
+    /// Nobody takes the floor and no turn is produced: the library's
+    /// [`exchange`] fold says whether a round is open and which members it
+    /// names, and each of them may append at most one private row. Bounded by
+    /// an [`ExchangePolicy`] the caller sets, and priced in the `private/ep`
+    /// column rather than hidden. See ADR 0012.
+    OffFloor,
     /// The private exchange again, **riding alongside** the floor move that
     /// authored it rather than replacing one.
     ///
@@ -346,7 +361,10 @@ fn audience_for(
     content: &str,
     policy: AsidePolicy,
 ) -> Audience {
-    if !matches!(mode, AsideMode::Private | AsideMode::Alongside)
+    if !matches!(
+        mode,
+        AsideMode::Private | AsideMode::Alongside | AsideMode::OffFloor
+    )
         || !content.trim_start().starts_with(ASIDE_MARKER)
     {
         return Audience::Desk;
@@ -741,6 +759,7 @@ pub(crate) fn drive_with(
             knows_turns: tally.knows_turns,
             speech: tally.speech,
             cost_units: tally.cost_units,
+            contacts,
             first_deposit: tally.first_deposit,
             commit_at: tally.commit_at,
             first_spoke: tally.first_spoke,
