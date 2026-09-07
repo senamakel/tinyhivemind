@@ -386,6 +386,7 @@ pub(crate) fn run_episode_with(
         AsideMode::Off,
         0,
         false,
+        false,
     )
 }
 
@@ -413,13 +414,14 @@ pub(crate) fn run_episode_checking(
     aside_mode: AsideMode,
     aside_cap: u32,
     aside_informed: bool,
+    aside_evidence: bool,
 ) -> Result<EpisodeReport, String> {
     let ids = room.member_ids();
     let mut agents: Vec<SimAgent> = room.agents.clone();
     for agent in &mut agents {
         agent.set_quorum(policy.quorum);
         agent.set_defer_cap(defer_cap);
-        agent.set_aside_cap(aside_cap, aside_informed);
+        agent.set_aside_cap(aside_cap, aside_informed, aside_evidence);
     }
     let mut participants: Vec<&mut dyn Participant> = agents
         .iter_mut()
