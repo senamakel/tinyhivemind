@@ -1135,7 +1135,8 @@ impl SimAgent {
             if author == self.id {
                 continue;
             }
-            let Some((topic, reading)) = parse_reading(body) else {
+            let readings = parse_readings(body);
+            let Some((topic, _)) = readings.first().cloned() else {
                 continue;
             };
             self.handled.push(message.sequence);
@@ -1149,10 +1150,18 @@ impl SimAgent {
             if self.style.mute {
                 continue;
             }
-            if self.style.evidence && body.contains(RULES_OUT) && !self.ruled_out.contains(&topic) {
-                self.ruled_out.push(topic.clone());
+            // A refutation names the option it rules out explicitly, because a
+            // full exchange carries several in one row and "the topic" would
+            // otherwise be ambiguous.
+            if self.style.evidence
+                && let Some(refuted) = parse_ruled_out(body)
+                && !self.ruled_out.contains(&refuted)
+            {
+                self.ruled_out.push(refuted);
             }
-            self.import(&topic, reading);
+            for (held, reading) in readings {
+                self.import(&held, reading);
+            }
         }
     }
 
@@ -1919,15 +1928,33 @@ fn parse_topic(body: &str) -> Option<TopicId> {
 /// A question carries no number and parses to `None`, which is exactly how the
 /// two halves of an exchange are told apart.
 fn parse_reading(body: &str) -> Option<(TopicId, i32)> {
-    let topic = parse_topic(body)?;
-    let mut words = body.split_whitespace();
+    parse_readings(body).into_iter().next()
+}
+
+/// Every topic and reading one answered check carries, in the order written.
+///
+/// A pairwise check answers about one option; a full exchange answers about
+/// all of them in one row, which is what a contact transfers in the biology
+/// and what the alongside arms can afford now that a row costs no turn. Both
+/// forms parse here: each `#topic` claims the next `reads N` after it, so the
+/// single-topic line is just the one-element case.
+fn parse_readings(body: &str) -> Vec<(TopicId, i32)> {
+    let mut readings = Vec::new();
+    let mut topic: Option<TopicId> = None;
+    let mut words = body.split_whitespace().peekable();
     while let Some(word) = words.next() {
-        if word == ASIDE_READS {
-            let reading = words.next()?.trim_end_matches('.').parse().ok()?;
-            return Some((topic, reading));
+        if let Some(name) = word.strip_prefix('#') {
+            topic = Some(TopicId::from(name));
+        } else if word == ASIDE_READS
+            && let Some(held) = topic.take()
+            && let Some(value) = words.next().and_then(|word| {
+                word.trim_end_matches(['.', ',']).parse::<i32>().ok()
+            })
+        {
+            readings.push((held, value));
         }
     }
-    None
+    readings
 }
 
 /// The pairwise-check self-check: assert the properties the aside arms are
