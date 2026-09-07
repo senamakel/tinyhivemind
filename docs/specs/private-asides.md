@@ -322,8 +322,8 @@ aside, every viewer projects what it projects today.
   construction — but under one message, one turn it still spends one, and a member
   asking is a member not depositing while the room accumulates support around it.
   The benchmark separates the two: the same bounded exchange held off the floor
-  moves from `-15.0` to `+3.0 [+2.0, +4.0]` on a hidden profile, and free peer
-  information is worth `+21.2 [+19.2, +23.2]`. Letting a private exchange run
+  moves from `-15.0` to `+4.9 [+3.7, +6.0]` on a hidden profile, and free peer
+  information is worth `+30.8 [+28.7, +32.9]`. Letting a private exchange run
   concurrently with the deliberation rather than in place of a turn of it is the
   change those numbers point at; it is not attempted here, and it is a
   scheduling question for a host rather than a change to this algebra. See
