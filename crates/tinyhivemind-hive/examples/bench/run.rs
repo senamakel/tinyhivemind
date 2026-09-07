@@ -473,6 +473,54 @@ pub(crate) fn run_episode_with(
     )
 }
 
+/// Run one full episode with an **off-floor exchange**: members contact each
+/// other in rounds between turns, taking no floor and producing no turn.
+///
+/// `contact_cap` is the number of private rows one member may write across the
+/// episode, and `0` disables the exchange entirely, leaving the episode
+/// bit-identical to a plain [`run_episode`]. The round cap is the turn budget,
+/// because the harness opens at most one round per turn.
+///
+/// # Errors
+///
+/// Returns the library's own error text if a snapshot or policy is malformed.
+pub(crate) fn run_episode_exchanging(
+    room: &Room,
+    policy: &EpisodePolicy,
+    task: &str,
+    keep_trace: bool,
+    contact_cap: u32,
+) -> Result<EpisodeReport, String> {
+    let ids = room.member_ids();
+    let mut agents: Vec<SimAgent> = room.agents.clone();
+    for agent in &mut agents {
+        agent.set_quorum(policy.quorum);
+        agent.set_defer_cap(0);
+        // The cap on the participant side is the library's, so a member never
+        // wants a row the round would not have authorized.
+        agent.set_aside_cap(contact_cap, CheckStyle::EXCHANGE);
+        agent.set_peers(&ids);
+    }
+    let mut participants: Vec<&mut dyn Participant> = agents
+        .iter_mut()
+        .map(|agent| agent as &mut dyn Participant)
+        .collect();
+    let report = drive_with(
+        &ids,
+        &mut participants,
+        policy,
+        task,
+        keep_trace,
+        if contact_cap == 0 {
+            AsideMode::Off
+        } else {
+            AsideMode::OffFloor
+        },
+        exchange_policy(contact_cap, policy.turn_budget),
+    )?;
+    Ok(scored(room, report))
+}
+
 /// Run one full episode, letting every member spend up to `aside_cap` turns
 /// asking one peer for a second reading before it commits to a position.
 ///
