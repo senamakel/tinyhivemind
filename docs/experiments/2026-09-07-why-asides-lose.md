@@ -236,6 +236,24 @@ bound on the off-floor benefit rather than an isolation of scheduling from
 targeting alone — `hive+along`, which *is* transcript-matched, is the clean
 comparison.
 
+Also unsettled: `hive+along` and `hive+share` are not insulated from an aside's
+*presence*, only from its content counting as a vote. Sequence numbers are
+unique across the one shared journal (the runtime crate rejects a duplicate),
+so each alongside row still takes the next one, and every later desk turn in
+those two arms therefore lands at a higher raw sequence than the same episode
+without the aside would have reached. `salience::standing` scores recency from
+that raw `at - trace.sequence` distance, and salience feeds the floor-holder
+choice, so a run that fires more asides reaches any given desk-turn count at a
+larger sequence, which very slightly speeds decay of the room's own older
+traces relative to a no-aside control. The fuzz invariant in `episode::test`
+and `tests/fuzz_invariants.rs` holds desk sequence numbers fixed across the
+transcripts it compares, so it correctly proves an aside cannot buy a vote —
+it was never a claim about live per-episode sequence numbering, and does not
+cover this. The `+0.5` and `+1.4` above are real measurements of the code as it
+runs today, confound included; the confound biases decay to be *faster*, not
+slower, so it does not manufacture the gain these arms show. See the "Known
+limitation" note on [ADR 0011](../adr/0011-an-aside-rides-alongside-a-turn.md).
+
 ## Retraction
 
 The section "The hidden-profile result, and why it is worse than a wash" in
