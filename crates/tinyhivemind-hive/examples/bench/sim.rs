@@ -50,6 +50,7 @@ use tinyhivemind_hive::{
     trace::{TopicId, Trace, TraceKind, resolve},
 };
 
+use crate::context::{ContextBudget, ContextEntry, EntryKind};
 use crate::rng::{Rng, mix};
 use crate::run::ASIDE_MARKER;
 
