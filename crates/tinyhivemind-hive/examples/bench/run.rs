@@ -887,6 +887,7 @@ pub(crate) fn drive_with(
 
     let mut state = EpisodeState::opened(host.conversation(), host.watermark());
     let mut library_time = Duration::ZERO;
+    let mut step_time = Duration::ZERO;
     let mut step_calls = 0_u32;
     let mut turns = 0_u32;
     let mut contacts = 0_u32;
