@@ -2014,8 +2014,10 @@ pub(crate) fn check_selfcheck() -> bool {
     listening.absorb(std::slice::from_ref(&heard));
     ok &= listening.imports.len() == 1 && listening.score(&topic) != sample.own_reading(&topic);
 
-    // A fact-carrying answer discounts the option for its reader, and a
-    // reading-only arm ignores the sentence entirely.
+    // A fact-carrying answer discounts the option for its reader instead of
+    // averaging in the number that came with it -- the fact is taken in
+    // place of the reading, not alongside it -- while a reading-only arm
+    // ignores the sentence entirely and only ever averages the number.
     let refutation = format!(
         "{ASIDE_MARKER} @a #{topic} My own {ASIDE_READS} 7. The reading I hold {RULES_OUT}."
     );
@@ -2023,10 +2025,16 @@ pub(crate) fn check_selfcheck() -> bool {
     let mut fact_reader = sample.clone();
     fact_reader.set_aside_cap(1, CheckStyle::FACT);
     fact_reader.absorb(std::slice::from_ref(&told));
+    ok &= fact_reader.imports.is_empty()
+        && fact_reader.ruled_out.contains(&topic)
+        && fact_reader.score(&topic)
+            == fact_reader.own_reading(&topic).saturating_sub(GROUNDS_WEIGHT);
     let mut number_reader = sample.clone();
     number_reader.set_aside_cap(1, CheckStyle::AIMED);
     number_reader.absorb(std::slice::from_ref(&told));
-    ok &= fact_reader.score(&topic) == number_reader.score(&topic).saturating_sub(GROUNDS_WEIGHT);
+    ok &= number_reader.imports.len() == 1
+        && number_reader.ruled_out.is_empty()
+        && number_reader.score(&topic) != number_reader.own_reading(&topic);
 
     // The informed check aims at a depositor who argues *against* the topic,
     // even when a plain deposit on the same topic came first. Aiming at the
