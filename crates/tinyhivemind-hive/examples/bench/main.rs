@@ -831,36 +831,7 @@ fn compare(options: &Options, rooms: &[Room]) -> Result<(), String> {
         }
     }
 
-    // The aside arms against the room they modify, rather than against the
-    // poll. Seeded off a tag of their own so the published bootstraps above
-    // keep their streams.
-    for (index, (name, arm)) in [
-        ("hive+aside", &totals.hive_aside),
-        ("hive+ask", &totals.hive_ask),
-        ("hive+aside!", &totals.hive_aside_informed),
-        ("hive+fact", &totals.hive_aside_fact),
-        ("hive+mute", &totals.hive_aside_mute),
-        ("hive+fact°", &totals.hive_aside_offfloor),
-        ("hive+pooled", &totals.hive_pooled),
-    ]
-    .iter()
-    .enumerate()
-    {
-        let seed = mix(options.seed, 0xA51D_E000_u64.wrapping_add(index as u64));
-        if let Some(line) = paired_against(name, "hive+", arm, &totals.hive_tuned, seed, 2000) {
-            println!("{line}");
-        }
-    }
-    if let Some(line) = paired_against(
-        "hive+aside",
-        "hive+ask",
-        &totals.hive_aside,
-        &totals.hive_ask,
-        mix(options.seed, 0xA51D_E100),
-        2000,
-    ) {
-        println!("{line}");
-    }
+    check_arm_diffs(options, &totals);
 
     if options.cost {
         cost_table(&[
@@ -956,6 +927,41 @@ struct Totals {
 /// # Errors
 ///
 /// Returns the library's own error text from any arm.
+/// Print the check arms against the room they modify, rather than against the
+/// poll.
+///
+/// Seeded off a tag of their own so the published bootstraps keep their
+/// streams.
+fn check_arm_diffs(options: &Options, totals: &Totals) {
+    for (index, (name, arm)) in [
+        ("hive+aside", &totals.hive_aside),
+        ("hive+ask", &totals.hive_ask),
+        ("hive+aside!", &totals.hive_aside_informed),
+        ("hive+fact", &totals.hive_aside_fact),
+        ("hive+mute", &totals.hive_aside_mute),
+        ("hive+fact°", &totals.hive_aside_offfloor),
+        ("hive+pooled", &totals.hive_pooled),
+    ]
+    .iter()
+    .enumerate()
+    {
+        let seed = mix(options.seed, 0xA51D_E000_u64.wrapping_add(index as u64));
+        if let Some(line) = paired_against(name, "hive+", arm, &totals.hive_tuned, seed, 2000) {
+            println!("{line}");
+        }
+    }
+    if let Some(line) = paired_against(
+        "hive+aside",
+        "hive+ask",
+        &totals.hive_aside,
+        &totals.hive_ask,
+        mix(options.seed, 0xA51D_E100),
+        2000,
+    ) {
+        println!("{line}");
+    }
+}
+
 fn run_check_arms(
     options: &Options,
     room: &Room,
