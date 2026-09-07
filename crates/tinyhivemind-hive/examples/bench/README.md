@@ -60,12 +60,17 @@ them byte for byte.
 Every aside arm that spends a turn loses, and the seven of them together
 settle what the loss is made of. `hive+aside − hive+ask` spans zero in every
 configuration, so privacy is never the variable. `hive+mute` discards the
-answer and loses *more* than the matched-turn arms that keep it — `hive+aside`,
-`hive+ask`, `hive+fact` all land within a point of it — so the content is never
-the variable either; the cost is the turns, in full, before a word changes
-hands. `hive+aside!` is the exception: aimed at the actual fact-holder it loses
-`-17.1`, more than `hive+mute`, because conscripting the one member whose
-public turn matters into an audience of one is itself a cost. `hive+fact°` runs
+answer and loses *more* than `hive+aside` and `hive+ask` -- the two arms it is
+a clean matched-turn control for, since all three target the same way -- so
+against those two the content is never the variable either; the cost is the
+turns, in full, before a word changes hands. `hive+fact` lands within a point
+of `hive+mute` too (−15.0 against −15.7), but `hive+fact` is aimed at the
+fact-holder while `hive+mute` is not, so that particular gap also carries a
+targeting difference and should not be read as content value alone.
+`hive+aside!` is a sharper version of the same point: aimed at the actual
+fact-holder it loses `-17.1`, *more* than `hive+mute`, because conscripting the
+one member whose public turn matters into an audience of one is itself a cost.
+`hive+fact°` runs
 the same bounded exchange off the floor and moves from −15.0 to
 `+4.9 [+3.7, +6.0]` on a hidden profile, so scheduling accounts for most of the
 gap — though `hive+fact°` picks its peer from private room state rather than
