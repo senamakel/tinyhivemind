@@ -448,7 +448,7 @@ impl Room {
     /// not what is limiting the room.
     pub(crate) fn pooled(&self) -> Self {
         let mut room = self.clone();
-        let readings: Vec<(Vec<(TopicId, i32)>, Option<TopicId>)> = self
+        let readings: Vec<Holdings> = self
             .agents
             .iter()
             .map(|agent| (agent.evals.clone(), agent.refutes.clone()))
@@ -486,7 +486,7 @@ impl Room {
     /// So an on-floor arm cannot be losing to worse targeting than this.
     pub(crate) fn pre_checked(&self, cap: u32, evidence: bool) -> Self {
         let mut room = self.clone();
-        let readings: Vec<(Vec<(TopicId, i32)>, Option<TopicId>)> = self
+        let readings: Vec<Holdings> = self
             .agents
             .iter()
             .map(|agent| (agent.evals.clone(), agent.refutes.clone()))
@@ -500,7 +500,7 @@ impl Room {
                 // Whoever holds the fact, and otherwise the next member round.
                 let peer = readings
                     .iter()
-                    .position(|(_, refutes)| refutes.as_ref() == Some(&topic) && *refutes != None)
+                    .position(|(_, refutes)| refutes.as_ref() == Some(&topic))
                     .filter(|peer| *peer != index)
                     .unwrap_or_else(|| (index + 1 + spent as usize) % count.max(1));
                 if peer == index {
@@ -825,18 +825,10 @@ pub(crate) struct SimAgent {
     aside_cap: u32,
     /// Checks this member has already opened.
     asides_spent: u32,
-    /// Whether a check goes to the member the transcript shows has grounded
-    /// the topic, rather than to whoever spoke first.
-    aside_informed: bool,
-    /// Whether an answered check may carry the fact that rules an option out,
-    /// rather than only a reading of it.
-    aside_evidence: bool,
-    /// Whether an answered check is *discarded* rather than taken in. The
-    /// matched-turn control: the same words, on the same turns, transferring
-    /// nothing. What it costs against `hive+` is what the turns cost, and
-    /// what an arm that keeps the answer gains over it is what the answer is
-    /// worth.
-    aside_mute: bool,
+    /// What this member's checks do beyond costing a turn: where they are
+    /// aimed, whether an answer may carry a fact, and whether the answer is
+    /// taken in at all.
+    style: CheckStyle,
     /// Options a private exchange has told this member are ruled out. Read by
     /// [`Self::score`], and by nothing the room counts.
     ruled_out: Vec<TopicId>,
@@ -844,6 +836,12 @@ pub(crate) struct SimAgent {
     /// so neither is done twice.
     handled: Vec<Sequence>,
 }
+
+/// One member's private evaluations and the fact it holds, if any.
+///
+/// What a peer could ever hand over, read once out of the room so the
+/// zero-cost arms do not clone a participant per contact.
+type Holdings = (Vec<(TopicId, i32)>, Option<TopicId>);
 
 /// What one arm's pairwise check does, beyond costing a turn.
 ///
@@ -936,9 +934,7 @@ impl SimAgent {
             imports: Vec::new(),
             aside_cap: 0,
             asides_spent: 0,
-            aside_informed: false,
-            aside_evidence: false,
-            aside_mute: false,
+            style: CheckStyle::PLAIN,
             ruled_out: Vec::new(),
             handled: Vec::new(),
             favourite,
@@ -994,9 +990,7 @@ impl SimAgent {
     /// same discipline `set_defer_cap` follows.
     pub(crate) fn set_aside_cap(&mut self, cap: u32, style: CheckStyle) {
         self.aside_cap = cap;
-        self.aside_informed = style.informed;
-        self.aside_evidence = style.evidence;
-        self.aside_mute = style.mute;
+        self.style = style;
         self.asides_spent = 0;
         self.handled.clear();
         self.ruled_out.clear();
@@ -1126,10 +1120,10 @@ impl SimAgent {
             // workspace cites, and what the room's public grammar has always
             // carried in `!evidence`. It stays a belief: no trace resolves
             // out of an aside row, so the room still counts nothing.
-            if self.aside_mute {
+            if self.style.mute {
                 continue;
             }
-            if self.aside_evidence && body.contains(RULES_OUT) && !self.ruled_out.contains(&topic) {
+            if self.style.evidence && body.contains(RULES_OUT) && !self.ruled_out.contains(&topic) {
                 self.ruled_out.push(topic.clone());
             }
             self.import(&topic, reading);
@@ -1162,7 +1156,7 @@ impl SimAgent {
         // rather than handing over a number for the asker to average into an
         // error they already share. Off unless the arm asked for it, so the
         // reading-only arms are unchanged.
-        if self.aside_evidence && self.refutes.as_ref() == Some(&topic) {
+        if self.style.evidence && self.refutes.as_ref() == Some(&topic) {
             return Some(format!(
                 "{ASIDE_MARKER} @{from} #{topic} My own {ASIDE_READS} {reading}. \
                  The reading I hold {RULES_OUT}."
@@ -1217,7 +1211,7 @@ impl SimAgent {
         // Deterministic either way, and drawn from the transcript rather than
         // the roster, so a member asks somebody the room has actually heard
         // from rather than a name it was handed.
-        let peer = if self.aside_informed {
+        let peer = if self.style.informed {
             view.grounded_by(&topic, &self.id)
         } else {
             None
