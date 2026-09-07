@@ -78,6 +78,8 @@
 //! See `live.rs` and `http.rs` for what the two live backends drive.
 
 mod arms;
+mod budget;
+mod context;
 mod federation;
 mod http;
 mod live;
@@ -202,6 +204,12 @@ struct Options {
     /// each other only in who may read the answer. `0` turns both off, and
     /// makes them bit-identical to `hive+`.
     aside_cap: u32,
+    /// Rows each member's context window holds. `0` disables the window model
+    /// entirely, which is the default and is bit-identical to a build without
+    /// it.
+    context: usize,
+    /// How hard the middle of that window is discounted, `0.0..=1.0`.
+    rot: f64,
     /// Private rows one member may write **off the floor**, read by
     /// `hive+rounds`.
     ///
@@ -250,6 +258,9 @@ enum Mode {
     Trace,
     /// Search the policy grid.
     Sweep,
+    /// Sweep the context-window model instead: who is still right when the
+    /// window is tight.
+    ContextSweep,
     /// Drive one episode through a real agent CLI or an HTTP backend.
     Live,
     /// Compare several desks solving one problem across channels.
@@ -282,6 +293,8 @@ impl Options {
             blind_evidence: false,
             defer_cap: 1,
             aside_cap: 1,
+            context: 0,
+            rot: 0.0,
             exchange_cap: 4,
             history: 3,
             json: false,
@@ -425,6 +438,15 @@ fn apply_expertise_flag(
         "--hidden-profile" => options.expertise = Expertise::HiddenProfile,
         "--defer-cap" => options.defer_cap = next_number(args).unwrap_or(1).max(1),
         "--aside-cap" => options.aside_cap = next_number(args).unwrap_or(1),
+        "--context" => options.context = next_number(args).unwrap_or(0) as usize,
+        "--rot" => {
+            options.rot = args
+                .next()
+                .and_then(|value| value.parse::<f64>().ok())
+                .unwrap_or(0.0)
+                .clamp(0.0, 1.0);
+        }
+        "--context-sweep" => options.mode = Mode::ContextSweep,
         "--exchange-cap" => options.exchange_cap = next_number(args).unwrap_or(4),
         "--history" => options.history = next_number(args).unwrap_or(3),
         "--cost-tiers" => options.cost = true,
@@ -781,6 +803,7 @@ fn run(options: &Options) -> Result<(), String> {
         Mode::Compare => compare(options, &rooms),
         Mode::Trace => trace(&rooms, &options.policy),
         Mode::Sweep => sweep_policies(options, &rooms),
+        Mode::ContextSweep => sweep_context(options, &rooms),
         Mode::Live => live_episode(options),
     }
 }
@@ -1320,6 +1343,16 @@ fn trace(rooms: &[Room], policy: &EpisodePolicy) -> Result<(), String> {
         report.turns,
         if report.correct { "and" } else { "but not" },
     );
+    Ok(())
+}
+
+/// Charge every arm for the context it needs, and print who degrades first.
+fn sweep_context(options: &Options, rooms: &[Room]) -> Result<(), String> {
+    let wall = Instant::now();
+    let points = budget::sweep(rooms, &options.policy, TASK, options.aside_cap)?;
+    let wall = wall.elapsed();
+    print!("{}", budget::render(&points, rooms.len()));
+    println!("\nswept in {:.2} s", wall.as_secs_f64());
     Ok(())
 }
 

@@ -19,7 +19,7 @@ use tinyhivemind_hive::{
 };
 
 use crate::metrics::spearman_milli;
-use crate::sim::{CheckStyle, Room, SimAgent};
+pub(crate) use crate::sim::{CheckStyle, Room, SimAgent};
 use tinyhivemind_hive::aside::{AsideDecision, AsideInput, AsidePolicy, Audience, aside};
 use tinyhivemind_hive::dispatch::DispatchConversation;
 use tinyhivemind_hive::mention::{MentionAuthor, resolve as resolve_mentions};
@@ -37,6 +37,16 @@ pub(crate) const ASIDE_MARKER: &str = "!aside";
 pub(crate) trait Participant {
     /// Canonical agent id, matching a desk member.
     fn id(&self) -> &str;
+
+    /// Rows this participant is currently holding in its context window.
+    ///
+    /// `0` for any participant that does not model a window — a live agent
+    /// driven over HTTP has a real one, but this harness does not measure it,
+    /// and reporting a made-up number for it would be worse than reporting
+    /// none. Only the simulated participant answers this meaningfully.
+    fn context_rows(&self) -> usize {
+        0
+    }
 
     /// Produce the body of one turn, given exactly what it may see.
     ///
@@ -123,6 +133,13 @@ pub(crate) struct EpisodeReport {
     pub(crate) correct: bool,
     /// Turns actually taken.
     pub(crate) turns: u32,
+    /// Mean rows a member was holding when the episode ended.
+    ///
+    /// What the arm cost the *window*, as against `turns`, which is what it
+    /// cost the floor. The two are the whole point of `--context-sweep`: an
+    /// arm can be cheap in turns and ruinous in rows, and until this field
+    /// existed the benchmark could only see the first.
+    pub(crate) context_rows: f64,
     /// Calls into [`step`], including the terminal one.
     pub(crate) step_calls: u32,
     /// Time spent inside the library, excluding the simulated agents.
@@ -494,6 +511,24 @@ pub(crate) fn run_episode_with(
     )
 }
 
+/// Mean rows the room's members were holding when the episode ended.
+///
+/// Averaged over members rather than summed: the question a window budget asks
+/// is what *one participant* has to carry, and a protocol whose cost is
+/// "everybody holds everything" is expensive per member precisely because the
+/// room is large.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "a room with more members than an f64 can count is not a room"
+)]
+fn mean_context_rows(agents: &[&mut dyn Participant]) -> f64 {
+    if agents.is_empty() {
+        return 0.0;
+    }
+    let total: usize = agents.iter().map(|agent| agent.context_rows()).sum();
+    total as f64 / agents.len() as f64
+}
+
 /// Run one full episode with an **off-floor exchange**: members contact each
 /// other in rounds between turns, taking no floor and producing no turn.
 ///
@@ -580,6 +615,7 @@ pub(crate) fn run_episode_checking(
     let mut agents: Vec<SimAgent> = room.agents.clone();
     for agent in &mut agents {
         agent.set_quorum(policy.quorum);
+        agent.set_budget(room.budget);
         agent.set_defer_cap(defer_cap);
         agent.set_aside_cap(aside_cap, style);
         agent.set_peers(&ids);
@@ -1022,6 +1058,7 @@ pub(crate) fn drive_with(
             decided,
             correct: false,
             turns,
+            context_rows: mean_context_rows(agents),
             step_calls,
             library_time,
             step_time,
