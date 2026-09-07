@@ -44,6 +44,8 @@
 //! to one built before this module existed. That is the same discipline
 //! `set_aside_cap` follows: a mechanism nobody switched on changes no number.
 
+use tinyhivemind_hive::TopicId;
+
 /// One thing a member has been told, occupying one row of its window.
 ///
 /// The unit is a row rather than a token because that is the unit this
@@ -55,7 +57,7 @@
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ContextEntry {
     /// The option this row says something about.
-    pub(crate) topic: String,
+    pub(crate) topic: TopicId,
     /// What the row carries.
     pub(crate) kind: EntryKind,
 }
