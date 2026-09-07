@@ -1251,8 +1251,7 @@ fn shifting_desk_sequences_past_a_private_row_can_change_the_step() {
     let standings_of = |transcript: &[SessionMessage]| {
         let at = transcript
             .iter()
-            .filter(|message| message.audience.is_desk())
-            .next_back()
+            .rfind(|message| message.audience.is_desk())
             .map_or(Sequence(0), |message| message.sequence);
         let traces = crate::trace::read(&live_desk_rows(transcript));
         crate::quorum::standings(&traces, at, &policy.quorum).expect("valid policy")
