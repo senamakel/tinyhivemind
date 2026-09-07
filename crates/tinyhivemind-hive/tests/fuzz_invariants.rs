@@ -4,14 +4,14 @@
 
 use tinyhivemind::aside::Audience;
 use tinyhivemind_hive::{
-    Conversation, DirectoryPolicy, EpisodePolicy, EpisodeState, QuorumPolicy, SalienceWeights,
-    Sequence, SessionAuthor, SessionMessage, TRACE_CAP,
-    ExchangePolicy, ExchangeRound, NoExchangeReason,
+    Conversation, DirectoryPolicy, EpisodePolicy, EpisodeState, ExchangePolicy, ExchangeRound,
+    NoExchangeReason, QuorumPolicy, SalienceWeights, Sequence, SessionAuthor, SessionMessage,
+    TRACE_CAP,
     attention::{BidContext, bids},
     desk::{Desk, DeskSet, ResponderMode},
-    directory, read,
+    directory, exchange, read,
     roster::{Roster, RosterMember},
-    exchange, standings, step,
+    standings, step,
 };
 
 const MEMBERS: [&str; 4] = ["agent-0", "agent-1", "agent-2", "agent-3"];

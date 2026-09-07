@@ -221,7 +221,10 @@ fn rows_at_or_below_the_watermark_are_not_this_episodes_spend() {
     // led into it, for spend exactly as for votes.
     let mut opened = state();
     opened.watermark = Sequence(5);
-    let transcript = vec![private(1, "planner", "critic"), private(2, "planner", "scout")];
+    let transcript = vec![
+        private(1, "planner", "critic"),
+        private(2, "planner", "scout"),
+    ];
     let people = roster_members();
     let rooms = desks();
     let retired: Vec<String> = Vec::new();

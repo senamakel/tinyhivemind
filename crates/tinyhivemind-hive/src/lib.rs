@@ -127,8 +127,8 @@
 pub mod attention;
 pub mod directory;
 pub mod episode;
-pub mod exchange;
 pub mod error;
+pub mod exchange;
 pub mod quorum;
 pub mod salience;
 pub mod trace;

@@ -377,8 +377,7 @@ fn audience_for(
     if !matches!(
         mode,
         AsideMode::Private | AsideMode::Alongside | AsideMode::OffFloor
-    )
-        || !content.trim_start().starts_with(ASIDE_MARKER)
+    ) || !content.trim_start().starts_with(ASIDE_MARKER)
     {
         return Audience::Desk;
     }

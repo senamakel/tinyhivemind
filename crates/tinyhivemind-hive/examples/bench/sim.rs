@@ -2000,9 +2000,9 @@ impl crate::run::Participant for SimAgent {
         // keeps a bounded budget for the turns that can actually use it —
         // measured, not assumed: without this the arm spends its whole cap
         // before the room can read a word of it.
-        if !visible.iter().any(|message| {
-            matches!(&message.author, SessionAuthor::Agent { id, .. } if *id != self.id)
-        }) {
+        if !visible.iter().any(
+            |message| matches!(&message.author, SessionAuthor::Agent { id, .. } if *id != self.id),
+        ) {
             return None;
         }
         self.absorb(visible);
