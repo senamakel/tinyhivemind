@@ -335,15 +335,35 @@ async fn main() -> Result<(), BoxError> {
         } else {
             {
                 // The chain stopped. The chair either closes the desk or nudges
-                // the next seat: whose turn it is when nobody was mentioned is
-                // a host policy, not something the library decides.
+                // somebody: whose turn it is when nobody was mentioned is a host
+                // policy, not something the library decides.
+                //
+                // It goes back to whoever spoke last, not round-robin to the
+                // next seat. A chain dies most often because a seat ran out of
+                // time mid-task and its landed message named nobody — and that
+                // seat is exactly the one holding the unfinished work. Handing
+                // the turn to a different seat there costs a full turn of
+                // re-orientation and loses the thread. Round-robin is the
+                // fallback for a room where nobody has spoken yet.
                 if rounds >= options.rounds {
                     println!("-- chain empty and rounds exhausted; closing the desk");
                     break;
                 }
                 rounds += 1;
-                let seat = &spec.agents[next_seat % spec.agents.len()];
-                next_seat += 1;
+                let last = transcript.rows().into_iter().rev().find_map(|row| {
+                    match row.author {
+                        SessionAuthor::Agent { id, .. } => Some(id),
+                        _ => None,
+                    }
+                });
+                let seat = match last.as_deref().and_then(|id| spec.agent(id)) {
+                    Some(seat) => seat,
+                    None => {
+                        let seat = &spec.agents[next_seat % spec.agents.len()];
+                        next_seat += 1;
+                        seat
+                    }
+                };
                 let nudge = format!(
                     "@{} the room has gone quiet — round {rounds}. Post your next concrete \
                      step or result, and name the seat you need next.",
