@@ -287,14 +287,28 @@ fn exchange_rounds_terminate_inside_their_budget_without_moving_the_episode() {
             let mut transcript = floor.clone();
             let mut written = 0_u32;
             let mut next = 1_u64;
+            let mut opened_rounds = ExchangeState::opened();
             // A bound well above any legitimate one, so a fold that failed to
             // charge spend fails this test rather than hanging it.
             for _ in 0..64 {
-                let round = exchange(&policy, &opened(), &transcript, &roster, &desk_set)
-                    .expect("valid snapshots");
-                let ExchangeRound::Open { members, remaining } = round else {
+                let round = exchange(
+                    &policy,
+                    &opened(),
+                    opened_rounds,
+                    &transcript,
+                    &roster,
+                    &desk_set,
+                )
+                .expect("valid snapshots");
+                let ExchangeRound::Open {
+                    members,
+                    remaining,
+                    next: carried,
+                } = round
+                else {
                     break;
                 };
+                opened_rounds = carried;
                 assert!(remaining > 0, "an open round must have budget left");
                 for member in &members {
                     transcript.push(SessionMessage {
@@ -323,8 +337,15 @@ fn exchange_rounds_terminate_inside_their_budget_without_moving_the_episode() {
             );
             assert!(written > 0, "a policy with budget must open one round");
             assert_eq!(
-                exchange(&policy, &opened(), &transcript, &roster, &desk_set)
-                    .expect("valid snapshots"),
+                exchange(
+                    &policy,
+                    &opened(),
+                    opened_rounds,
+                    &transcript,
+                    &roster,
+                    &desk_set,
+                )
+                .expect("valid snapshots"),
                 ExchangeRound::Closed {
                     // A host writing one row per named member each round takes
                     // `min(contact_cap, round_cap)` rounds to exhaust itself,
