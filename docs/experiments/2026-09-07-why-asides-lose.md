@@ -72,6 +72,14 @@ for `hive+fact`; `hive+aside` and `hive+ask` land within a point of it too).
 section gives. Whatever a matched-turn aside costs, it costs it before a
 single word of content has changed hands.
 
+`hive+mute` (`CheckStyle::MUTE`) targets the same way `hive+aside`/`hive+ask`
+do — whoever spoke first, `informed: false` — so against those two it is a
+clean matched-turn control: same turns, same words, no transfer. `hive+fact`
+and `hive+aside!` are `informed: true`, aimed at the fact-holder, so the
+`hive+mute` vs `hive+fact` gap (−15.7 vs −15.0) bundles the value of the fact
+together with a possible difference in who spends the answering turn; it is
+not a pure measurement of content value with targeting held fixed.
+
 **So the pooling explanation is wrong.** The first note argued that averaging a
 peer's reading imports the room's shared bias and moves a member toward the
 decoy. If that were the mechanism, muting the answer would recover the loss. It
