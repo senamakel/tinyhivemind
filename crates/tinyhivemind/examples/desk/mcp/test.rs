@@ -118,7 +118,7 @@ fn builds_a_configuration_from_nothing_or_from_nonsense() {
 }
 
 #[test]
-fn lists_exactly_the_three_tools_a_seat_may_call() {
+fn lists_exactly_the_four_tools_a_seat_may_call() {
     let listed = tools();
     let names: Vec<&str> = listed
         .as_array()
@@ -126,7 +126,7 @@ fn lists_exactly_the_three_tools_a_seat_may_call() {
         .iter()
         .filter_map(|tool| tool["name"].as_str())
         .collect();
-    assert_eq!(names, vec!["post", "dm", "read"]);
+    assert_eq!(names, vec!["post", "dm", "close", "read"]);
     for tool in listed.as_array().expect("an array") {
         assert!(
             tool["inputSchema"]["type"] == "object",
@@ -263,16 +263,7 @@ fn a_close_carries_its_message_like_any_other_utterance() {
 }
 
 #[test]
-fn the_close_tool_is_offered_and_writes_a_close_row() {
-    let offered = tools();
-    let names: Vec<&str> = offered
-        .as_array()
-        .expect("tools is an array")
-        .iter()
-        .filter_map(|tool| tool.get("name").and_then(serde_json::Value::as_str))
-        .collect();
-    assert!(names.contains(&"close"), "close is offered: {names:?}");
-
+fn the_close_tool_writes_a_close_row() {
     let outbox = scratch("close-call").join("said.jsonl");
     clear_outbox(&outbox);
     let transcript = scratch("close-call").join("absent.jsonl");
