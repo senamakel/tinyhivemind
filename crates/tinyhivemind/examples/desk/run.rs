@@ -410,7 +410,10 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
         if let Some(error) = output.error.clone() {
             // Say so. An upstream failure that reads as silence is how an hour
             // goes into diagnosing a model that was never asked.
-            println!("   !! agent error: {}", &error[..error.len().min(180)]);
+            println!(
+                "   !! agent error: {}",
+                error.chars().take(180).collect::<String>()
+            );
             if output.message.trim().is_empty() {
                 println!("   retrying the turn once");
                 output = runner.run(
