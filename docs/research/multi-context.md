@@ -91,7 +91,7 @@ files before doing anything. Grok's `Johnny` did not pay that, because it was
 one continuous session for three hours.
 
 The obvious fix — resume the CLI session — was tried and is documented in
-`main.rs` as the wrong answer: the session keeps every prior turn, the
+`run.rs` as the wrong answer: the session keeps every prior turn, the
 request payload grows without bound, and the room slows turn by turn until
 every call stalls. That is Anthropic's 200k cliff met from below.
 
