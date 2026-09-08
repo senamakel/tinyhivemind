@@ -23,7 +23,11 @@ use crate::{BoxError, log};
 /// desk solving one problem wants two seats to be able to sort out a
 /// disagreement without spending the room's attention on it — and wants that
 /// to end in something the room can read, which is what `must_surface` buys.
-const ASIDES: AsidePolicy = AsidePolicy {
+///
+/// Read by [`address`] below, and by `run.rs` to hand the same policy to
+/// [`TeamBriefing`](tinyhivemind::TeamBriefing) so a seat is told the rules it
+/// is held to.
+pub(crate) const ASIDES: AsidePolicy = AsidePolicy {
     enabled: true,
     max_members: 1,
     max_messages: 6,
