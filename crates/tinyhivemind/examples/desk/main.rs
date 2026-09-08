@@ -1025,7 +1025,16 @@ fn compose_prompt(
     let _ = write!(
         prompt,
         "Do the work first — use your tools, write and run code in this workspace, check \
-         what you claim. Then post ONE message to the room.\n\n\
+         what you claim. Then say ONE thing to the room, by calling a tool.\n\n\
+         The room is a tool, not something you write. Text you produce outside a tool \
+         call is your own thinking and reaches nobody:\n\
+         - `desk_post(message)` — say one thing to the whole desk. Call it once, at the \
+           end of your turn. This is how you speak.\n\
+         - `desk_dm(to, message)` — say it to named seats instead, when you need one \
+           peer to settle something and the room does not need to watch. It still \
+           costs your one message for the turn, and the room is told the exchange \
+           happened.\n\
+         - `desk_read(limit)` — read further back than the window you were handed.\n\n\
          You are stateless between turns. This process ends when you post, and the \
          next turn starts a fresh one. Four things survive: your notebook, files in \
          this workspace (shared with every seat), what you post to the room, and the \
@@ -1045,14 +1054,14 @@ fn compose_prompt(
            your mentions.\n\
          - Never claim a number you did not compute. Say what you ran.\n\
          - Work as long as the problem needs; run as many tools as it takes. But \
-           you must finish by posting: a turn that never posts is a turn the \
-           room never happened, and the work in it reaches nobody.\n\
-         - To ask one peer something without spending the room's attention on \
-           it, make `!aside @peer` the first line of your post. `!surface` then \
-           what the room needs to know ends it. An aside counts for nothing \
-           until you surface it.\n\
-         - Wrap the message you want posted in <<<POST and POST>>>. Anything \
-           outside those markers is not posted.\n",
+           you must finish by calling `desk_post` or `desk_dm`: a turn that never \
+           posts is a turn the room never happened, and the work in it reaches \
+           nobody.\n\
+         - Older messages reach you as the desk's standing account rather than in \
+           full. It is written from the messages and can be thin; `desk_read` gets \
+           you the messages themselves.\n\
+         - If the desk tools are not attached to this session, fall back to wrapping \
+           the message in <<<POST and POST>>> and say so in it.\n",
         dir = NOTEBOOK_DIR,
         id = seat.id,
         budget = NOTEBOOK_CHARS,
