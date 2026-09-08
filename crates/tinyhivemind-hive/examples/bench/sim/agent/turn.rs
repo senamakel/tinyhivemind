@@ -88,7 +88,7 @@ impl SimAgent {
             if author == self.id {
                 continue;
             }
-            let readings = super::view::parse_readings(body);
+            let readings = parse_readings(body);
             if readings.is_empty() {
                 continue;
             }
@@ -109,7 +109,7 @@ impl SimAgent {
             let refuted = self
                 .style
                 .evidence()
-                .then(|| super::view::parse_ruled_out(body))
+                .then(|| parse_ruled_out(body))
                 .flatten();
             if let Some(topic) = refuted.clone() {
                 self.note_fact(&topic);
@@ -143,7 +143,7 @@ impl SimAgent {
             message.readable().is_some_and(|body| {
                 body.starts_with(ASIDE_MARKER)
                     && body.contains(&format!("@{}", self.id))
-                    && super::view::parse_reading(body).is_none()
+                    && parse_reading(body).is_none()
             }) && !self.handled.contains(&message.sequence)
         })?;
         let from = match &request.author {
@@ -167,7 +167,7 @@ impl SimAgent {
             }
             return Some(parts.join(" "));
         }
-        let topic = super::view::parse_topic(request.readable()?)?;
+        let topic = parse_topic(request.readable()?)?;
         self.handled.push(request.sequence);
         // The member's *own* reading, not `score()`. `score` averages in every
         // reading this member has already absorbed, so answering with it would
@@ -193,8 +193,8 @@ impl SimAgent {
 
     /// The option this member cannot separate from its runner-up, if there is
     /// one. The trigger for a pairwise check, wherever the check happens.
-    pub(crate) fn uncertain_about(&self) -> Option<tinyhivemind_hive::trace::TopicId> {
-        let mut ranked: Vec<(&tinyhivemind_hive::trace::TopicId, i32)> = self
+    pub(crate) fn uncertain_about(&self) -> Option<TopicId> {
+        let mut ranked: Vec<(&TopicId, i32)> = self
             .evals
             .iter()
             .map(|(topic, _)| (topic, self.score(topic)))
@@ -224,7 +224,7 @@ impl SimAgent {
             self.contacted.push(peer.clone());
             return Some(format!("{ASIDE_MARKER} @{peer} What do you make of these?"));
         }
-        let mut ranked: Vec<(&tinyhivemind_hive::trace::TopicId, i32)> = self
+        let mut ranked: Vec<(&TopicId, i32)> = self
             .evals
             .iter()
             .map(|(topic, _)| (topic, self.score(topic)))
@@ -452,7 +452,7 @@ impl SimAgent {
         match self.role {
             // A critic keeps pressing on an option it privately rates poorly
             // even when the room is not yet tied.
-            super::super::Role::Critic => {
+            Role::Critic => {
                 if let Some((topic, target)) = view.rival_advocacy(self)
                     && let Some(grounds) = view.proposal(&self.favourite)
                 {
@@ -462,7 +462,7 @@ impl SimAgent {
                 }
                 self.evidence(&view)
             }
-            super::super::Role::Proposer | super::super::Role::Archivist => self.evidence(&view),
+            Role::Proposer | Role::Archivist => self.evidence(&view),
         }
     }
 
