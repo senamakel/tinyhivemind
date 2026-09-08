@@ -149,7 +149,7 @@ pub async fn collect_digest_input(
     let mut scanned = 0_usize;
     let mut seen = Vec::new();
     let mut collected: Vec<SessionMessage> = Vec::new();
-    let mut reached = floor == 0;
+    let mut reached = false;
 
     while scanned < SCAN_LIMIT && !reached {
         let limit = PAGE_SIZE.min(SCAN_LIMIT - scanned);
@@ -178,11 +178,11 @@ pub async fn collect_digest_input(
             }
         }
         match page.next_before {
+            // The log ended. Everything above the floor that exists has been
+            // collected, which is the whole range even when rows below it are
+            // gone: a fold is over what the channel holds, not what it once did.
+            None => reached = true,
             Some(next) => cursor = Some(next),
-            None => {
-                reached = true;
-                break;
-            }
         }
     }
 

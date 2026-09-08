@@ -303,14 +303,43 @@ async fn stops_at_the_bound_the_account_already_covers() {
 }
 
 #[tokio::test]
-async fn refuses_a_fold_whose_range_the_log_cannot_produce() {
-    let log = FakeLog::new(vec![page(vec![raw(9, "ninth", Audience::Desk)], Some(9))]);
-    let error = collect_digest_input(&log, &engineering(), Some(Sequence(2)), Sequence(9))
+async fn refuses_a_fold_whose_range_the_bounded_scan_cannot_reach() {
+    // The scan is bounded, so a range wider than it leaves a hole in the
+    // middle of the fold, and a fold with a hole is worse than none.
+    let mut pages = Vec::new();
+    let mut sequence = 2100_u64;
+    while sequence > 2100 - crate::SCAN_LIMIT as u64 {
+        let rows: Vec<LogMessage> = (0..crate::PAGE_SIZE as u64)
+            .map(|step| raw(sequence - step, "said something", Audience::Desk))
+            .collect();
+        sequence -= crate::PAGE_SIZE as u64;
+        pages.push(page(rows, Some(sequence)));
+    }
+    let log = FakeLog::new(pages);
+    let error = collect_digest_input(&log, &engineering(), Some(Sequence(1)), Sequence(2100))
         .await
         .expect_err("a hole is not foldable");
     assert!(
-        matches!(error, Error::DigestGap { after, scanned } if after == Sequence(2) && scanned > 0),
+        matches!(error, Error::DigestGap { after, scanned }
+            if after == Sequence(1) && scanned == crate::SCAN_LIMIT),
         "unexpected error: {error:?}"
+    );
+}
+
+#[tokio::test]
+async fn folds_what_the_channel_still_holds_when_older_rows_are_gone() {
+    // The log ends above the floor. Everything the channel holds above it was
+    // collected, and a fold is over what a channel holds.
+    let log = FakeLog::new(vec![page(
+        vec![raw(9, "ninth", Audience::Desk), raw(8, "eighth", Audience::Desk)],
+        None,
+    )]);
+    let collected = collect_digest_input(&log, &engineering(), Some(Sequence(2)), Sequence(9))
+        .await
+        .expect("collects what is there");
+    assert_eq!(
+        collected.iter().map(|row| row.sequence.0).collect::<Vec<_>>(),
+        vec![8, 9]
     );
 }
 
