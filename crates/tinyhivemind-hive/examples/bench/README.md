@@ -534,17 +534,49 @@ keep the profile solvable but not trivial.
 
 ## Layout
 
+Every module that outgrew a single file is a directory: `mod.rs` holds its
+module doc, its core types, and whatever re-exports the rest of the crate
+actually needs; its siblings hold one cohesive slice of the rest. The `mod
+sim;`-style declaration in `main.rs` is unchanged either way, since Rust
+resolves it to `sim/mod.rs` transparently.
+
 | file | what it holds |
 | --- | --- |
-| `main.rs` | the command line, the tuned policy, the modes, and the tables |
-| `sim.rs` | the rooms, the private evaluations, what a participant says, the `Expertise` shapes (`--specialists`, `--hidden-profile`) that redistribute those evaluations, and the evidence-first opening (`--blind-evidence`) |
+| `main.rs` | the crate doc, the `mod` declarations, and top-level dispatch: `main`, `stats_check`, `run`, `trace`, and the `sweep_*` entry points |
+| `cli.rs` | `Options`, `Mode`, and command-line parsing |
+| `policy.rs` | `default_policy`, `tuned_policy`, and the delegation-arm policy variants built from it |
+| `compare.rs` | the simulated multi-arm comparison engine: `compare`, `Totals`, `run_arms`, `endings`, and the cost table |
+| `backend.rs` | seat/backend configuration shared by both live drivers: API keys, HTTP config, seat model and command resolution, usage accounting |
+| `live_single.rs` | driving one live desk or episode through a real agent |
+| `live_swarm.rs` | driving a live federation of desks through real agents |
+| `sim/` | the rooms, the private evaluations, what a participant says, the `Expertise` shapes (`--specialists`, `--hidden-profile`) that redistribute those evaluations, and the evidence-first opening (`--blind-evidence`) |
+| `sim/mod.rs` | the tuning constants, `Role`, `Expertise`, and the `Room` type and its generation |
+| `sim/generation.rs` | drawing a room's members and their expertise |
+| `sim/agent/` | `SimAgent`, the participant that holds a private, noisy view of every option |
+| `sim/agent/mod.rs` | the `SimAgent` struct, `Payload`, and `CheckStyle` |
+| `sim/agent/state.rs` | construction and state mutation: `new`, `import`, `score`, and friends |
+| `sim/agent/turn.rs` | deciding what to say: `check`, `absorb`, `compose`, and the `Participant` impl |
+| `sim/view.rs` | `View`, the window a participant reads the transcript through, and the marker parsers |
 | `federation.rs` | several desks, each with a correlated bias of its own |
-| `swarm.rs` | one journal per channel, the scheduler, and the referral edge |
-| `run.rs` | the host: a journal, a roster, and the step loop |
+| `swarm/` | one journal per channel, the scheduler, and the referral edge |
+| `swarm/mod.rs` | `SwarmMember`, `SwarmHost`, and driving a swarm episode |
+| `swarm/board.rs` | `Board`, the per-channel pending queue and seat lookup |
+| `swarm/member.rs` | `SwarmSim`, the simulated participant that can also field a referral |
+| `swarm/format.rs` | parsing and restating a `Reading` for the wire |
+| `run/` | the host: a journal, a roster, and the step loop |
+| `run/mod.rs` | `Host`, `Ending`, and the episode entry points |
+| `run/turns.rs` | per-turn machinery: audience, appending a turn, running one exchange |
+| `run/scoring.rs` | `EpisodeReport`, `Tally`, and the accounting a completed episode leaves behind |
 | `arms.rs` | the `ladder`, `vote`, `merged` and federated controls |
 | `sweep.rs` | the policy grid and its ranking |
-| `metrics.rs` | aggregation, formatting, and the confidence-interval, bootstrap and rank-correlation statistics |
-| `live.rs` | the shared prompt state, the external agent CLI backend, and the solo poll |
+| `metrics/` | aggregation, formatting, and the confidence-interval, bootstrap and rank-correlation statistics |
+| `metrics/mod.rs` | `Aggregate` and the printed/JSON tables |
+| `metrics/format.rs` | formatting helpers for those tables |
+| `metrics/stats.rs` | the small numeric statistics helpers (percentile, rank correlation) |
+| `live/` | the shared prompt state, the external agent CLI backend, and the solo poll |
+| `live/mod.rs` | `AgentPrompt`, the shared prompt state both live backends assemble |
+| `live/agent.rs` | `LiveAgent`, driving one seat through a CLI subprocess |
+| `live/desk.rs` | `LiveDeskAgent`, driving one seat as a member of a swarm desk |
 | `http.rs` | the direct-HTTP backend: the same prompt state over `curl`, and its usage table |
 | `scenario.rs` | the scenario file format, the briefs, and the recorded answer |
 | `scenarios/` | the scenario files themselves |
