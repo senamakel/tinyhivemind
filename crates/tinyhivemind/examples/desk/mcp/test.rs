@@ -264,7 +264,8 @@ fn a_close_carries_its_message_like_any_other_utterance() {
 
 #[test]
 fn the_close_tool_is_offered_and_writes_a_close_row() {
-    let names: Vec<&str> = tools()
+    let offered = tools();
+    let names: Vec<&str> = offered
         .as_array()
         .expect("tools is an array")
         .iter()
