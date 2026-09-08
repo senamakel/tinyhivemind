@@ -351,7 +351,11 @@ pub(crate) fn extract_post(text: &str) -> String {
         let body = &text[open + "<<<POST".len()..last];
         return body.strip_prefix(">>>").unwrap_or(body).trim().to_string();
     }
-    after.strip_prefix(">>>").unwrap_or(after).trim().to_string()
+    after
+        .strip_prefix(">>>")
+        .unwrap_or(after)
+        .trim()
+        .to_string()
 }
 
 #[cfg(test)]
