@@ -541,6 +541,38 @@ async fn main() -> Result<(), BoxError> {
         turns += 1;
         since_chair += 1;
 
+        // Fold what has scrolled out of reach into the room's account, before
+        // anything is composed from it. A fold that fails costs the room its
+        // compaction and nothing else: the window is already correct without
+        // one.
+        match refold(
+            &transcript,
+            folder.as_ref().map(|folder| folder as &dyn tinyhivemind::Digester),
+            &conversation,
+            account.as_ref(),
+            Sequence(transcript.len() as u64),
+            digest_policy,
+        )
+        .await?
+        {
+            DigestOutcome::Folded(folded) => {
+                println!(
+                    "   room account: generation {} now covers {} messages through [{}] \
+                     ({} chars)",
+                    folded.generation,
+                    folded.covered,
+                    folded.through.0,
+                    folded.text.chars().count()
+                );
+                account = Some(folded);
+            }
+            DigestOutcome::Rejected { reason } => {
+                println!("   !! the room account was refused: {reason:?}");
+            }
+            DigestOutcome::Unavailable => println!("   !! no folder; the room account stands"),
+            DigestOutcome::Current => {}
+        }
+
         let viewer = Viewer::Agent {
             id: seat.id.clone(),
         };
@@ -597,7 +629,7 @@ async fn main() -> Result<(), BoxError> {
             ),
             _ => None,
         };
-        let (history, briefing_text, catching_up) = if let Some(SharingPlan::Delta(delta)) = plan {
+        let (window, briefing_text, catching_up) = if let Some(SharingPlan::Delta(delta)) = plan {
             shared.insert(seat.id.clone(), delta.next_state);
             (delta.messages, None, true)
         } else {
@@ -614,9 +646,17 @@ async fn main() -> Result<(), BoxError> {
             .map(|store| store.recall(&job.trigger))
             .unwrap_or_default();
 
+        // A row the account already stands for is not also shown in full. The
+        // window is spent on the live conversation.
+        let composed = apply_digest(
+            catching_up.then_some(None).flatten().or(account.as_ref()),
+            &window,
+        );
+        let history = composed.messages;
         let notebook = read_notebook(&options.workspace, &seat.id);
         let prompt = compose_prompt(
             briefing_text.as_deref(),
+            composed.digest.as_deref(),
             &history,
             seat,
             &job,
@@ -635,6 +675,7 @@ async fn main() -> Result<(), BoxError> {
                 None => "none".to_string(),
             }
         );
+        mcp::clear_outbox(&outbox);
         let mut output = runner.run(
             &prompt,
             &format!("turn-{turns:03}-{}", seat.id),
@@ -686,6 +727,10 @@ async fn main() -> Result<(), BoxError> {
             )?;
             tokens += output.tokens;
         }
+        // What the seat said, it said by calling a tool. Free text is its own
+        // thinking and reaches nobody; the fence remains only as a fallback for
+        // an agent CLI that cannot reach the desk's tools.
+        let mut dm_to = settle(&outbox, &mut output);
         if output.timed_out || output.message.trim().is_empty() {
             // Two phases, because the failure has two halves. First ask the
             // seat to land what it has: same session, tools still attached, so
@@ -707,10 +752,9 @@ async fn main() -> Result<(), BoxError> {
                  Two things, in order. First write down what this turn established, \
                  so it outlives this process: put your notes in NOTES.md and any \
                  working code in named .py files in this workspace, which every \
-                 seat shares. Second, post one message to the room wrapped in \
-                 <<<POST and POST>>>, saying what you established, what you did \
-                 not finish, which files you wrote, and the one seat you need \
-                 next - that seat named first.\n\n{prompt}"
+                 seat shares. Second, call `desk_post` once, saying what you \
+                 established, what you did not finish, which files you wrote, and \
+                 the one seat you need next - that seat named first.\n\n{prompt}"
             );
             let mut landed = runner.run(
                 &landing,
@@ -736,6 +780,7 @@ async fn main() -> Result<(), BoxError> {
             if let Some(id) = landed.session.clone() {
                 sessions.insert(seat.id.clone(), id);
             }
+            dm_to = settle(&outbox, &mut landed);
             let salvage = if !landed.posted || landed.message.trim().is_empty() {
                 let wrap = format!(
                     "{prompt}\n\n## What you actually ran this turn\n{}\n\nYou have no \
