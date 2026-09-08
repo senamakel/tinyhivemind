@@ -2,9 +2,6 @@
 //! wire shapes, page validation, channel narrowing, thread narrowing, and
 //! private-aside visibility. Shared fixtures live in [`support`].
 
-use super::*;
-use crate::Error;
-
 mod support;
 
 mod channel;

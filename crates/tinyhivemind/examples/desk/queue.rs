@@ -9,7 +9,8 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, PoisonError};
 
-use tinyhivemind::{EnqueueOutcome, MentionTurnFuture, MentionTurnQueue, MentionTurnRequest};
+use tinyhivemind::dispatch::MentionTurnRequest;
+use tinyhivemind::{EnqueueOutcome, MentionTurnFuture, MentionTurnQueue};
 
 /// One turn waiting to run.
 #[derive(Clone, Debug)]
