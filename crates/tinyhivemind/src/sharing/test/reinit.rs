@@ -7,6 +7,7 @@
 use super::super::*;
 use super::support::{FakeLog, conversation, delta, engineering, page, plan, raw, state};
 use crate::Error;
+use tinyhivemind_core::aside::Viewer;
 
 #[test]
 fn conversation_equivalence_accepts_general_aliases_and_exact_named_identity() {
