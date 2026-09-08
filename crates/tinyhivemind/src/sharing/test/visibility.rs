@@ -5,7 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::super::*;
-use super::support::{FakeLog, engineering, page, state};
+use super::support::{FakeLog, delta, engineering, page, raw, state};
 use crate::LogMessage;
 use tinyhivemind_core::aside::Audience;
 use tinyhivemind_core::aside::Viewer;
