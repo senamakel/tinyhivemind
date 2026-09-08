@@ -7,6 +7,7 @@
 use super::super::*;
 use super::support::{Room, converging, conversation, operator, run, said, speaking, state};
 use crate::trace::TopicId;
+use tinyhivemind::Sequence;
 
 #[test]
 fn quorum_flips_the_phase_once_and_then_converges() {
