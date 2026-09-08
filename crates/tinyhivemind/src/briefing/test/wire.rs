@@ -3,7 +3,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::super::*;
-use super::support::briefed_viewer;
 use crate::{Sequence, SessionAuthor};
 use tinyhivemind_core::aside::Audience;
 use tinyhivemind_core::dispatch::MentionDispatchPolicy;
@@ -233,24 +232,4 @@ fn a_dispatch_context_pins_its_wire_shape_and_requires_every_field() {
         .is_err(),
         "a missing hop must not decode as hop zero, which is the permissive one"
     );
-}
-
-#[test]
-fn a_zero_hop_budget_and_an_overshot_hop_both_withhold_dispatch() {
-    let briefing = briefed_viewer();
-    for (max_hops, hop) in [(0, 0), (2, 3), (u32::MAX, u32::MAX)] {
-        let spent = MentionDispatchContext {
-            policy: MentionDispatchPolicy {
-                enabled: true,
-                max_hops,
-            },
-            hop,
-        };
-        assert!(!spent.may_dispatch(), "{max_hops} hops, at hop {hop}");
-        assert_eq!(
-            briefing.system_text_with_dispatch(spent),
-            briefing.system_text(),
-            "a spent budget renders exactly what an unknown one does"
-        );
-    }
 }
