@@ -17,7 +17,7 @@ opened with, how much reply traffic it has drawn, and when it was last touched.
 | Item | What it is |
 | --- | --- |
 | `ThreadLine` | one indexed thread: `root`, `opening`, `replies`, `latest`, `landed` |
-| `fold_thread_index(rows, limit)` | the pure fold, over a chronological slice of one desk |
+| `fold_thread_index(rows, viewer, limit)` | the pure fold, over a chronological slice of one desk |
 | `read_thread_index(log, conversation, viewer, limit)` | the fold plus its bounded read |
 | `THREAD_INDEX_LIMIT` | default rows described to a viewer (5) |
 | `THREAD_OPENING_CHARS` | characters of a root kept as its opening (60) |
