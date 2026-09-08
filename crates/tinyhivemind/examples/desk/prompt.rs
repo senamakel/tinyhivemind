@@ -118,10 +118,10 @@ fn house_rules(seat_id: &str) -> String {
          next turn starts a fresh one. Four things survive: your notebook, files in \
          this workspace (shared with every seat), what you post to the room, and the \
          desk memory. Before you post:\n\
-         - REWRITE `{dir}/{seat_id}.md` — do not append to it. Write it as the message you \
+         - REWRITE `{NOTEBOOK_DIR}/{seat_id}.md` — do not append to it. Write it as the message you \
            want to receive from yourself next turn: what you established, what you \
            are mid-way through, what you would do next, and which files hold what. \
-           You will be handed its last {budget} characters verbatim. Nobody else reads it.\n\
+           You will be handed its last {NOTEBOOK_CHARS} characters verbatim. Nobody else reads it.\n\
          - Write working code to named .py files another seat can run, and what the \
            room established to NOTES.md. The room is told which files you wrote; you \
            do not have to list them.\n\
@@ -144,8 +144,6 @@ fn house_rules(seat_id: &str) -> String {
            you the messages themselves.\n\
          - If the desk tools are not attached to this session, fall back to wrapping \
            the message in <<<POST and POST>>> and say so in it.\n",
-        dir = NOTEBOOK_DIR,
-        budget = NOTEBOOK_CHARS,
     );
     prompt
 }
