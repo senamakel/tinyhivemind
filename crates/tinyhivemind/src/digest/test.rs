@@ -307,13 +307,14 @@ async fn refuses_a_fold_whose_range_the_bounded_scan_cannot_reach() {
     // The scan is bounded, so a range wider than it leaves a hole in the
     // middle of the fold, and a fold with a hole is worse than none.
     let mut pages = Vec::new();
-    let mut sequence = 2100_u64;
-    while sequence > 2100 - crate::SCAN_LIMIT as u64 {
+    let mut top = 2100_u64;
+    while pages.len() < crate::SCAN_LIMIT / crate::PAGE_SIZE {
         let rows: Vec<LogMessage> = (0..crate::PAGE_SIZE as u64)
-            .map(|step| raw(sequence - step, "said something", Audience::Desk))
+            .map(|step| raw(top - step, "said something", Audience::Desk))
             .collect();
-        sequence -= crate::PAGE_SIZE as u64;
-        pages.push(page(rows, Some(sequence)));
+        let oldest = top - crate::PAGE_SIZE as u64 + 1;
+        pages.push(page(rows, Some(oldest)));
+        top = oldest - 1;
     }
     let log = FakeLog::new(pages);
     let error = collect_digest_input(&log, &engineering(), Some(Sequence(1)), Sequence(2100))
@@ -458,7 +459,7 @@ async fn does_not_call_a_digester_for_a_channel_that_is_current() {
 
 #[tokio::test]
 async fn treats_a_missing_or_failing_digester_as_a_lost_optimization() {
-    let rows: Vec<LogMessage> = (1..=61)
+    let rows: Vec<LogMessage> = (1..=60)
         .rev()
         .map(|sequence| raw(sequence, "said something", Audience::Desk))
         .collect();
@@ -494,7 +495,7 @@ async fn treats_a_missing_or_failing_digester_as_a_lost_optimization() {
 
 #[tokio::test]
 async fn reports_a_rejected_answer_rather_than_committing_it() {
-    let rows: Vec<LogMessage> = (1..=61)
+    let rows: Vec<LogMessage> = (1..=60)
         .rev()
         .map(|sequence| raw(sequence, "said something", Audience::Desk))
         .collect();
@@ -555,7 +556,7 @@ async fn advances_an_account_over_a_step_with_nothing_to_say() {
 
 #[tokio::test]
 async fn leaves_an_empty_first_step_unfolded() {
-    let rows: Vec<LogMessage> = (1..=61)
+    let rows: Vec<LogMessage> = (1..=60)
         .rev()
         .map(|sequence| {
             raw(
