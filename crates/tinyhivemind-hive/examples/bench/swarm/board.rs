@@ -195,7 +195,7 @@ impl<'a> Board<'a> {
         if self.keep_trace {
             self.report
                 .trace
-                .push(super::format::line(self.channels, desk, sequence, agent_id, content));
+                .push(format::line(self.channels, desk, sequence, agent_id, content));
         }
         sequence
     }
