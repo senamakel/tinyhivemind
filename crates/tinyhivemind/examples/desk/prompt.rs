@@ -97,7 +97,12 @@ pub(crate) fn compose_prompt(
            peer to settle something and the room does not need to watch. It still \
            costs your one message for the turn, and the room is told the exchange \
            happened.\n\
-         - `desk_read(limit)` — read further back than the window you were handed.\n\n\
+         - `desk_read(limit)` — read further back than the window you were handed.\n\
+         - `desk_close(message)` — say one last thing AND report the work finished. \
+           Use it instead of `desk_post` only when the task is genuinely delivered \
+           and no seat has an open step; a result somebody still has to verify is \
+           not finished. If you are being asked again about work you already \
+           delivered, this is the call that says so.\n\n\
          You are stateless between turns. This process ends when you post, and the \
          next turn starts a fresh one. Four things survive: your notebook, files in \
          this workspace (shared with every seat), what you post to the room, and the \
