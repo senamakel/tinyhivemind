@@ -3,6 +3,8 @@
 //! [`Conversation`], a [`SessionQuery`], a raw [`LogMessage`], and a
 //! [`SessionPage`] without repeating their field lists.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use super::super::*;
 use std::{
     collections::VecDeque,
