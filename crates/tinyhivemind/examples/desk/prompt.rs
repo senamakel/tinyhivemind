@@ -108,7 +108,10 @@ pub(crate) fn compose_prompt(
            You will be handed its last {budget} characters verbatim. Nobody else reads it.\n\
          - Write working code to named .py files another seat can run, and what the \
            room established to NOTES.md. The room is told which files you wrote; you \
-           do not have to list them.\n\n\
+           do not have to list them.\n\
+         - Put those files UNDER THIS WORKSPACE, as relative paths. A file you write \
+           to /tmp or to any absolute path outside it is not shared and is gone when \
+           this process ends, however good the code in it was.\n\n\
          Rules of the room:\n\
          - Exactly one seat speaks per message. Mentioning a teammate with @id runs \
            their turn next, and only the FIRST @mention in your message does that. \
