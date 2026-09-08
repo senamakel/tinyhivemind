@@ -238,7 +238,11 @@ fn advances_by_at_most_one_input_limit_per_fold() {
         }
     );
     assert_eq!(
-        plan_digest(Some(&held(60, "so far")), Sequence(400), DigestPolicy::DEFAULT),
+        plan_digest(
+            Some(&held(60, "so far")),
+            Sequence(400),
+            DigestPolicy::DEFAULT
+        ),
         DigestPlan::Fold {
             after: Some(Sequence(60)),
             through: Sequence(120)
@@ -332,14 +336,20 @@ async fn folds_what_the_channel_still_holds_when_older_rows_are_gone() {
     // The log ends above the floor. Everything the channel holds above it was
     // collected, and a fold is over what a channel holds.
     let log = FakeLog::new(vec![page(
-        vec![raw(9, "ninth", Audience::Desk), raw(8, "eighth", Audience::Desk)],
+        vec![
+            raw(9, "ninth", Audience::Desk),
+            raw(8, "eighth", Audience::Desk),
+        ],
         None,
     )]);
     let collected = collect_digest_input(&log, &engineering(), Some(Sequence(2)), Sequence(9))
         .await
         .expect("collects what is there");
     assert_eq!(
-        collected.iter().map(|row| row.sequence.0).collect::<Vec<_>>(),
+        collected
+            .iter()
+            .map(|row| row.sequence.0)
+            .collect::<Vec<_>>(),
         vec![8, 9]
     );
 }
@@ -550,7 +560,10 @@ async fn advances_an_account_over_a_step_with_nothing_to_say() {
         panic!("expected the account to advance, got {outcome:?}");
     };
     assert_eq!(digest.through, Sequence(61));
-    assert_eq!(digest.text, "the brief", "unchanged, because nothing was said");
+    assert_eq!(
+        digest.text, "the brief",
+        "unchanged, because nothing was said"
+    );
     assert!(digester.seen().is_empty(), "no call was worth making");
 }
 
@@ -614,7 +627,11 @@ async fn refuses_to_fold_one_channel_into_another_channel_s_account() {
 
 #[test]
 fn composes_a_history_from_the_account_and_the_rows_it_does_not_cover() {
-    let messages = vec![message(9, "old"), message(10, "boundary"), message(11, "new")];
+    let messages = vec![
+        message(9, "old"),
+        message(10, "boundary"),
+        message(11, "new"),
+    ];
     let composed = apply_digest(Some(&held(10, "what came before")), &messages);
     assert_eq!(composed.digest.as_deref(), Some("what came before"));
     assert_eq!(composed.covered_through, Some(Sequence(10)));
