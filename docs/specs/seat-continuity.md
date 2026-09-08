@@ -166,6 +166,14 @@ threshold: the number is recorded and compared, not asserted.
 
 ## Open questions
 
+- **Feedthrough rows spend the window.** In the offline smoke run every turn
+  wrote a file, so every agent row was followed by a workspace row and a
+  ten-row window held five agent messages. Against real seats most turns
+  write, so this is the expected shape. The options are to count the window
+  in agent rows rather than rows, to widen the window by the feedthrough
+  count, or to accept that a pointer to the artifact is worth the row it
+  costs. Measure before choosing; the smoke run cannot say which.
+
 - Should the notebook budget count against `BrevityPolicy`, or is it its own
   budget? It is not in the window, so today it is separate.
 - Is the tail the right thing to keep on overrun? For a seat that rewrites,
