@@ -117,7 +117,8 @@ use crate::run::run_episode;
 use crate::sim::Room;
 
 /// The task every room is given.
-pub(crate) const TASK: &str = "We must choose one rollout strategy for a risky migration. Decide together.";
+pub(crate) const TASK: &str =
+    "We must choose one rollout strategy for a risky migration. Decide together.";
 
 fn main() {
     let options = Options::parse();
@@ -240,7 +241,6 @@ fn run(options: &Options) -> Result<(), String> {
     }
 }
 
-
 /// Print one episode turn by turn.
 fn trace(rooms: &[Room], policy: &EpisodePolicy) -> Result<(), String> {
     let Some(room) = rooms.first() else {
@@ -314,4 +314,3 @@ fn sweep_policies(options: &Options, rooms: &[Room]) -> Result<(), String> {
     );
     Ok(())
 }
-

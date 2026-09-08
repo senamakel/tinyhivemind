@@ -14,7 +14,7 @@ use tinyhivemind_hive::{HiveTurn, Phase, SessionAuthor, SessionMessage, Visibili
 
 use super::SimAgent;
 use crate::run::ASIDE_MARKER;
-use crate::sim::view::{View, parse_readings, parse_reading, parse_ruled_out, parse_topic};
+use crate::sim::view::{View, parse_reading, parse_readings, parse_ruled_out, parse_topic};
 use crate::sim::{
     ASIDE_READS, ASIDE_UNCERTAINTY, NONCOMPLIANCE, REACHABLE_REFUTATION_CAP, RULES_OUT, Role,
 };

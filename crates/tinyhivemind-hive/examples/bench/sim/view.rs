@@ -321,7 +321,10 @@ impl View {
     /// both options stay above the threshold no matter how much weight one
     /// gains. Silencing an advocate can, and that asymmetry is why the
     /// objection targets a message rather than a topic.
-    pub(crate) fn weaker_contender(&self, agent: &SimAgent) -> Option<(&TopicId, Sequence, Sequence)> {
+    pub(crate) fn weaker_contender(
+        &self,
+        agent: &SimAgent,
+    ) -> Option<(&TopicId, Sequence, Sequence)> {
         let mut contenders: Vec<&TopicId> = self
             .standings
             .iter()

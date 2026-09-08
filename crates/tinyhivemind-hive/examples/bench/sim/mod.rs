@@ -59,7 +59,9 @@ mod generation;
 mod view;
 
 use agent::Holdings;
-use generation::{MemberDraw, draw_expertise, hidden_profile_agent, selfcheck_uniform, specialist_agent};
+use generation::{
+    MemberDraw, draw_expertise, hidden_profile_agent, selfcheck_uniform, specialist_agent,
+};
 
 pub(crate) use agent::{CheckStyle, SimAgent};
 pub(crate) use view::check_selfcheck;

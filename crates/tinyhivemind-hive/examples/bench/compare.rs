@@ -26,7 +26,9 @@ use crate::policy::{
     refuting_policy,
 };
 use crate::rng::mix;
-use crate::run::{AsideMode, run_episode, run_episode_checking, run_episode_exchanging_with, run_episode_with};
+use crate::run::{
+    AsideMode, run_episode, run_episode_checking, run_episode_exchanging_with, run_episode_with,
+};
 use crate::sim::{CheckStyle, Room, SPECIALIST_COST_UNIT};
 
 /// Run every arm over the same rooms and print the comparison.

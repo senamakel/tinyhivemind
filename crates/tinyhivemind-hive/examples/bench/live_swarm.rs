@@ -15,7 +15,9 @@ use tinyhivemind_hive::{EpisodePolicy, QuorumPolicy};
 
 use crate::TASK;
 use crate::arms;
-use crate::backend::{SeatUsage, backend_label, http_config, poll_backend, print_usage, seat_command, seat_model};
+use crate::backend::{
+    SeatUsage, backend_label, http_config, poll_backend, print_usage, seat_command, seat_model,
+};
 use crate::cli::Options;
 use crate::federation::Federation;
 use crate::http::{HttpAgent, HttpDeskAgent};

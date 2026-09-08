@@ -12,7 +12,6 @@ use crate::policy::tuned_policy;
 use crate::sim::Expertise;
 use tinyhivemind_hive::{DirectoryPolicy, EpisodePolicy};
 
-
 /// How much a desk overrates its own decoy, by default.
 ///
 /// The value is bounded on both sides, and both bounds are what make the

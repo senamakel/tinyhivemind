@@ -84,7 +84,10 @@ pub(crate) fn seat_model<'a>(options: &'a Options, agent: &ScenarioAgent) -> &'a
 /// # Errors
 ///
 /// Returns a message when neither `--seat-cmd` nor `--agent-cmd` names one.
-pub(crate) fn seat_command<'a>(options: &'a Options, agent: &ScenarioAgent) -> Result<&'a str, String> {
+pub(crate) fn seat_command<'a>(
+    options: &'a Options,
+    agent: &ScenarioAgent,
+) -> Result<&'a str, String> {
     if let Some((_, command)) = options.seat_cmd.iter().find(|(id, _)| *id == agent.id) {
         return Ok(command);
     }
