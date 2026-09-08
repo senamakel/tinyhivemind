@@ -5,6 +5,7 @@
 
 use super::super::*;
 use super::support::{Room, converging, desks, member, run, speaking, state};
+use tinyhivemind::{Conversation, Sequence};
 
 #[test]
 fn a_malformed_roster_or_desk_snapshot_is_rejected() {
