@@ -13,7 +13,7 @@ use tinyhivemind_hive::trace::{TopicId, Trace, TraceKind, resolve};
 use tinyhivemind_hive::{QuorumPolicy, Sequence, SessionAuthor, SessionMessage};
 
 use super::agent::{CheckStyle, SimAgent};
-use super::{CONCESSION, Expertise, GROUNDS_WEIGHT, RULES_OUT, Room, SOCIAL_WEIGHT};
+use super::{ASIDE_READS, CONCESSION, Expertise, GROUNDS_WEIGHT, RULES_OUT, Room, SOCIAL_WEIGHT};
 use crate::run::ASIDE_MARKER;
 
 /// What one turn can actually see, folded once through the library's own reads.
@@ -434,7 +434,7 @@ pub(crate) fn parse_readings(body: &str) -> Vec<(TopicId, i32)> {
     while let Some(word) = words.next() {
         if let Some(name) = word.strip_prefix('#') {
             topic = Some(TopicId::from(name));
-        } else if word == super::ASIDE_READS
+        } else if word == ASIDE_READS
             && let Some(held) = topic.take()
             && let Some(value) = words
                 .next()
@@ -539,7 +539,7 @@ fn payload_selfcheck(room: &Room) -> bool {
 
     // A muted check takes nothing in. The matched-turn control has to be
     // exactly that: same turns, same words, no transfer.
-    let answer = format!("{ASIDE_MARKER} @a #{topic} My own {} 7.", super::ASIDE_READS);
+    let answer = format!("{ASIDE_MARKER} @a #{topic} My own {ASIDE_READS} 7.");
     let heard = crate::run::one_agent_message("peer", &answer);
     let mut muted = sample.clone();
     muted.set_aside_cap(1, CheckStyle::MUTE);
@@ -555,8 +555,7 @@ fn payload_selfcheck(room: &Room) -> bool {
     // place of the reading, not alongside it -- while a reading-only arm
     // ignores the sentence entirely and only ever averages the number.
     let refutation = format!(
-        "{ASIDE_MARKER} @a #{topic} My own {} 7. The reading I hold {RULES_OUT}.",
-        super::ASIDE_READS
+        "{ASIDE_MARKER} @a #{topic} My own {ASIDE_READS} 7. The reading I hold {RULES_OUT}."
     );
     let told = crate::run::one_agent_message("peer", &refutation);
     let mut fact_reader = sample.clone();
@@ -619,15 +618,13 @@ fn payload_selfcheck(room: &Room) -> bool {
         return false;
     };
     let mixed = format!(
-        "{ASIDE_MARKER} @a #{topic} {} 7. #{other} {} 9. #{other} The reading I hold {RULES_OUT}.",
-        super::ASIDE_READS,
-        super::ASIDE_READS
+        "{ASIDE_MARKER} @a #{topic} {ASIDE_READS} 7. #{other} {ASIDE_READS} 9. \
+         #{other} The reading I hold {RULES_OUT}."
     );
     ok &= parse_ruled_out(&mixed).as_ref() == Some(&other);
     // And the single-option form still reads as being about its one option.
     ok &= parse_ruled_out(&format!(
-        "{ASIDE_MARKER} @a #{topic} My own {} 7. The reading I hold {RULES_OUT}.",
-        super::ASIDE_READS
+        "{ASIDE_MARKER} @a #{topic} My own {ASIDE_READS} 7. The reading I hold {RULES_OUT}."
     ))
     .as_ref()
         == Some(&topic);
