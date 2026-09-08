@@ -40,7 +40,7 @@ pub(crate) struct Options {
     pub(crate) window: usize,
     /// Wall-clock budget for one turn before the process is killed.
     pub(crate) timeout: Duration,
-    /// CortexDB root; `None` disables recall and capture.
+    /// `CortexDB` root; `None` disables recall and capture.
     pub(crate) cortex_base: Option<String>,
     /// The key for `cortex_base`, read from `CORTEX_API_KEY`.
     pub(crate) cortex_key: Option<String>,
