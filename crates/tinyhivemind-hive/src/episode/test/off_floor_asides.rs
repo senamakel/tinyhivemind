@@ -4,7 +4,7 @@
 //! stub where a member of it sees the content.
 
 use super::super::*;
-use super::support::{Room, aside, converging, operator, run, said, speaking, state};
+use super::support::{MEMBERS, Room, aside, converging, operator, run, said, speaking, state};
 use crate::quorum::QuorumPolicy;
 
 #[test]
@@ -157,7 +157,7 @@ fn a_transcript_with_no_aside_projects_the_same_for_every_turn_holder() {
     let transcript = converging();
     let turn = speaking(run(&room, &state(), &transcript, &policy));
     let baseline = project_for(&turn, &transcript);
-    for id in super::support::MEMBERS {
+    for id in MEMBERS {
         let other = HiveTurn {
             agent_id: id.into(),
             ..turn.clone()
