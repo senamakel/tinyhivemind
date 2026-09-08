@@ -572,6 +572,17 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
             )?;
         }
 
+        // A seat asked to close. The row is already in the transcript, so the
+        // desk ends holding the message rather than losing it — and the chain
+        // is not dispatched, because a finished desk has nobody to hand a turn
+        // to. Without this the chair nudges a delivered room once per remaining
+        // round: in run 28 that was nine turns of `@lead` restating the same
+        // answer to a prompt that could not be told the work was done.
+        if said.closing {
+            println!("   -- seat reports the work finished; closing the desk");
+            break;
+        }
+
         let outcome = dispatch_mention(
             &queue,
             policy,
