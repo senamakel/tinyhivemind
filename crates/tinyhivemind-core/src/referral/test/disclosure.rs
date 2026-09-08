@@ -6,7 +6,10 @@
 
 use super::super::*;
 use super::support::{OPEN, agent_mention, desk, desk_mention, input, members};
-use crate::{dispatch::NoDispatchReason, roster::Roster};
+use crate::{
+    dispatch::{NO_AVAILABLE_TARGET, NoDispatchReason},
+    roster::Roster,
+};
 
 /// What `docs/adr/0009-a-refusal-renders-what-the-caller-already-holds.md`
 /// requires of one reason's rendered sentence.
