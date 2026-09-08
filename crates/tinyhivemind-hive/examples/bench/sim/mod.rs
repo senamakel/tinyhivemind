@@ -611,9 +611,3 @@ impl Room {
             .map_or(1, |agent| agent.cost_unit)
     }
 }
-
-/// One member's private evaluations and the fact it holds, if any.
-///
-/// What a peer could ever hand over, read once out of the room so the
-/// zero-cost arms do not clone a participant per contact.
-type Holdings = (Vec<(TopicId, i32)>, Option<TopicId>);

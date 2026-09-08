@@ -561,3 +561,5 @@ fn cost_table(arms: &[(&str, &Aggregate)]) {
             totals.cost_per_episode(),
             totals.accuracy_per_kilo_unit(),
         );
+    }
+}
