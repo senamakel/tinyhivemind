@@ -11,8 +11,7 @@
 use std::time::Instant;
 
 use tinyhivemind_hive::{
-    Directory, DirectoryPolicy, EpisodePolicy, QuorumPolicy, Sequence, directory,
-    trace::{TopicId, Trace},
+    Directory, DirectoryPolicy, EpisodePolicy, Sequence, directory, trace::Trace,
 };
 
 use crate::TASK;
