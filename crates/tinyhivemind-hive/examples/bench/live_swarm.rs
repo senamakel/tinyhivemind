@@ -18,13 +18,14 @@ use crate::arms;
 use crate::backend::{SeatUsage, backend_label, http_config, poll_backend, print_usage, seat_command, seat_model};
 use crate::cli::Options;
 use crate::federation::Federation;
-use crate::http::{AgentPrompt, HttpAgent, HttpDeskAgent};
-use crate::live::{self, LiveAgent};
+use crate::http::{HttpAgent, HttpDeskAgent};
+use crate::live::{self, AgentPrompt, LiveAgent};
 use crate::live_single::{plurality, verdict};
 use crate::metrics::{self, Aggregate};
 use crate::policy::{quorum_threshold, turn_budget};
+use crate::rng::mix;
 use crate::run;
-use crate::scenario::{Scenario, ScenarioAgent};
+use crate::scenario::Scenario;
 use crate::swarm::{self, Channel, SwarmMember, SwarmReport, pooled, run_swarm};
 
 /// The referral policy the swarm arm runs at.
