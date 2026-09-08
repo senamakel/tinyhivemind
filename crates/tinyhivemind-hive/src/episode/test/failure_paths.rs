@@ -4,7 +4,7 @@
 //! quietly dropped from bidding and from the carried thresholds.
 
 use super::super::*;
-use super::support::{Room, converging, desks, member, run, state};
+use super::support::{Room, converging, desks, member, run, speaking, state};
 
 #[test]
 fn a_malformed_roster_or_desk_snapshot_is_rejected() {
