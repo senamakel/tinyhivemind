@@ -22,7 +22,7 @@ fn an_aside_riding_along_with_a_turn_costs_the_room_nothing() {
     let room = Room::new();
     let policy = EpisodePolicy::DEFAULT;
     let plain = vec![
-        super::support::operator(1, "Pick one."),
+        operator(1, "Pick one."),
         said(2, "planner", "!propose #stage"),
         said(4, "critic", "!support #stage ^2"),
     ];
@@ -58,11 +58,11 @@ fn a_room_that_has_only_said_things_privately_has_not_started() {
     let room = Room::new();
     let policy = EpisodePolicy::DEFAULT;
     let private = vec![
-        super::support::operator(1, "Pick one."),
+        operator(1, "Pick one."),
         aside(2, "planner", &["critic"], "!propose #stage Quietly."),
         aside(3, "critic", &["planner"], "!support #stage ^2 Quietly."),
     ];
-    let bare = vec![super::support::operator(1, "Pick one.")];
+    let bare = vec![operator(1, "Pick one.")];
 
     assert_eq!(
         run(&room, &state(), &private, &policy),

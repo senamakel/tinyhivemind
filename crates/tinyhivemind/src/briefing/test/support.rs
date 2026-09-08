@@ -36,6 +36,24 @@ pub(super) fn briefing_with(asides: AsidePolicy) -> TeamBriefing {
     }
 }
 
+/// A briefing for `alice` with one teammate, `bob`, given a role and
+/// description.
+pub(super) fn briefed_viewer() -> TeamBriefing {
+    TeamBriefing {
+        viewer_id: "alice".into(),
+        desk_id: "engineering".into(),
+        desk_name: "Engineering".into(),
+        teammates: vec![BriefedTeammate {
+            id: "bob".into(),
+            label: "Bob".into(),
+            role: Some("reviewer".into()),
+            description: Some("Checks safety".into()),
+        }],
+        brevity: BrevityPolicy::DEFAULT,
+        asides: AsidePolicy::DEFAULT,
+    }
+}
+
 /// An aside policy permissive enough to exercise the grammar it enables.
 pub(super) fn permissive() -> AsidePolicy {
     AsidePolicy {
