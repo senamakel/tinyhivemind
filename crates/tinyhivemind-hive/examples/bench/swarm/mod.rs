@@ -27,12 +27,12 @@
 //!
 //! # Layout
 //!
-//! This module holds the desks-and-journals host ([`SwarmHost`]) and the two
-//! entry points a caller drives ([`drive_swarm`] and [`run_swarm`]). The
-//! scheduler that owns one run's in-flight referrals lives in
-//! [`board`](mod@board); the simulated participant that can ask another
-//! channel lives in [`member`](mod@member); the wire text those participants
-//! read and write lives in [`format`](mod@format).
+//! This module holds the desks-and-journals host (`SwarmHost`) and the two
+//! entry points a caller drives (`drive_swarm` and `run_swarm`). The
+//! scheduler that owns one run's in-flight referrals lives in the `board`
+//! submodule; the simulated participant that can ask another channel lives
+//! in `member`; the wire text those participants read and write lives in
+//! `format`.
 
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
