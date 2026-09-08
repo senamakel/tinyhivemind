@@ -6,6 +6,7 @@
 use super::super::*;
 use super::support::{MEMBERS, Room, aside, converging, operator, run, said, speaking, state};
 use crate::quorum::QuorumPolicy;
+use tinyhivemind::Sequence;
 
 #[test]
 fn a_trace_inside_an_aside_adds_no_supporter() {
