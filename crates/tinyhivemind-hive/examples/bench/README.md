@@ -552,25 +552,19 @@ resolves it to `sim/mod.rs` transparently.
 | `sim/mod.rs` | the rooms, the private evaluations, the `Expertise` shapes (`--specialists`, `--hidden-profile`) that redistribute those evaluations, the evidence-first opening (`--blind-evidence`), the tuning constants, `Role`, `Expertise`, and the `Room` type and its generation |
 | `sim/generation.rs` | drawing a room's members and their expertise |
 | `sim/agent/mod.rs` | `SimAgent`, the participant that holds a private, noisy view of every option: its struct, `Payload`, and `CheckStyle` |
-| `sim/agent/state.rs` | construction and state mutation: `new`, `import`, `score`, and friends |
-| `sim/agent/turn.rs` | deciding what to say: `check`, `absorb`, `compose`, and the `Participant` impl |
+| `sim/agent/{state,turn}.rs` | construction and state mutation (`new`, `import`, `score`, ...), then deciding what to say (`check`, `absorb`, `compose`, ...) and the `Participant` impl |
 | `sim/view.rs` | `View`, the window a participant reads the transcript through, and the marker parsers |
 | `federation.rs` | several desks, each with a correlated bias of its own |
 | `swarm/mod.rs` | one journal per channel, the scheduler, and the referral edge: `SwarmMember`, `SwarmHost`, and driving a swarm episode |
-| `swarm/board.rs` | `Board`, the per-channel pending queue and seat lookup |
-| `swarm/member.rs` | `SwarmSim`, the simulated participant that can also field a referral |
-| `swarm/format.rs` | parsing and restating a `Reading` for the wire |
+| `swarm/{board,member,format}.rs` | `Board`'s pending queue and seat lookup; `SwarmSim`, which can also field a referral; parsing and restating a `Reading` for the wire |
 | `run/mod.rs` | the host: a journal, a roster, and the step loop — `Host`, `Ending`, and the episode entry points |
-| `run/turns.rs` | per-turn machinery: audience, appending a turn, running one exchange |
-| `run/scoring.rs` | `EpisodeReport`, `Tally`, and the accounting a completed episode leaves behind |
+| `run/{turns,scoring}.rs` | per-turn machinery (audience, appending a turn, one exchange), then `EpisodeReport`, `Tally`, and an episode's accounting |
 | `arms.rs` | the `ladder`, `vote`, `merged` and federated controls |
 | `sweep.rs` | the policy grid and its ranking |
 | `metrics/mod.rs` | aggregation, formatting, and the confidence-interval, bootstrap and rank-correlation statistics: `Aggregate` and the printed/JSON tables |
-| `metrics/format.rs` | formatting helpers for those tables |
-| `metrics/stats.rs` | the small numeric statistics helpers (percentile, rank correlation) |
+| `metrics/{format,stats}.rs` | formatting helpers for those tables, then the small numeric statistics helpers (percentile, rank correlation) |
 | `live/mod.rs` | the shared prompt state both live backends assemble: `AgentPrompt`, plus the external agent CLI backend and the solo poll |
-| `live/agent.rs` | `LiveAgent`, driving one seat through a CLI subprocess |
-| `live/desk.rs` | `LiveDeskAgent`, driving one seat as a member of a swarm desk |
+| `live/{agent,desk}.rs` | `LiveAgent`, driving one seat through a CLI subprocess; `LiveDeskAgent`, driving one seat as a member of a swarm desk |
 | `http.rs` | the direct-HTTP backend: the same prompt state over `curl`, and its usage table |
 | `scenario.rs` | the scenario file format, the briefs, and the recorded answer |
 | `scenarios/` | the scenario files themselves |
