@@ -29,12 +29,12 @@ use std::{
 /// whole turn budget with *zero* router calls.
 ///
 /// The threshold has to clear the router's own worst case, which is the thing
-/// that caught this out twice. With `request_timeout` at 600s and two rungs to
+/// that caught this out twice. With `request_timeout` at 300s and two rungs to
 /// walk, one call the caller is still waiting on can legitimately be silent for
-/// 1200s before any answer arrives. Twenty-five minutes sits above that and
-/// below the turn deadline. Raise the router's timeout again and this has to
-/// move with it — they are one budget, not two.
-const STALL_AFTER: Duration = Duration::from_secs(1500);
+/// 600s before any answer arrives. Fifteen minutes sits above that and below
+/// the turn deadline. Change the router's timeout and this has to move with
+/// it — they are one budget, not two.
+const STALL_AFTER: Duration = Duration::from_secs(900);
 
 /// What one turn produced.
 #[derive(Clone, Debug, Default)]
