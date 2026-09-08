@@ -396,7 +396,7 @@ pub(crate) enum Backend {
 /// Returns a participant's own failure, such as an agent process that did not
 /// answer.
 pub(crate) fn poll(
-    options: &crate::Options,
+    options: &crate::cli::Options,
     scenario: &Scenario,
     backend: &Backend,
 ) -> Result<Vec<(String, String)>, String> {
@@ -418,7 +418,7 @@ pub(crate) fn poll(
                 // override for this agent, or the default `--agent-cmd`.
                 // Otherwise the control would run every voter under one
                 // command even when a seat ran under a different one.
-                let command = crate::seat_command(options, agent)?;
+                let command = crate::backend::seat_command(options, agent)?;
                 let (program, args) = split_command(command).ok_or("empty agent command")?;
                 let output = Command::new(&program)
                     .args(&args)
@@ -438,7 +438,7 @@ pub(crate) fn poll(
                 // reasoning-tier specialist against a vote where every voter
                 // ran on the default model, invalidating the same-agent
                 // control.
-                let model = crate::seat_model(options, agent);
+                let model = crate::backend::seat_model(options, agent);
                 // The poll has never reported its own token spend, so the
                 // handle is a sink; the CLI arm beside it accounts for
                 // nothing either, and one of the two accounting would make
