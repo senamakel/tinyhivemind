@@ -41,7 +41,7 @@ use tinyhivemind_hive::{
     Conversation, EpisodePolicy, EpisodeState, HiveStep, HiveTurn, Sequence, SessionAuthor,
     SessionMessage,
     desk::{Desk, DeskSet, ResponderMode},
-    referral::ReferralPolicy,
+    referral::{Referral, ReferralPolicy},
     roster::{Roster, RosterMember},
     step,
     trace::TopicId,
