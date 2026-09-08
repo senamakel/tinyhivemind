@@ -29,17 +29,17 @@ use std::{
 /// whole turn budget with *zero* router calls.
 ///
 /// The threshold has to clear the router's own worst case, which is the thing
-/// that caught this out three times. With `request_timeout` at 600s and two
-/// rungs to walk, one call the caller is still waiting on can legitimately be
-/// silent for 1200s before any answer arrives. Twenty-five minutes sits above
-/// that and below the turn deadline. Change the router's timeout and this has
-/// to move with it — they are one budget, not two.
+/// that caught this out twice. With `request_timeout` at 300s and two rungs to
+/// walk, one call the caller is still waiting on can legitimately be silent for
+/// 600s before any answer arrives. Fifteen minutes sits above that and below
+/// the turn deadline. Change the router's timeout and this has to move with
+/// it — they are one budget, not two.
 ///
-/// 300s was not enough: run 27 turn 1 timed out on both rungs at exactly 300s
-/// each and exhausted the ladder, on a context the same providers had been
-/// serving in seconds minutes earlier. A long turn's context grows past what a
-/// five-minute cap can answer.
-const STALL_AFTER: Duration = Duration::from_secs(1500);
+/// Run 27 tried widening both ends and it was the wrong read. The call that
+/// exhausted the ladder carried 48k of context and 374 output tokens, while
+/// probes answered in 3s throughout; it was a dead call, not a slow one, and
+/// doubling the cap only doubled what its death cost the turn.
+const STALL_AFTER: Duration = Duration::from_secs(900);
 
 /// What one turn produced.
 #[derive(Clone, Debug, Default)]
