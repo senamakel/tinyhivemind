@@ -6,7 +6,7 @@
 
 use super::super::*;
 use super::support::{FakeLog, engineering, page, state};
-use crate::{LogMessage, SessionAuthor};
+use crate::LogMessage;
 use tinyhivemind_core::aside::Audience;
 use tinyhivemind_core::aside::Viewer;
 
