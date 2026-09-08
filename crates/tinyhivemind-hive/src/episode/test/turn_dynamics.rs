@@ -72,7 +72,7 @@ fn a_blind_turn_hides_peers_but_keeps_the_task_and_its_own_work() {
         agent_id: "planner".into(),
         phase: Phase::Deliberate,
         visibility: Visibility::Blind,
-        reason: crate::attention::BidReason::Salience,
+        reason: BidReason::Salience,
         next_state: state(),
     };
 
@@ -104,8 +104,8 @@ fn a_blind_turn_preserves_pre_episode_agent_context() {
         agent_id: "critic".into(),
         phase: Phase::Deliberate,
         visibility: Visibility::Blind,
-        reason: crate::attention::BidReason::Salience,
-        next_state: EpisodeState::opened(super::support::conversation(), Sequence(1)),
+        reason: BidReason::Salience,
+        next_state: EpisodeState::opened(conversation(), Sequence(1)),
     };
 
     let blind = project_for(&turn, &transcript);
@@ -125,7 +125,7 @@ fn speaking_costs_the_speaker_and_silence_accrues_standing() {
     let speaker = turn.agent_id.clone();
 
     let charged = turn.next_state.thresholds;
-    assert_eq!(charged.len(), super::support::MEMBERS.len());
+    assert_eq!(charged.len(), MEMBERS.len());
     let spoke = charged
         .iter()
         .find(|held| held.agent_id == speaker)
