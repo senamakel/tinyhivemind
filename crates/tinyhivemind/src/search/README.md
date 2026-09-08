@@ -31,7 +31,7 @@ it, is in
 | `MessageHit` | address, author, parent, excerpt, score, tier |
 | `ThreadHit` | a `ThreadLine` with the score that found it |
 | `search_messages(log, query)` | the bounded backward walk |
-| `search_threads(log, conversation, pattern, limit)` | thread openings, ranked |
+| `search_threads(log, conversation, viewer, pattern, limit)` | thread openings, ranked |
 | `SEARCH_LIMIT` / `SEARCH_SCAN` / `EXCERPT_CHARS` | 10 / 2048 / 96 |
 
 Ranking is [`tinyhivemind_core::select`], one ordering shared with the agent
