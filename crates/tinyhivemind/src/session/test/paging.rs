@@ -4,7 +4,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::*;
+use super::super::*;
 use super::support::{FakeLog, message, page, query};
 use crate::Error;
 

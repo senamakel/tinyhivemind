@@ -3,7 +3,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::*;
+use super::super::*;
 use super::support::{FakeLog, conversation, page, query};
 use tinyhivemind_core::aside::Audience;
 use tinyhivemind_core::aside::Viewer;

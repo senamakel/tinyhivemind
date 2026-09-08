@@ -3,7 +3,7 @@
 //! [`Conversation`], a [`SessionQuery`], a raw [`LogMessage`], and a
 //! [`SessionPage`] without repeating their field lists.
 
-use super::*;
+use super::super::*;
 use std::{
     collections::VecDeque,
     io,
