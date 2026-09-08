@@ -3,7 +3,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::super::*;
-use crate::{LogMessage, Sequence, SessionAuthor};
+use super::support::briefed_viewer;
+use crate::{Sequence, SessionAuthor};
 use tinyhivemind_core::aside::Audience;
 use tinyhivemind_core::dispatch::MentionDispatchPolicy;
 
