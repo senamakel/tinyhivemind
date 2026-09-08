@@ -301,10 +301,26 @@ async fn main() -> Result<(), BoxError> {
         thread_root: None,
     };
     let transcript = log::JsonlLog::open(&options.transcript)?;
+    // The room is a tool the seat calls, not a fence it writes. The server is
+    // this binary re-executed; the outbox is one file, truncated per turn.
+    let outbox = options.workspace.join(OUTBOX);
+    let agent_config = match std::env::current_exe() {
+        Ok(exe) => Some(mcp::config_block(
+            &exe,
+            &outbox,
+            &options.transcript,
+            options.opencode_config.as_deref(),
+        )),
+        Err(error) => {
+            println!("!! cannot find this binary to serve the desk tools ({error}); seats will \
+                      fall back to the post fence");
+            options.opencode_config.clone()
+        }
+    };
     let runner = agent::AgentRunner::new(
         &options.agent_cmd,
         &options.workspace.to_string_lossy(),
-        options.opencode_config.clone(),
+        agent_config,
         options.timeout,
         Some(
             options
@@ -330,6 +346,23 @@ async fn main() -> Result<(), BoxError> {
         &options.router_model,
         WRAP_UP_TIMEOUT,
     );
+    // The room's own memory. Everything older than the live window is one
+    // bounded account, rewritten as the room moves, so a seat spends its window
+    // on the live conversation rather than on its own scrollback.
+    let folder = options.window_digest.then(|| {
+        digest::RoomDigester::new(chat::Chat::new(
+            &options.router_base,
+            &options.router_key,
+            &options.router_model,
+            WRAP_UP_TIMEOUT,
+        ))
+    });
+    let digest_policy = DigestPolicy {
+        keep_live: options.window,
+        budget_chars: DIGEST_CHARS,
+        ..DigestPolicy::DEFAULT
+    };
+    let mut account: Option<ChannelDigest> = None;
     // One CLI session per seat, and one watermark per seat: a seat that has
     // spoken before is caught up with `prepare_delta` rather than re-read the
     // whole window it already holds.
