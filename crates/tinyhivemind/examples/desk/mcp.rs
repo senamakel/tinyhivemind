@@ -27,7 +27,7 @@
 use std::{
     fs::{self, OpenOptions},
     io::{BufRead, Write},
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 /// What a seat asked the room for during one turn.
@@ -145,8 +145,8 @@ pub(crate) fn config_block(
 /// Returns a write failure on stdout. A malformed request is answered with a
 /// JSON-RPC error rather than ending the server.
 pub(crate) fn serve(
-    outbox: PathBuf,
-    transcript: PathBuf,
+    outbox: &Path,
+    transcript: &Path,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout();
@@ -167,17 +167,17 @@ pub(crate) fn serve(
             .and_then(serde_json::Value::as_str)
             .unwrap_or_default();
         let response = match method {
-            "initialize" => ok(&id, initialize()),
-            "ping" => ok(&id, serde_json::json!({})),
-            "tools/list" => ok(&id, serde_json::json!({ "tools": tools() })),
-            "tools/call" => match call(&request, &outbox, &transcript) {
+            "initialize" => ok(&id, &initialize()),
+            "ping" => ok(&id, &serde_json::json!({})),
+            "tools/list" => ok(&id, &serde_json::json!({ "tools": tools() })),
+            "tools/call" => match call(&request, outbox, transcript) {
                 Ok(text) => ok(
                     &id,
-                    serde_json::json!({ "content": [{ "type": "text", "text": text }] }),
+                    &serde_json::json!({ "content": [{ "type": "text", "text": text }] }),
                 ),
                 Err(message) => ok(
                     &id,
-                    serde_json::json!({
+                    &serde_json::json!({
                         "isError": true,
                         "content": [{ "type": "text", "text": message }],
                     }),
@@ -195,7 +195,7 @@ pub(crate) fn serve(
     Ok(())
 }
 
-fn ok(id: &serde_json::Value, result: serde_json::Value) -> serde_json::Value {
+fn ok(id: &serde_json::Value, result: &serde_json::Value) -> serde_json::Value {
     serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": result })
 }
 

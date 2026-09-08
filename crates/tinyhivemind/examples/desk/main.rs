@@ -266,7 +266,7 @@ async fn main() -> Result<(), BoxError> {
             .outbox
             .clone()
             .ok_or("--mcp-server needs --outbox")?;
-        return mcp::serve(outbox, options.transcript.clone()).map_err(Into::into);
+        return mcp::serve(&outbox, &options.transcript);
     }
     let spec = deskfile::parse(&fs::read_to_string(&options.desk)?)?;
     fs::create_dir_all(&options.workspace)?;
@@ -555,16 +555,16 @@ async fn main() -> Result<(), BoxError> {
         )
         .await?
         {
-            DigestOutcome::Folded(folded) => {
+            DigestOutcome::Folded(next) => {
                 println!(
                     "   room account: generation {} now covers {} messages through [{}] \
                      ({} chars)",
-                    folded.generation,
-                    folded.covered,
-                    folded.through.0,
-                    folded.text.chars().count()
+                    next.generation,
+                    next.covered,
+                    next.through.0,
+                    next.text.chars().count()
                 );
-                account = Some(folded);
+                account = Some(next);
             }
             DigestOutcome::Rejected { reason } => {
                 println!("   !! the room account was refused: {reason:?}");
@@ -846,13 +846,15 @@ async fn main() -> Result<(), BoxError> {
             &transcript,
             &spec.id,
             &seat.id,
-            &output.message,
-            if dm_mentions.is_empty() {
-                &mentions
-            } else {
-                &dm_mentions
+            &Addressed {
+                line: &output.message,
+                mentions: if dm_mentions.is_empty() {
+                    &mentions
+                } else {
+                    &dm_mentions
+                },
+                private: !dm_mentions.is_empty(),
             },
-            !dm_mentions.is_empty(),
             &roster,
             &desks,
         )?;
@@ -1108,6 +1110,17 @@ fn files_written(paths: &[String], seat_id: &str) -> Vec<String> {
         .collect()
 }
 
+/// One authored line and what it is trying to reach.
+#[derive(Clone, Copy)]
+struct Addressed<'a> {
+    /// The message itself.
+    line: &'a str,
+    /// The targets it names, or the ones `desk_dm` named for it.
+    mentions: &'a [Mention],
+    /// Whether the seat asked for this to stay off the desk.
+    private: bool,
+}
+
 /// Decide who one authored line is addressed to.
 ///
 /// The harness never acts on the `!aside` marker itself. It hands the line to
@@ -1118,12 +1131,15 @@ fn address(
     transcript: &log::JsonlLog,
     desk_id: &str,
     author_id: &str,
-    line: &str,
-    mentions: &[Mention],
-    private: bool,
+    addressed: &Addressed<'_>,
     roster: &tinyhivemind::roster::Roster<'_>,
     desks: &tinyhivemind::desk::DeskSet<'_>,
 ) -> Result<Audience, BoxError> {
+    let Addressed {
+        line,
+        mentions,
+        private,
+    } = *addressed;
     if !private && !line.trim_start().starts_with("!aside") {
         return Ok(Audience::Desk);
     }
