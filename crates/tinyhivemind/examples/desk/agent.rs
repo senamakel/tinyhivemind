@@ -325,15 +325,28 @@ fn truncate(text: &str, limit: usize) -> String {
 }
 
 /// Pull the room message out of a turn's raw text.
+///
+/// Two fences are accepted: the asymmetric `<<<POST … POST>>>` the brief asks
+/// for, and the symmetric `<<<POST>>> … <<<POST>>>` a seat writes anyway.
+/// Taking only the first cost run 26 its whole turn 3 — a verified sublinear
+/// recursion reached the transcript as the three characters `>>>`, the room
+/// read that as silence, and the chair nudged a seat that had in fact spoken.
 pub(crate) fn extract_post(text: &str) -> String {
-    if let Some(start) = text.rfind("<<<POST") {
-        let after = &text[start + "<<<POST".len()..];
-        if let Some(end) = after.find("POST>>>") {
-            return after[..end].trim().to_string();
-        }
-        return after.trim().to_string();
+    let opens: Vec<usize> = text.match_indices("<<<POST").map(|(at, _)| at).collect();
+    let Some(&last) = opens.last() else {
+        return text.trim().to_string();
+    };
+    let after = &text[last + "<<<POST".len()..];
+    if let Some(end) = after.find("POST>>>") {
+        return after[..end].trim().to_string();
     }
-    text.trim().to_string()
+    // No terminator after the last marker: it is a symmetric fence, so the
+    // marker found is the closer and the one before it opened the block.
+    if let Some(&open) = opens.iter().rev().nth(1) {
+        let body = &text[open + "<<<POST".len()..last];
+        return body.strip_prefix(">>>").unwrap_or(body).trim().to_string();
+    }
+    after.strip_prefix(">>>").unwrap_or(after).trim().to_string()
 }
 
 #[cfg(test)]
