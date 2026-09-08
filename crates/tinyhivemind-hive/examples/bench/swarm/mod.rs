@@ -34,7 +34,6 @@
 //! in `member`; the wire text those participants read and write lives in
 //! `format`.
 
-use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
 use tinyhivemind_hive::{
