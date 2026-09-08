@@ -9,12 +9,15 @@
 
 use std::fmt::Write as _;
 
+use tinyhivemind_hive::trace::TopicId;
 use tinyhivemind_hive::{HiveTurn, Phase, SessionAuthor, SessionMessage, Visibility};
 
 use super::SimAgent;
 use crate::run::ASIDE_MARKER;
-use crate::sim::view::View;
-use crate::sim::{ASIDE_READS, ASIDE_UNCERTAINTY, NONCOMPLIANCE, REACHABLE_REFUTATION_CAP, RULES_OUT};
+use crate::sim::view::{View, parse_readings, parse_reading, parse_ruled_out, parse_topic};
+use crate::sim::{
+    ASIDE_READS, ASIDE_UNCERTAINTY, NONCOMPLIANCE, REACHABLE_REFUTATION_CAP, RULES_OUT, Role,
+};
 
 impl SimAgent {
     /// Spend this turn on a pairwise check, if this member wants one.
