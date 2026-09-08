@@ -200,9 +200,10 @@ pub async fn collect_digest_input(
 ///
 /// # Errors
 ///
-/// Never. A refusal is a [`DigestRejection`] rather than an error, because the
-/// held account and the live tail both still stand.
-#[must_use]
+/// Returns a [`DigestRejection`] — not an [`Error`] — when the answer is
+/// empty, overruns its budget, or would cover no more than the account it
+/// replaces. It is not a crate error because nothing is lost by it: the held
+/// account and the live tail both still stand.
 pub fn accept_digest(
     held: Option<&ChannelDigest>,
     request: &DigestRequest,
