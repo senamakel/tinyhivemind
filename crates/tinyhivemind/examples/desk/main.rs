@@ -18,8 +18,10 @@
 mod agent;
 mod chat;
 mod deskfile;
+mod digest;
 mod log;
 mod memory;
+mod mcp;
 
 use std::{
     collections::{HashMap, VecDeque},
@@ -31,9 +33,9 @@ use std::{
     time::Duration,
 };
 use tinyhivemind::{
-    BrevityPolicy, BriefedTeammate, Conversation, EnqueueOutcome, MentionDispatchOutcome,
-    MentionTurnFuture, MentionTurnQueue, Sequence, SessionAuthor, SessionMessage, SessionQuery,
-    TeamBriefing,
+    BrevityPolicy, BriefedTeammate, ChannelDigest, Conversation, DigestOutcome, DigestPolicy,
+    EnqueueOutcome, MentionDispatchOutcome, MentionTurnFuture, MentionTurnQueue, Sequence,
+    SessionAuthor, SessionMessage, SessionQuery, TeamBriefing, apply_digest, refold,
     aside::{AsideDecision, AsideInput, AsidePolicy, Audience, Viewer, aside},
     desk::{Desk, DeskSet, ResponderMode},
     dispatch::{
@@ -89,6 +91,23 @@ const NOTEBOOK_CHARS: usize = 6000;
 
 /// Where a seat's notebook lives, under the shared workspace.
 const NOTEBOOK_DIR: &str = "notebooks";
+
+/// Where a turn's tool calls to the room are collected before the host reads
+/// them.
+///
+/// One file, truncated before every turn: a turn drains only its own calls,
+/// and nothing here is a second journal — the transcript is still the only
+/// record, and the host is still what writes it.
+const OUTBOX: &str = ".desk/outbox.jsonl";
+
+/// How long the room's account may be, in characters.
+///
+/// The account stands for every message older than the live window, is read at
+/// the top of every turn, and is rewritten as the room moves. Four thousand
+/// characters is roughly a page: enough to carry what was established and by
+/// whom, and small enough that it never competes with the live conversation
+/// for the seat's attention.
+const DIGEST_CHARS: usize = 4000;
 
 /// The error every host-side call in this example returns.
 type BoxError = Box<dyn StdError + Send + Sync + 'static>;
