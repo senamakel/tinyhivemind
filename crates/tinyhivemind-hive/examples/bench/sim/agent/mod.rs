@@ -10,8 +10,8 @@
 //! it. Splitting by concern rather than declaring one `impl SimAgent` block
 //! per file is what a single 2,400-line module would otherwise force.
 
-use tinyhivemind_hive::QuorumPolicy;
 use tinyhivemind_hive::trace::TopicId;
+use tinyhivemind_hive::{QuorumPolicy, Sequence};
 
 use crate::context::{ContextBudget, ContextEntry};
 use crate::rng::Rng;
