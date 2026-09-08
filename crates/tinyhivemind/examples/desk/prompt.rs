@@ -85,6 +85,17 @@ pub(crate) fn compose_prompt(
     prompt.push_str("You were addressed by this message:\n\n");
     prompt.push_str(job.trigger.trim());
     prompt.push_str("\n\n");
+    prompt.push_str(&house_rules(&seat.id));
+    prompt
+}
+
+/// How a seat speaks, what survives its turn, and the rules of the room.
+///
+/// Split out of [`compose_prompt`] because it is a constant block of text
+/// with one seat-dependent path in it, and inlining it pushed the composer
+/// past the line limit.
+fn house_rules(seat_id: &str) -> String {
+    let mut prompt = String::new();
     let _ = write!(
         prompt,
         "Do the work first — use your tools, write and run code in this workspace, check \
@@ -134,7 +145,7 @@ pub(crate) fn compose_prompt(
          - If the desk tools are not attached to this session, fall back to wrapping \
            the message in <<<POST and POST>>> and say so in it.\n",
         dir = NOTEBOOK_DIR,
-        id = seat.id,
+        id = seat_id,
         budget = NOTEBOOK_CHARS,
     );
     prompt
