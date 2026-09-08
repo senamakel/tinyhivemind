@@ -6,9 +6,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::super::*;
-use super::support::{FakeLog, conversation, delta, engineering, page, plan, raw, state};
-use crate::Error;
-use std::collections::BTreeSet;
+use super::support::{FakeLog, conversation, delta, page, plan, raw, state};
+use crate::{Error, SessionAuthor};
+use std::{
+    collections::BTreeSet,
+    sync::{Arc, Mutex},
+};
 use tinyhivemind_core::aside::Viewer;
 
 #[tokio::test]
