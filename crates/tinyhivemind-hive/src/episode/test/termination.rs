@@ -55,8 +55,8 @@ fn an_episode_terminates_within_its_budget() {
     // One proposal only: below quorum, so the room keeps deliberating and the
     // budget is what stops it rather than a decision.
     let transcript = [
-        super::support::operator(1, "Decide how to roll this out."),
-        super::support::said(2, "planner", "!propose #stage Stage the rollout."),
+        operator(1, "Decide how to roll this out."),
+        said(2, "planner", "!propose #stage Stage the rollout."),
     ];
     // Every step either terminates or strictly advances the spend, so the loop
     // cannot run past the budget.
