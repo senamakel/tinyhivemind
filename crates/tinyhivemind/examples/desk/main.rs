@@ -926,12 +926,40 @@ async fn main() -> Result<(), BoxError> {
     Ok(())
 }
 
+/// Take what a turn said through the room's tools, over what it narrated.
+///
+/// Returns the seats a private message named, empty for a message to the desk.
+///
+/// A seat may call `desk_post` more than once — it is told not to, and it will
+/// anyway. The last call stands: a seat that posts a partial result and then a
+/// settled one meant the second, and one message per turn is the rule the whole
+/// design rests on.
+fn settle(outbox: &Path, output: &mut agent::TurnOutput) -> Vec<String> {
+    let said = mcp::drain_outbox(outbox);
+    let Some(utterance) = said.last() else {
+        return Vec::new();
+    };
+    if said.len() > 1 {
+        println!(
+            "   {} messages this turn; the last one stands",
+            said.len()
+        );
+    }
+    output.message = utterance.message().to_string();
+    output.posted = true;
+    match utterance {
+        mcp::Utterance::Post { .. } => Vec::new(),
+        mcp::Utterance::Dm { to, .. } => to.clone(),
+    }
+}
+
 /// Assemble everything one seat sees for one turn.
 ///
 /// The order matters: who it is, what the desk knows, what the room has said,
 /// then what it was actually asked. A model reads the last thing best.
 fn compose_prompt(
     briefing: Option<&str>,
+    account: Option<&str>,
     history: &[SessionMessage],
     seat: &deskfile::AgentSpec,
     job: &PendingTurn,
@@ -962,6 +990,13 @@ fn compose_prompt(
     match notebook {
         Some(text) => prompt.push_str(text),
         None => prompt.push_str("(empty — you have not written one yet; start it this turn)"),
+    }
+    // Everything older than the live window, as one account the room keeps and
+    // rewrites. It is derived and lossy: the messages themselves are still in
+    // the transcript at the numbers it cites, and `desk_read` reaches them.
+    if let Some(account) = account {
+        prompt.push_str("\n\n## The room before that (the desk's standing account)\n");
+        prompt.push_str(account);
     }
     prompt.push_str(match briefing {
         Some(_) => "\n\n## The room so far\n",
