@@ -80,7 +80,7 @@ fn a_threshold_naming_a_non_member_is_rejected() {
 fn a_retired_member_neither_bids_nor_holds_a_threshold() {
     let mut room = Room::new();
     room.retired = vec!["scout".into()];
-    let turn = super::support::speaking(run(&room, &state(), &converging(), &EpisodePolicy::DEFAULT));
+    let turn = speaking(run(&room, &state(), &converging(), &EpisodePolicy::DEFAULT));
     assert_ne!(turn.agent_id, "scout");
     assert!(
         turn.next_state
