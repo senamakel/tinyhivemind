@@ -21,7 +21,7 @@ use tinyhivemind_hive::{
     },
 };
 
-use super::{Channel, SwarmHost, SwarmMember, SwarmReport};
+use super::{Channel, SwarmHost, SwarmMember, SwarmReport, format};
 
 /// The scheduler's own state: the journals, what is in flight, and the tally.
 pub(super) struct Board<'a> {
