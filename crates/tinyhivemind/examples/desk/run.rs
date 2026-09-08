@@ -15,11 +15,14 @@ use std::{
 };
 
 use tinyhivemind::{
-    BrevityPolicy, BriefedTeammate, Conversation, MentionDispatchOutcome, SessionQuery,
-    TeamBriefing,
+    BrevityPolicy, BriefedTeammate, Conversation, MentionDispatchOutcome, SessionAuthor,
+    SessionQuery, TeamBriefing,
     aside::{Audience, Viewer},
     desk::{Desk, DeskSet, ResponderMode},
-    dispatch::{DispatchConversation, DispatchKey, MentionDispatchInput, MentionDispatchPolicy, dispatch_mention},
+    dispatch::{
+        DispatchConversation, DispatchKey, MentionDispatchInput, MentionDispatchPolicy,
+        dispatch_mention,
+    },
     initialize_session,
     mention::{MentionAuthor, resolve},
     responder::{ResponderRequest, SelectionPolicy, choose_responder},
@@ -224,7 +227,7 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
                     .rows()
                     .into_iter()
                     .filter_map(|row| match row.author {
-                        tinyhivemind::SessionAuthor::Agent { id, .. } => Some(id),
+                        SessionAuthor::Agent { id, .. } => Some(id),
                         _ => None,
                     })
                     .collect();
@@ -259,7 +262,7 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
                 );
                 sequence = transcript.append(
                     Some(spec.id.clone()),
-                    tinyhivemind::SessionAuthor::Person {
+                    SessionAuthor::Person {
                         id: spec.person_id.clone(),
                         label: spec.person_label.clone(),
                     },
@@ -530,7 +533,7 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
         }
         sequence = transcript.append(
             Some(spec.id.clone()),
-            tinyhivemind::SessionAuthor::Agent {
+            SessionAuthor::Agent {
                 id: seat.id.clone(),
                 label: seat.label.clone(),
             },
