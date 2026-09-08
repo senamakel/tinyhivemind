@@ -8,7 +8,9 @@
 
 use super::super::*;
 use super::support::{briefing_with, named_conversation, permissive, viewer_briefing};
-use crate::{LogMessage, Sequence, SessionAuthor, SessionFuture, SessionPage, SessionQuery, SourceError};
+use crate::{
+    LogMessage, Sequence, SessionAuthor, SessionFuture, SessionPage, SessionQuery, SourceError,
+};
 use std::io;
 use tinyhivemind_core::aside::AsidePolicy;
 use tinyhivemind_core::aside::Audience;
@@ -102,7 +104,6 @@ async fn initialization_keeps_briefing_separate_from_history() {
     assert_eq!(initialized.history[0].sequence, Sequence(4));
     assert!(initialized.context.is_empty());
 }
-
 
 fn desk_row(sequence: u64, parent: Option<u64>, content: &str) -> LogMessage {
     LogMessage {
@@ -317,7 +318,6 @@ async fn initialization_propagates_projection_errors() {
     ));
 }
 
-
 #[tokio::test]
 async fn the_briefing_states_the_window_a_viewer_actually_received() {
     let rows = vec![
@@ -410,4 +410,3 @@ async fn a_young_desk_still_states_the_window_it_will_grow_into() {
     assert_eq!(initialized.history.len(), 1);
     assert_eq!(initialized.briefing.brevity.window, 30);
 }
-

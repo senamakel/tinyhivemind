@@ -42,7 +42,6 @@ fn desk_records() -> Vec<Desk> {
     }]
 }
 
-
 #[test]
 fn named_desk_uses_effective_order_and_filters_viewer_retired_unknown_and_duplicates() {
     let members = members();
@@ -123,7 +122,6 @@ fn invalid_snapshots_return_the_precise_core_source() {
     assert!(std::error::Error::source(&error).is_some());
 }
 
-
 #[test]
 fn snapshot_constructor_does_not_require_people_or_host_role_types() {
     let people = vec![Person {
@@ -142,4 +140,3 @@ fn snapshot_constructor_does_not_require_people_or_host_role_types() {
 // ---------------------------------------------------------------------------
 // Private asides
 // ---------------------------------------------------------------------------
-

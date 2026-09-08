@@ -69,7 +69,6 @@ fn a_brevity_policy_reports_an_overrun_and_never_edits_a_message() {
     );
 }
 
-
 #[test]
 fn the_aside_grammar_is_taught_only_where_it_can_be_used() {
     // A grammar is a fixed cost paid in every agent's prompt on every turn, so
@@ -99,7 +98,6 @@ fn an_enabled_desk_tells_an_agent_its_view_may_be_partial() {
             .contains("aside happened")
     );
 }
-
 
 #[test]
 fn system_text_withholds_dispatch_when_no_run_context_is_supplied() {
@@ -167,7 +165,6 @@ fn a_run_under_a_disabled_policy_is_not_told_it_may_dispatch() {
             .contains("bounded child turn")
     );
 }
-
 
 #[test]
 fn a_zero_hop_budget_and_an_overshot_hop_both_withhold_dispatch() {

@@ -202,7 +202,6 @@ fn briefing_wire_records_require_every_field() {
     );
 }
 
-
 #[test]
 fn a_dispatch_context_pins_its_wire_shape_and_requires_every_field() {
     let context = MentionDispatchContext {
