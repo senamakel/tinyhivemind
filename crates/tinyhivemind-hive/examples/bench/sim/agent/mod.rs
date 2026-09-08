@@ -146,7 +146,7 @@ pub(crate) struct SimAgent {
     complied: bool,
     /// Sequences of exchanges this member has already answered or folded in,
     /// so neither is done twice.
-    handled: Vec<tinyhivemind_hive::Sequence>,
+    handled: Vec<Sequence>,
 }
 
 /// One member's private evaluations and the fact it holds, if any.
