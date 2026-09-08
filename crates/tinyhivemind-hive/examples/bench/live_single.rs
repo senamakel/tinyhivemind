@@ -18,7 +18,7 @@ use crate::run::{Participant, drive};
 use crate::scenario::{Scenario, ScenarioAgent};
 use crate::sim::Room;
 use tinyhivemind_hive::{
-    EpisodePolicy, QuorumPolicy,
+    EpisodePolicy, QuorumPolicy, Sequence,
     trace::{TopicId, Trace},
 };
 
