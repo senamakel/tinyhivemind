@@ -17,8 +17,8 @@ and everything else may scroll away.
 | `PinDirective` / `PinAction` | one marker read out of a body |
 | `Pin` | one board entry: target, pinner, `pinned_at`, label, note, excerpt |
 | `read_directives(body, author, sequence)` | the grammar |
-| `fold_pins(rows, limit)` | the pure fold, over a chronological slice |
-| `read_pinboard(log, conversation, limit)` | the fold plus its bounded read |
+| `fold_pins(rows, viewer, limit)` | the pure fold, over a chronological slice |
+| `read_pinboard(log, conversation, viewer, limit, before)` | the fold plus its bounded read |
 | `pin_note(pins)` | the board as one `BriefingNote` |
 | `PIN_LIMIT` / `PIN_SCAN` / `PIN_EXCERPT_CHARS` / `PIN_MARKER_CAP` | 12 / 2048 / 120 / 8 |
 
