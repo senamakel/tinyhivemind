@@ -520,7 +520,7 @@ channel would be measuring nothing. `--hidden-profile --noise` defaults to ±50
 for the same reason and by the same rule — an explicit `--noise` still wins.
 
 The two constants that shape the hidden profile are bounded on both sides, and
-`sim.rs` writes the arithmetic on each. `HIDDEN_LIFT` is `100`, so the planted
+`sim/mod.rs` writes the arithmetic on each. `HIDDEN_LIFT` is `100`, so the planted
 decoy reads **140** against the true option's **100**: at ±50 the difference of
 two draws is triangular on ±100, so a lay member's own argmax is the decoy
 `1 - (60/100)² / 2 ≈ 82%` of the time and the matched-budget poll scores 15%.
