@@ -172,6 +172,9 @@ struct Options {
     router_base: String,
     router_key: String,
     router_model: String,
+    serve_mcp: bool,
+    outbox: Option<PathBuf>,
+    window_digest: bool,
 }
 
 impl Options {
@@ -198,6 +201,9 @@ impl Options {
                 .unwrap_or_else(|_| "http://127.0.0.1:6969".into()),
             router_key: std::env::var("LADDER_API_KEY").unwrap_or_default(),
             router_model: "deepseek-flash".into(),
+            serve_mcp: false,
+            outbox: None,
+            window_digest: true,
         };
         let mut args = std::env::args().skip(1);
         while let Some(flag) = args.next() {
@@ -220,11 +226,19 @@ impl Options {
                 "--session-scope" => options.session_scope = value()?,
                 "--router-base" => options.router_base = value()?,
                 "--router-model" => options.router_model = value()?,
+                "--mcp-server" => options.serve_mcp = true,
+                "--outbox" => options.outbox = Some(PathBuf::from(value()?)),
+                "--no-digest" => options.window_digest = false,
                 "--no-memory" => {
                     options.cortex_base = None;
                 }
                 other => return Err(format!("unknown flag {other}").into()),
             }
+        }
+        if options.serve_mcp {
+            // Serving the room as a tool needs a transcript and an outbox and
+            // nothing else: it takes no turn and reads no desk file.
+            return Ok(options);
         }
         if options.desk.as_os_str().is_empty() {
             return Err("--desk is required".into());
@@ -245,6 +259,15 @@ impl Options {
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), BoxError> {
     let options = Options::parse()?;
+    if options.serve_mcp {
+        // This same binary is the MCP server the agent CLI spawns. Re-execing
+        // it keeps one artifact and one version of the tool schema.
+        let outbox = options
+            .outbox
+            .clone()
+            .ok_or("--mcp-server needs --outbox")?;
+        return mcp::serve(outbox, options.transcript.clone()).map_err(Into::into);
+    }
     let spec = deskfile::parse(&fs::read_to_string(&options.desk)?)?;
     fs::create_dir_all(&options.workspace)?;
 
