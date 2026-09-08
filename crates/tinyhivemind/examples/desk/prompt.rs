@@ -10,7 +10,11 @@ use std::fmt::Write as _;
 
 use tinyhivemind::{SessionAuthor, SessionMessage};
 
-use crate::{deskfile, queue::PendingTurn};
+use crate::{
+    deskfile,
+    notebook::{NOTEBOOK_CHARS, NOTEBOOK_DIR},
+    queue::PendingTurn,
+};
 
 /// Assemble everything one seat sees for one turn.
 ///
@@ -22,6 +26,7 @@ pub(crate) fn compose_prompt(
     seat: &deskfile::AgentSpec,
     job: &PendingTurn,
     recalled: &str,
+    notebook: Option<&str>,
 ) -> String {
     let mut prompt = match briefing {
         Some(text) => text.to_string(),
@@ -36,6 +41,17 @@ pub(crate) fn compose_prompt(
     if !recalled.trim().is_empty() {
         prompt.push_str("\n\n## Desk memory (CortexDB)\n");
         prompt.push_str(recalled.trim());
+    }
+    // The seat's own prior context goes where prior context would have been:
+    // after who it is, before what the room said.
+    let _ = write!(
+        prompt,
+        "\n\n## Your notebook (private — `{NOTEBOOK_DIR}/{}.md`, carried from your last turn)\n",
+        seat.id
+    );
+    match notebook {
+        Some(text) => prompt.push_str(text),
+        None => prompt.push_str("(empty — you have not written one yet; start it this turn)"),
     }
     prompt.push_str(match briefing {
         Some(_) => "\n\n## The room so far\n",
@@ -61,15 +77,21 @@ pub(crate) fn compose_prompt(
     prompt.push_str("You were addressed by this message:\n\n");
     prompt.push_str(job.trigger.trim());
     prompt.push_str("\n\n");
-    prompt.push_str(
+    let _ = write!(
+        prompt,
         "Do the work first — use your tools, write and run code in this workspace, check \
          what you claim. Then post ONE message to the room.\n\n\
          You are stateless between turns. This process ends when you post, and the \
-         next turn starts a fresh one. Only three things survive: files in this \
-         workspace (shared with every seat), what you post to the room, and the \
-         desk memory. Before you post, write your working code and your notes to \
-         files — NOTES.md for what you established, and named .py files for code \
-         another seat can run — and say in your message which files you wrote.\n\n\
+         next turn starts a fresh one. Four things survive: your notebook, files in \
+         this workspace (shared with every seat), what you post to the room, and the \
+         desk memory. Before you post:\n\
+         - REWRITE `{dir}/{id}.md` — do not append to it. Write it as the message you \
+           want to receive from yourself next turn: what you established, what you \
+           are mid-way through, what you would do next, and which files hold what. \
+           You will be handed its last {budget} characters verbatim. Nobody else reads it.\n\
+         - Write working code to named .py files another seat can run, and what the \
+           room established to NOTES.md. The room is told which files you wrote; you \
+           do not have to list them.\n\n\
          Rules of the room:\n\
          - Exactly one seat speaks per message. Mentioning a teammate with @id runs \
            their turn next, and only the FIRST @mention in your message does that. \
@@ -86,6 +108,9 @@ pub(crate) fn compose_prompt(
            until you surface it.\n\
          - Wrap the message you want posted in <<<POST and POST>>>. Anything \
            outside those markers is not posted.\n",
+        dir = NOTEBOOK_DIR,
+        id = seat.id,
+        budget = NOTEBOOK_CHARS,
     );
     prompt
 }

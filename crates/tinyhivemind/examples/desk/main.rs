@@ -25,6 +25,7 @@
 //! | `queue.rs` | [`queue::DeskQueue`], the host's `MentionTurnQueue` |
 //! | `aside.rs` | this desk's aside policy and its host-side bookkeeping |
 //! | `prompt.rs` | [`prompt::compose_prompt`], turning a turn into text |
+//! | `notebook.rs` | the notebook a seat carries between turns |
 //! | `agent.rs` | one `opencode run` per turn, and its output |
 //! | `chat.rs` | the tool-less wrap-up channel |
 //! | `deskfile.rs` | parsing the plain-text desk file |
@@ -38,6 +39,7 @@ mod cli;
 mod deskfile;
 mod log;
 mod memory;
+mod notebook;
 mod prompt;
 mod queue;
 mod run;

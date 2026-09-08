@@ -74,6 +74,21 @@ pub(crate) struct TurnOutput {
     /// me write the solver" — and posting it wastes a turn and tells the room
     /// nothing. A turn that did not mark a post has not spoken.
     pub(crate) posted: bool,
+    /// Paths the seat wrote or edited, as the CLI reported them, first write
+    /// first, without repeats.
+    ///
+    /// This is the room's feedthrough: a file changing in the shared workspace
+    /// is the one thing a seat does that every peer can observe without being
+    /// told, and in run 26 the only reason a result survived a broken post was
+    /// that the same turn had also written a file. The host turns this into one
+    /// row so that survival is no longer luck.
+    pub(crate) files_written: Vec<String>,
+    /// How many `read` tool calls the turn made.
+    ///
+    /// The re-reading cost of a stateless seat, measured: turn 1 of the run-27
+    /// solver spent 15 of its 19 calls here. Printed per turn so the notebook's
+    /// effect on it is a number rather than an impression.
+    pub(crate) reads: usize,
 }
 
 /// A configured agent CLI: one process per turn.
@@ -272,11 +287,23 @@ fn parse_events(stdout: &str) -> TurnOutput {
                 }
             }
             Some("tool" | "tool_use") => {
-                if let Some(name) = event
+                let tool = event
                     .pointer("/part/tool")
-                    .and_then(serde_json::Value::as_str)
-                {
+                    .and_then(serde_json::Value::as_str);
+                if let Some(name) = tool {
                     turn.tools.push(name.to_string());
+                }
+                let path = event
+                    .pointer("/part/state/input/filePath")
+                    .and_then(serde_json::Value::as_str);
+                match (tool, path) {
+                    (Some("read"), _) => turn.reads += 1,
+                    (Some("write" | "edit"), Some(path))
+                        if !turn.files_written.iter().any(|seen| seen == path) =>
+                    {
+                        turn.files_written.push(path.to_string());
+                    }
+                    _ => {}
                 }
                 let input = event
                     .pointer("/part/state/input")
@@ -360,7 +387,34 @@ pub(crate) fn extract_post(text: &str) -> String {
 
 #[cfg(test)]
 mod test {
-    use super::extract_post;
+    use super::{extract_post, parse_events};
+
+    #[test]
+    fn counts_reads_and_records_each_written_path_once() {
+        let stream = concat!(
+            r#"{"type":"tool_use","part":{"tool":"read","state":{"input":{"filePath":"/ws/NOTES.md"}}}}"#,
+            "\n",
+            r#"{"type":"tool_use","part":{"tool":"read","state":{"input":{"filePath":"/ws/a.py"}}}}"#,
+            "\n",
+            r#"{"type":"tool_use","part":{"tool":"write","state":{"input":{"filePath":"/ws/b.py","content":"x"}}}}"#,
+            "\n",
+            r#"{"type":"tool_use","part":{"tool":"edit","state":{"input":{"filePath":"/ws/b.py","oldString":"x","newString":"y"}}}}"#,
+            "\n",
+            r#"{"type":"tool_use","part":{"tool":"bash","state":{"input":{"command":"python3 b.py"}}}}"#,
+            "\n",
+            r#"{"type":"tool_use","part":{"tool":"write","state":{"input":{"filePath":"/ws/notebooks/solver.md","content":"n"}}}}"#,
+            "\n",
+            r#"{"type":"text","part":{"text":"<<<POST\n@checker b.py runs\nPOST>>>"}}"#,
+        );
+        let turn = parse_events(stream);
+        assert_eq!(turn.reads, 2);
+        assert_eq!(turn.files_written, ["/ws/b.py", "/ws/notebooks/solver.md"]);
+        assert_eq!(
+            turn.tools,
+            ["read", "read", "write", "edit", "bash", "write"]
+        );
+        assert_eq!(turn.message, "@checker b.py runs");
+    }
 
     #[test]
     fn takes_the_marked_block_over_surrounding_narration() {

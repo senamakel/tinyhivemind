@@ -36,6 +36,7 @@ Everything that waits on something is here, and none of it is in the library:
 | `queue.rs` | `DeskQueue`, the host's `MentionTurnQueue` |
 | `aside.rs` | this desk's aside policy, `address`, and the aside bookkeeping folded from the transcript |
 | `prompt.rs` | `compose_prompt`, turning a seat's briefing, history, and trigger into one prompt |
+| `notebook.rs` | the notebook a seat carries between turns: reading back its tail within budget, and naming what a turn wrote |
 | `agent.rs` | one `opencode run` per turn, and its output |
 | `chat.rs` | the tool-less wrap-up channel |
 | `deskfile.rs` | parsing the plain-text desk file |
@@ -101,6 +102,29 @@ attention on it, and wants that to end in something the room can read.
 
 The budget is folded out of the journal rather than stored, so this host keeps
 no state the transcript does not already carry.
+
+## The notebook a seat carries
+
+A seat is a fresh process every turn, and resuming its CLI session instead was
+tried and turned off: the request grows without bound until every call
+stalls. What a seat carries instead is a **notebook** — `notebooks/<seat>.md`
+under the workspace, written by the seat with its own file tool, read back
+verbatim at the top of its next turn under `## Your notebook`. The seat is told
+to *rewrite* it, not append, and told the budget (`NOTEBOOK_CHARS`, 6000); an
+overrun is truncated on read from the front and reported in the first line,
+and the file is never touched by the host. Nobody else's prompt carries it.
+
+Two smaller mechanisms ride with it. When a turn wrote or edited files, the
+host appends one `system/workspace` row — `@solver wrote psi_sublinear.py,
+NOTES.md` — so the room learns what changed without the seat spending its post
+on it; the notebook itself is not announced. And the chair's brief is appended
+only to an empty transcript, because a resumed one already opens with it and
+the standing brief is in every prompt anyway.
+
+The per-turn line now prints the notebook size and the turn's `read` count.
+The count is what the notebook is for: turn 1 of the run-27 solver spent 15 of
+19 tool calls re-reading files. The design is
+[`docs/specs/seat-continuity.md`](../../../../docs/specs/seat-continuity.md).
 
 ## Five host obligations found by running it
 

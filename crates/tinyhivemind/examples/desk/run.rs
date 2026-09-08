@@ -10,7 +10,7 @@
 use std::{collections::HashMap, fs, sync::PoisonError, time::Duration};
 
 use tinyhivemind::{
-    BrevityPolicy, BriefedTeammate, Conversation, MentionDispatchOutcome, SessionAuthor,
+    BrevityPolicy, BriefedTeammate, Conversation, MentionDispatchOutcome, Sequence, SessionAuthor,
     SessionQuery, TeamBriefing,
     aside::{Audience, Viewer},
     desk::{Desk, DeskSet, ResponderMode},
@@ -29,6 +29,7 @@ use crate::{
     BoxError, agent, aside, chat,
     cli::Options,
     deskfile, log, memory,
+    notebook::{files_written, read_notebook},
     prompt::compose_prompt,
     queue::{DeskQueue, PendingTurn},
 };
@@ -130,17 +131,29 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
 
     // The chair opens the room. A person's message cannot dispatch a turn —
     // only an agent reply can — so the responder ladder chooses who answers it.
+    //
+    // Appended once. A resumed transcript already opens with it, and every
+    // seat's prompt carries the standing brief regardless of what scrolled,
+    // so appending it again spends a window row on a thing that was already
+    // unavoidable — by run 26 five copies filled half of every seat's window.
     let brief = fs::read_to_string(&options.task)?;
-    let mut sequence = transcript.append(
-        Some(spec.id.clone()),
-        SessionAuthor::Person {
-            id: spec.person_id.clone(),
-            label: spec.person_label.clone(),
-        },
-        &brief,
-        Audience::Desk,
-    )?;
-    println!("[{sequence:?}] {} opened the desk", spec.person_label);
+    let mut sequence = if transcript.len() == 0 {
+        let sequence = transcript.append(
+            Some(spec.id.clone()),
+            SessionAuthor::Person {
+                id: spec.person_id.clone(),
+                label: spec.person_label.clone(),
+            },
+            &brief,
+            Audience::Desk,
+        )?;
+        println!("[{sequence:?}] {} opened the desk", spec.person_label);
+        sequence
+    } else {
+        let sequence = Sequence(transcript.len() as u64);
+        println!("[{sequence:?}] resumed; the brief is already the opening row");
+        sequence
+    };
 
     let opening_mentions = resolve(
         &brief,
@@ -356,14 +369,26 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
             .map(|store| store.recall(&job.trigger))
             .unwrap_or_default();
 
-        let prompt = compose_prompt(briefing_text.as_deref(), &history, seat, &job, &recalled);
+        let notebook = read_notebook(&options.workspace, &seat.id);
+        let prompt = compose_prompt(
+            briefing_text.as_deref(),
+            &history,
+            seat,
+            &job,
+            &recalled,
+            notebook.as_deref(),
+        );
         println!(
-            "[turn {turns}] @{} ({} chars of prompt, {} {} message(s){})",
+            "[turn {turns}] @{} ({} chars of prompt, {} {} message(s){}, notebook {})",
             seat.id,
             prompt.len(),
             history.len(),
             if catching_up { "new" } else { "of history" },
-            if resumed.is_some() { ", resumed" } else { "" }
+            if resumed.is_some() { ", resumed" } else { "" },
+            match &notebook {
+                Some(text) => format!("{} chars", text.chars().count()),
+                None => "none".to_string(),
+            }
         );
         let mut output = runner.run(
             &prompt,
@@ -492,9 +517,10 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
             output.message = salvage;
         }
         println!(
-            "   {:?}, {} tokens, tools: {}",
+            "   {:?}, {} tokens, {} read(s), tools: {}",
             output.elapsed,
             output.tokens,
+            output.reads,
             if output.tools.is_empty() {
                 "none".to_string()
             } else {
@@ -540,6 +566,24 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
         )?;
         if let Some(store) = store.as_ref() {
             store.capture(&seat.id, sequence.0, &output.message);
+        }
+        // Feedthrough: the room is told what the turn wrote, by the host, in
+        // one row. A peer can then open the file instead of asking, and a
+        // result that missed the post is still pointed at. The notebook is the
+        // seat's own and is not announced.
+        let written = files_written(&output.files_written, &seat.id);
+        if !written.is_empty() {
+            let note = format!("@{} wrote {}", seat.id, written.join(", "));
+            println!("   {note}");
+            sequence = transcript.append(
+                Some(spec.id.clone()),
+                SessionAuthor::System {
+                    kind: "workspace".into(),
+                    label: "workspace".into(),
+                },
+                &note,
+                Audience::Desk,
+            )?;
         }
 
         let outcome = dispatch_mention(

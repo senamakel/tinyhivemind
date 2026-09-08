@@ -78,6 +78,10 @@ See [`example-retry-policy.md`](example-retry-policy.md) for a complete sample.
   and a viewer on a query, so two agents on one desk can compare notes without
   the desk reading them; what a non-member sees instead, and what the exchange
   owes the room when it ends.
+- [`seat-continuity.md`](seat-continuity.md) — draft: the private, superseding
+  notebook a seat carries between turns, the one feedthrough row a turn that
+  wrote files leaves behind, and the brief appended once. First slice lives in
+  the `desk` example.
 
 ## Decisions these specifications rest on
 
