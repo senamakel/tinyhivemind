@@ -204,7 +204,8 @@ async fn run(options: &Options) -> Result<report::Report, String> {
         thread_root: options.thread.then_some(opening),
     };
 
-    let (turns, refusals) = chain::run_chain(options, &room, &floor, &decision.responder_id).await?;
+    let (turns, refusals) =
+        chain::run_chain(options, &room, &floor, &decision.responder_id).await?;
 
     let channel_view = report::view(&room.journal, channel, options.window).await?;
     let thread_view = if options.thread {
