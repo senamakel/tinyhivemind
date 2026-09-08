@@ -11,7 +11,7 @@ use tinyhivemind_hive::{DirectoryPolicy, EpisodePolicy, QuorumPolicy};
 
 /// The crate's own conservative default, with the window widened to cover a
 /// whole episode so the two hive arms differ only in the knobs the sweep moved.
-fn default_policy() -> EpisodePolicy {
+pub(crate) fn default_policy() -> EpisodePolicy {
     EpisodePolicy {
         quorum: QuorumPolicy {
             window: 100,
@@ -40,7 +40,7 @@ fn default_policy() -> EpisodePolicy {
 ///
 /// Between the two: the smallest majority of the desk, and never the whole of
 /// it.
-fn tuned_policy(agents: usize) -> EpisodePolicy {
+pub(crate) fn tuned_policy(agents: usize) -> EpisodePolicy {
     EpisodePolicy {
         turn_budget: turn_budget(agents),
         blind_round: true,
@@ -66,7 +66,7 @@ fn tuned_policy(agents: usize) -> EpisodePolicy {
 /// A cap of two is the crate default: one member's assertion should not kill a
 /// hypothesis, and two distinct grounded refuters should. This is the arm the
 /// mechanism has to earn its place against, and it can lose.
-fn refuting_policy(tuned: &EpisodePolicy) -> EpisodePolicy {
+pub(crate) fn refuting_policy(tuned: &EpisodePolicy) -> EpisodePolicy {
     EpisodePolicy {
         quorum: QuorumPolicy {
             refutation_cap: Some(2),
@@ -86,7 +86,7 @@ fn refuting_policy(tuned: &EpisodePolicy) -> EpisodePolicy {
 /// `hive+` be attributed to the directory rather than to a second knob.
 ///
 /// [`BidReason::Knows`]: tinyhivemind_hive::BidReason::Knows
-fn knowing_policy(tuned: &EpisodePolicy) -> EpisodePolicy {
+pub(crate) fn knowing_policy(tuned: &EpisodePolicy) -> EpisodePolicy {
     EpisodePolicy {
         directory: Some(DirectoryPolicy::DEFAULT),
         ..*tuned
@@ -100,7 +100,7 @@ fn knowing_policy(tuned: &EpisodePolicy) -> EpisodePolicy {
 /// directory to route the vacated turn anywhere in particular. If `!defer`
 /// pays for itself only in the presence of a directory, that is worth knowing
 /// separately from whether it pays for itself at all.
-fn deferring_policy(tuned: &EpisodePolicy, cap: u32) -> EpisodePolicy {
+pub(crate) fn deferring_policy(tuned: &EpisodePolicy, cap: u32) -> EpisodePolicy {
     EpisodePolicy {
         defer_cap: Some(cap.max(1)),
         ..*tuned
@@ -112,7 +112,7 @@ fn deferring_policy(tuned: &EpisodePolicy, cap: u32) -> EpisodePolicy {
 /// This is the arrangement `docs/specs/expert-delegation.md` describes end to
 /// end — a member says "not mine", that promotes the topic to the contested
 /// one, and the directory decides who the vacated turn goes to.
-fn knowing_deferring_policy(tuned: &EpisodePolicy, cap: u32) -> EpisodePolicy {
+pub(crate) fn knowing_deferring_policy(tuned: &EpisodePolicy, cap: u32) -> EpisodePolicy {
     EpisodePolicy {
         directory: Some(DirectoryPolicy::DEFAULT),
         defer_cap: Some(cap.max(1)),
@@ -121,7 +121,7 @@ fn knowing_deferring_policy(tuned: &EpisodePolicy, cap: u32) -> EpisodePolicy {
 }
 
 /// The refuting policy with grounds weighed by evidential depth as well.
-fn evidential_policy(tuned: &EpisodePolicy) -> EpisodePolicy {
+pub(crate) fn evidential_policy(tuned: &EpisodePolicy) -> EpisodePolicy {
     let refuting = refuting_policy(tuned);
     EpisodePolicy {
         quorum: QuorumPolicy {
@@ -143,12 +143,12 @@ fn evidential_policy(tuned: &EpisodePolicy) -> EpisodePolicy {
 /// makes a larger room look worse than a smaller one — at a fixed twelve, an
 /// eight-member room fails to decide a third of the time and scores 64%; at
 /// twenty-four it decides 96% of the time and scores 88%.
-fn turn_budget(agents: usize) -> u32 {
+pub(crate) fn turn_budget(agents: usize) -> u32 {
     u32::try_from(agents).unwrap_or(5).saturating_mul(3).max(6)
 }
 
 /// The smallest majority of a desk that still leaves one member to spare.
-fn quorum_threshold(agents: usize) -> u32 {
+pub(crate) fn quorum_threshold(agents: usize) -> u32 {
     let agents = u32::try_from(agents).unwrap_or(u32::MAX);
     let majority = agents / 2 + 1;
     majority.min(agents.saturating_sub(1)).max(2)
