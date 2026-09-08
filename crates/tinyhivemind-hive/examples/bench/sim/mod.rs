@@ -58,9 +58,10 @@ mod agent;
 mod generation;
 mod view;
 
+use agent::Holdings;
 use generation::{MemberDraw, draw_expertise, hidden_profile_agent, selfcheck_uniform, specialist_agent};
 
-pub(crate) use agent::{CheckStyle, Holdings, SimAgent};
+pub(crate) use agent::{CheckStyle, SimAgent};
 pub(crate) use view::check_selfcheck;
 
 /// Names drawn on, in order, for a room's options.
