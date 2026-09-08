@@ -112,11 +112,11 @@ pub trait Digester: Send + Sync {
 /// one enormous one, and no row is ever stepped over.
 #[must_use]
 pub fn plan_digest(
-    held: Option<&ChannelDigest>,
+    account: Option<&ChannelDigest>,
     head: Sequence,
     policy: DigestPolicy,
 ) -> DigestPlan {
-    let folded = held.map_or(0, |digest| digest.through.0);
+    let folded = account.map_or(0, |digest| digest.through.0);
     let Some(ceiling) = head.0.checked_sub(policy.keep_live as u64) else {
         return DigestPlan::Current;
     };
@@ -125,7 +125,7 @@ pub fn plan_digest(
     }
     let step = folded.saturating_add(policy.input_limit as u64);
     DigestPlan::Fold {
-        after: held.map(|digest| digest.through),
+        after: account.map(|digest| digest.through),
         through: Sequence(ceiling.min(step)),
     }
 }
@@ -205,7 +205,7 @@ pub async fn collect_digest_input(
 /// replaces. It is not a crate error because nothing is lost by it: the held
 /// account and the live tail both still stand.
 pub fn accept_digest(
-    held: Option<&ChannelDigest>,
+    account: Option<&ChannelDigest>,
     request: &DigestRequest,
     text: &str,
 ) -> std::result::Result<ChannelDigest, DigestRejection> {
@@ -220,19 +220,19 @@ pub fn accept_digest(
             actual,
         });
     }
-    if let Some(held) = held
-        && request.through <= held.through
+    if let Some(account) = account
+        && request.through <= account.through
     {
         return Err(DigestRejection::Regressed {
             through: request.through,
-            held: held.through,
+            held: account.through,
         });
     }
     Ok(ChannelDigest {
         conversation: request.conversation.clone(),
         through: request.through,
-        covered: held.map_or(0, |digest| digest.covered) + request.messages.len() as u64,
-        generation: held.map_or(0, |digest| digest.generation) + 1,
+        covered: account.map_or(0, |digest| digest.covered) + request.messages.len() as u64,
+        generation: account.map_or(0, |digest| digest.generation) + 1,
         text: text.to_string(),
     })
 }
@@ -252,19 +252,19 @@ pub async fn refold(
     log: &(dyn SessionLog + '_),
     digester: Option<&(dyn Digester + '_)>,
     conversation: &Conversation,
-    held: Option<&ChannelDigest>,
+    account: Option<&ChannelDigest>,
     head: Sequence,
     policy: DigestPolicy,
 ) -> Result<DigestOutcome> {
-    if let Some(held) = held
-        && !held.conversation.equivalent_to(conversation)
+    if let Some(account) = account
+        && !account.conversation.equivalent_to(conversation)
     {
         return Err(Error::DigestConversationChanged {
-            held: held.conversation.desk_id.clone(),
+            held: account.conversation.desk_id.clone(),
             requested: conversation.desk_id.clone(),
         });
     }
-    let DigestPlan::Fold { after, through } = plan_digest(held, head, policy) else {
+    let DigestPlan::Fold { after, through } = plan_digest(account, head, policy) else {
         return Ok(DigestOutcome::Current);
     };
     let Some(digester) = digester else {
@@ -275,17 +275,17 @@ pub async fn refold(
         // Every row in the step was private, empty, or another channel's.
         // There is nothing to say about it, but the account must still advance
         // or the same empty step is planned forever.
-        return Ok(match held {
-            Some(held) => DigestOutcome::Folded(ChannelDigest {
+        return Ok(match account {
+            Some(account) => DigestOutcome::Folded(ChannelDigest {
                 through,
-                ..held.clone()
+                ..account.clone()
             }),
             None => DigestOutcome::Current,
         });
     }
     let request = DigestRequest {
         conversation: conversation.clone(),
-        prior: held.map(|digest| digest.text.clone()),
+        prior: account.map(|digest| digest.text.clone()),
         messages,
         through,
         budget_chars: policy.budget_chars,
@@ -293,7 +293,7 @@ pub async fn refold(
     let Ok(text) = digester.digest(&request).await else {
         return Ok(DigestOutcome::Unavailable);
     };
-    Ok(match accept_digest(held, &request, &text) {
+    Ok(match accept_digest(account, &request, &text) {
         Ok(digest) => DigestOutcome::Folded(digest),
         Err(reason) => DigestOutcome::Rejected { reason },
     })
@@ -305,8 +305,8 @@ pub async fn refold(
 /// would otherwise be shown twice, once as a summary and once in full, and a
 /// window spent on both is a window spent on neither.
 #[must_use]
-pub fn apply_digest(held: Option<&ChannelDigest>, messages: &[SessionMessage]) -> DigestedHistory {
-    let Some(held) = held else {
+pub fn apply_digest(account: Option<&ChannelDigest>, messages: &[SessionMessage]) -> DigestedHistory {
+    let Some(account) = account else {
         return DigestedHistory {
             digest: None,
             covered_through: None,
@@ -314,11 +314,11 @@ pub fn apply_digest(held: Option<&ChannelDigest>, messages: &[SessionMessage]) -
         };
     };
     DigestedHistory {
-        digest: Some(held.text.clone()),
-        covered_through: Some(held.through),
+        digest: Some(account.text.clone()),
+        covered_through: Some(account.through),
         messages: messages
             .iter()
-            .filter(|message| message.sequence > held.through)
+            .filter(|message| message.sequence > account.through)
             .cloned()
             .collect(),
     }
