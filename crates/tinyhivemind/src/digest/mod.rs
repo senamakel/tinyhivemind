@@ -305,7 +305,10 @@ pub async fn refold(
 /// would otherwise be shown twice, once as a summary and once in full, and a
 /// window spent on both is a window spent on neither.
 #[must_use]
-pub fn apply_digest(account: Option<&ChannelDigest>, messages: &[SessionMessage]) -> DigestedHistory {
+pub fn apply_digest(
+    account: Option<&ChannelDigest>,
+    messages: &[SessionMessage],
+) -> DigestedHistory {
     let Some(account) = account else {
         return DigestedHistory {
             digest: None,

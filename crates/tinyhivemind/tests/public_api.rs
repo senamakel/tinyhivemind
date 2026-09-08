@@ -454,7 +454,10 @@ fn root_exports_channel_compaction() {
         ..folded.clone()
     };
     let history = apply_digest(Some(&account), &[folded, live.clone()]);
-    assert_eq!(history.digest.as_deref(), Some("the room verified B at 10^18"));
+    assert_eq!(
+        history.digest.as_deref(),
+        Some("the room verified B at 10^18")
+    );
     assert_eq!(history.covered_through, Some(Sequence(60)));
     assert_eq!(history.messages, vec![live]);
 
