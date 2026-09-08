@@ -71,7 +71,7 @@ fn a_commit_trace_before_the_commit_boundary_does_not_converge() {
     // turn recorded anything.
     let mut transcript = vec![
         said(1, "planner", "!commit #stage Locking this in early."),
-        super::support::operator(2, "Decide how to roll this out."),
+        operator(2, "Decide how to roll this out."),
         said(3, "planner", "!propose #stage Stage the rollout."),
         said(4, "critic", "!support #stage ^3 Bounds the blast radius."),
     ];
@@ -120,7 +120,7 @@ fn the_commit_phase_is_one_way_when_support_later_decays_out() {
 #[test]
 fn traces_at_or_below_the_watermark_are_context_not_votes() {
     let room = Room::new();
-    let opened_late = EpisodeState::opened(super::support::conversation(), Sequence(3));
+    let opened_late = EpisodeState::opened(conversation(), Sequence(3));
     // The whole converging exchange sits at or below the watermark.
     let step = run(&room, &opened_late, &converging(), &EpisodePolicy::DEFAULT);
     let turn = speaking(step);
