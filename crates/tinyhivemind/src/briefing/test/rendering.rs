@@ -5,25 +5,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::super::*;
-use super::support::{briefing_with, permissive};
+use super::support::{briefed_viewer, briefing_with, permissive};
 use tinyhivemind_core::aside::AsidePolicy;
 use tinyhivemind_core::dispatch::MentionDispatchPolicy;
-
-fn briefed_viewer() -> TeamBriefing {
-    TeamBriefing {
-        viewer_id: "alice".into(),
-        desk_id: "engineering".into(),
-        desk_name: "Engineering".into(),
-        teammates: vec![BriefedTeammate {
-            id: "bob".into(),
-            label: "Bob".into(),
-            role: Some("reviewer".into()),
-            description: Some("Checks safety".into()),
-        }],
-        brevity: BrevityPolicy::DEFAULT,
-        asides: AsidePolicy::DEFAULT,
-    }
-}
 
 #[test]
 fn system_text_is_deterministic_and_states_coordination_rules() {
