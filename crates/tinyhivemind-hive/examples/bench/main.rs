@@ -101,7 +101,13 @@ use std::time::Instant;
 
 use tinyhivemind_hive::EpisodePolicy;
 
-use crate::cli::{Mode, Options};
+use crate::cli::Mode;
+// Re-exported rather than plainly imported: `live/mod.rs` still names these
+// as `crate::Options`, `crate::seat_command` and `crate::seat_model`, from
+// when they lived at the crate root, and a re-export keeps that call site
+// working without reaching into a module this pass does not touch.
+pub(crate) use crate::backend::{seat_command, seat_model};
+pub(crate) use crate::cli::Options;
 use crate::compare::compare;
 use crate::live_single::live_episode;
 use crate::live_swarm::swarm_compare;
