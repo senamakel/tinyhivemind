@@ -6,6 +6,7 @@ shares; the rest follow the seams `step`'s own implementation is split along.
 
 | file | covers |
 | --- | --- |
+| [`mod.rs`](mod.rs) | Wires the submodules together; carries no tests of its own. |
 | [`support.rs`](support.rs) | Shared fixtures: a three-member `Room`, transcript builders (a message, an aside, an operator notice), and the `run`/`speaking` helpers most tests drive `step` through. |
 | [`turn_dynamics.rs`](turn_dynamics.rs) | Per-turn attention dynamics: blind visibility during the opening round, and the threshold charge that rotates the floor. |
 | [`quorum_and_convergence.rs`](quorum_and_convergence.rs) | The one-way `Deliberate` → `Commit` phase flip, and that convergence requires a `!commit` naming the carried topic strictly after that boundary. |
