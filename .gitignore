@@ -27,3 +27,7 @@ worktrees/*
 # Profiler output
 perf.data
 perf.data.old
+
+# Python bytecode from agent runs that resolved writes against the repo root
+__pycache__/
+*.pyc
