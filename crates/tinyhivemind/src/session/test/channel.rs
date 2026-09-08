@@ -201,4 +201,3 @@ async fn channel_projection_stops_reading_once_the_window_is_met() {
     );
     assert_eq!(log.call_count(), 1);
 }
-

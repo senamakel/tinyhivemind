@@ -179,4 +179,3 @@ async fn scan_cap_is_a_successful_partial_projection() {
     );
     assert_eq!(log.call_count(), 4);
 }
-

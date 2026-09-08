@@ -270,4 +270,3 @@ fn session_log_is_object_safe() {
     fn accepts_object(_: &dyn SessionLog) {}
     accepts_object(&FakeLog::new(Vec::new()));
 }
-

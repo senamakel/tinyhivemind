@@ -7,12 +7,7 @@
 //! without chasing five helpers. `crosstalk` makes the same trade with
 //! `too_many_arguments`.
 
-use std::{
-    collections::HashMap,
-    fs,
-    sync::PoisonError,
-    time::Duration,
-};
+use std::{collections::HashMap, fs, sync::PoisonError, time::Duration};
 
 use tinyhivemind::{
     BrevityPolicy, BriefedTeammate, Conversation, MentionDispatchOutcome, SessionAuthor,
@@ -31,7 +26,10 @@ use tinyhivemind::{
 };
 
 use crate::{
-    BoxError, agent, aside, chat, cli::Options, deskfile, log, memory, prompt::compose_prompt,
+    BoxError, agent, aside, chat,
+    cli::Options,
+    deskfile, log, memory,
+    prompt::compose_prompt,
     queue::{DeskQueue, PendingTurn},
 };
 
