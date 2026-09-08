@@ -44,7 +44,11 @@ pub(super) struct Board<'a> {
 
 impl<'a> Board<'a> {
     /// Set up a fresh scheduler for one federation-wide run.
-    pub(super) fn new(channels: &'a [Channel], referrals: ReferralPolicy, keep_trace: bool) -> Self {
+    pub(super) fn new(
+        channels: &'a [Channel],
+        referrals: ReferralPolicy,
+        keep_trace: bool,
+    ) -> Self {
         let count = channels.len();
         Self {
             host: SwarmHost::new(channels),
@@ -193,9 +197,13 @@ impl<'a> Board<'a> {
             self.report.defers = self.report.defers.saturating_add(1);
         }
         if self.keep_trace {
-            self.report
-                .trace
-                .push(format::line(self.channels, desk, sequence, agent_id, content));
+            self.report.trace.push(format::line(
+                self.channels,
+                desk,
+                sequence,
+                agent_id,
+                content,
+            ));
         }
         sequence
     }

@@ -5,7 +5,7 @@
 //! can carry a topic there at all.
 
 use super::super::*;
-use super::support::{Room, conversation, converging, operator, run, said, speaking, state};
+use super::support::{Room, converging, conversation, operator, run, said, speaking, state};
 use crate::trace::TopicId;
 
 #[test]

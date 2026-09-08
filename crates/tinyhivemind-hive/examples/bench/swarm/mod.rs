@@ -103,7 +103,8 @@ pub(crate) trait SwarmMember {
     ///
     /// Returns a host-side failure, such as an agent process that did not
     /// answer.
-    fn answer(&mut self, incoming: &Referral, visible: &[SessionMessage]) -> Result<String, String>;
+    fn answer(&mut self, incoming: &Referral, visible: &[SessionMessage])
+    -> Result<String, String>;
 
     /// Take in whatever a message just appended to this desk carries.
     ///
@@ -300,7 +301,10 @@ pub(crate) fn drive_swarm(
 
     let mut states: Vec<EpisodeState> = (0..count)
         .map(|desk| {
-            EpisodeState::opened(board.host().conversation(desk), board.host().watermark(desk))
+            EpisodeState::opened(
+                board.host().conversation(desk),
+                board.host().watermark(desk),
+            )
         })
         .collect();
     let mut finished: Vec<Option<DeskOutcome>> = vec![None; count];
@@ -323,7 +327,13 @@ pub(crate) fn drive_swarm(
                 let host = board.host();
                 let roster = host.roster();
                 let desk_set = host.desks();
-                step(&states[desk], &host.journals[desk], &roster, &desk_set, policy)
+                step(
+                    &states[desk],
+                    &host.journals[desk],
+                    &roster,
+                    &desk_set,
+                    policy,
+                )
             };
             board.add_library_time(started.elapsed());
 
@@ -342,7 +352,8 @@ pub(crate) fn drive_swarm(
                     ));
                 }
                 HiveStep::Deadlocked { .. } => {
-                    finished[desk] = Some(member::outcome(channels, desk, Ending::Deadlocked, None));
+                    finished[desk] =
+                        Some(member::outcome(channels, desk, Ending::Deadlocked, None));
                 }
                 HiveStep::Exhausted { .. } => {
                     finished[desk] = Some(member::outcome(channels, desk, Ending::Exhausted, None));

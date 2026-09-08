@@ -68,7 +68,12 @@ pub(super) fn operator(sequence: u64, content: &str) -> SessionMessage {
 }
 
 /// One row addressed privately to `members`.
-pub(super) fn aside(sequence: u64, author: &str, members: &[&str], content: &str) -> SessionMessage {
+pub(super) fn aside(
+    sequence: u64,
+    author: &str,
+    members: &[&str],
+    content: &str,
+) -> SessionMessage {
     SessionMessage {
         audience: Audience::Aside {
             members: members.iter().map(|member| (*member).to_owned()).collect(),

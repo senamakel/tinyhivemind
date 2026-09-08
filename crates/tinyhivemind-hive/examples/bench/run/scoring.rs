@@ -12,7 +12,7 @@ use std::time::Duration;
 use tinyhivemind_hive::{
     BidReason, Directory, HiveTurn, Phase, Sequence, SessionAuthor, SessionMessage,
     aside::AsidePolicy,
-    trace::{Trace, TopicId, TraceKind, resolve},
+    trace::{TopicId, Trace, TraceKind, resolve},
 };
 
 use crate::metrics::spearman_milli;
