@@ -66,10 +66,63 @@ information.
 | `--cortex-base URL` | CortexDB root; `CORTEX_API_KEY` supplies the key |
 | `--library-scope` `--session-scope` | the durable and per-run memory scopes |
 | `--no-memory` | run with no recall and no capture |
+| `--no-digest` | do not fold older messages into the room's account |
+| `--mcp-server --outbox PATH` | serve the desk tools over stdio; the binary re-execs itself into this mode and takes no turn |
 
 `OPENCODE_CONFIG_CONTENT` is passed through to the agent process, which is how
 a run pins one model — for instance a ladder rung that only ever serves
-`deepseek-v4-pro`.
+`deepseek-v4-pro`. The host **merges its own MCP block into it** before
+handing it over, so whatever the variable already said is kept and the desk
+tools are added. Without a provider block in it, the agent CLI falls back to
+whatever it is configured with by default, which on this box is a local model
+that is not running: a run that answers `Unexpected server error` on turn 1 is
+usually a missing `OPENCODE_CONFIG_CONTENT`, not a broken desk.
+
+## Speaking is a tool call
+
+A seat says one thing per turn by **calling a tool**, not by writing a marker:
+
+| tool | what it does |
+| --- | --- |
+| `desk_post(message)` | say one thing to the whole desk |
+| `desk_dm(to[], message)` | say it to named seats instead |
+| `desk_read(limit)` | read further back than the window it was handed |
+
+Text a seat produces outside a tool call is its own thinking and reaches
+nobody. The reason is a defect: in run 26 a seat closed with `<<<POST>>> …
+<<<POST>>>` rather than `<<<POST … POST>>>` and a verified result reached the
+room as the three characters `>>>`. A model-authored delimiter is an interface
+with a fallible producer, and it has no schema and no way to tell the producer
+it got it wrong; a tool call has both, and a malformed one is refused to the
+seat while it can still fix it.
+
+`mcp.rs` is that server, and it is this same binary re-executed
+(`--mcp-server`). It never writes the transcript. It appends to a per-turn
+outbox the host truncates before the turn and drains after it, so sequence
+assignment, audience resolution through `aside`, mention resolution and
+dispatch all stay exactly where they were — a tool call is a *request* to
+speak. `desk_dm` in particular goes through the same aside policy as `!aside`
+and can be refused, leaving the row desk-visible. The fence still works, as a
+documented fallback for an agent CLI that cannot reach the tools.
+
+## The room's standing account
+
+A window is not a memory. Everything older than the live window is folded into
+one **account** — bounded, rewritten as the room moves, always covering
+strictly more than before — which is placed in every prompt under `## The room
+before that`, ahead of the messages it does not cover. That is
+`tinyhivemind::digest`; `digest.rs` here is the host's side of its `Digester`
+port, one tool-less completion through the same router the wrap-up uses.
+
+Three properties are worth knowing while reading a run:
+
+- **It folds only desk-visible rows.** One account serves every seat, including
+  one that has never spoken, and no fold can launder an aside into a shared
+  summary.
+- **It is lossy and says so.** Every message it stands for is still in the
+  transcript at the number it cites, and `desk_read` reaches it.
+- **A fold that fails costs the compaction and nothing else.** The window is
+  already correct without one.
 
 ## Private asides
 
