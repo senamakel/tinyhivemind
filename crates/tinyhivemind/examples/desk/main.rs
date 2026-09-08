@@ -546,7 +546,7 @@ async fn main() -> Result<(), BoxError> {
             seat,
             &job,
             &recalled,
-            &notebook,
+            notebook.as_deref(),
         );
         println!(
             "[turn {turns}] @{} ({} chars of prompt, {} {} message(s){}, notebook {})",
@@ -802,7 +802,7 @@ fn compose_prompt(
     seat: &deskfile::AgentSpec,
     job: &PendingTurn,
     recalled: &str,
-    notebook: &Option<String>,
+    notebook: Option<&str>,
 ) -> String {
     let mut prompt = match briefing {
         Some(text) => text.to_string(),
