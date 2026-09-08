@@ -14,8 +14,11 @@ fn scratch(name: &str) -> PathBuf {
 fn drains_a_post_and_a_dm_in_the_order_they_were_said() {
     let outbox = scratch("outbox").join("said.jsonl");
     clear_outbox(&outbox);
-    append(&outbox, &serde_json::json!({"kind":"post","message":"B holds at 10^18"}))
-        .expect("appends");
+    append(
+        &outbox,
+        &serde_json::json!({"kind":"post","message":"B holds at 10^18"}),
+    )
+    .expect("appends");
     append(
         &outbox,
         &serde_json::json!({"kind":"dm","to":["@checker"],"message":"recheck the depth"}),
@@ -40,8 +43,11 @@ fn drains_a_post_and_a_dm_in_the_order_they_were_said() {
 #[test]
 fn a_cleared_outbox_holds_nothing_from_the_turn_before() {
     let outbox = scratch("cleared").join("said.jsonl");
-    append(&outbox, &serde_json::json!({"kind":"post","message":"last turn"}))
-        .expect("appends");
+    append(
+        &outbox,
+        &serde_json::json!({"kind":"post","message":"last turn"}),
+    )
+    .expect("appends");
     clear_outbox(&outbox);
     assert!(drain_outbox(&outbox).is_empty());
 }
@@ -222,7 +228,11 @@ fn reading_the_desk_shows_only_what_every_member_may_read() {
 fn reading_a_desk_that_has_not_spoken_says_so() {
     let request = serde_json::json!({ "params": { "name": "read", "arguments": {} } });
     assert_eq!(
-        call(&request, Path::new("/nope"), Path::new("/nonexistent.jsonl")),
+        call(
+            &request,
+            Path::new("/nope"),
+            Path::new("/nonexistent.jsonl")
+        ),
         Ok("(the desk has no messages yet)".into())
     );
 }

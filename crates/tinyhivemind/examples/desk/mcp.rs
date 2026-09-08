@@ -129,9 +129,7 @@ pub(crate) fn config_block(
         ],
     });
     let object = config.as_object_mut().unwrap_or_else(|| unreachable!());
-    let servers = object
-        .entry("mcp")
-        .or_insert_with(|| serde_json::json!({}));
+    let servers = object.entry("mcp").or_insert_with(|| serde_json::json!({}));
     if let Some(servers) = servers.as_object_mut() {
         servers.insert("desk".into(), block);
     }
@@ -267,11 +265,7 @@ fn tools() -> serde_json::Value {
     ])
 }
 
-fn call(
-    request: &serde_json::Value,
-    outbox: &Path,
-    transcript: &Path,
-) -> Result<String, String> {
+fn call(request: &serde_json::Value, outbox: &Path, transcript: &Path) -> Result<String, String> {
     let name = request
         .pointer("/params/name")
         .and_then(serde_json::Value::as_str)
@@ -283,7 +277,10 @@ fn call(
     match name {
         "post" => {
             let message = text_argument(&arguments, "message")?;
-            append(outbox, &serde_json::json!({ "kind": "post", "message": message }))?;
+            append(
+                outbox,
+                &serde_json::json!({ "kind": "post", "message": message }),
+            )?;
             Ok("posted to the desk".into())
         }
         "dm" => {
@@ -359,7 +356,11 @@ fn recent(transcript: &Path, limit: usize) -> String {
         // A private row is not readable through this tool. The host projects
         // what a viewer may see; this server knows no viewer, so it shows only
         // what every member may read.
-        if row.pointer("/audience/kind").and_then(serde_json::Value::as_str) != Some("desk") {
+        if row
+            .pointer("/audience/kind")
+            .and_then(serde_json::Value::as_str)
+            != Some("desk")
+        {
             continue;
         }
         let who = row

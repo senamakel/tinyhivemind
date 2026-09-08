@@ -62,7 +62,11 @@ fn compose(request: &DigestRequest) -> String {
             SessionAuthor::Operator => "operator".to_string(),
             SessionAuthor::System { kind, .. } => format!("system/{kind}"),
         };
-        let _ = write!(prompt, "\n[{}] {who}: {}\n", message.sequence.0, message.content);
+        let _ = write!(
+            prompt,
+            "\n[{}] {who}: {}\n",
+            message.sequence.0, message.content
+        );
     }
     let _ = write!(
         prompt,

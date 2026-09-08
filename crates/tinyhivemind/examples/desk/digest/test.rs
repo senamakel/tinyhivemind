@@ -45,7 +45,10 @@ fn request(prior: Option<&str>) -> DigestRequest {
 #[test]
 fn asks_for_an_account_rather_than_a_summary_of_activity() {
     let prompt = compose(&request(None));
-    assert!(prompt.contains("stands for everything the room said"), "{prompt}");
+    assert!(
+        prompt.contains("stands for everything the room said"),
+        "{prompt}"
+    );
     assert!(prompt.contains("At most 4000 characters"), "{prompt}");
     assert!(
         prompt.contains("Never write a number the messages above do not contain"),
@@ -68,7 +71,10 @@ fn hands_the_prior_account_over_to_be_rewritten_not_appended_to() {
 #[test]
 fn renders_every_author_kind_the_room_can_carry() {
     let prompt = compose(&request(None));
-    assert!(prompt.contains("[7] @solver: B(g,10^18) = 79414112"), "{prompt}");
+    assert!(
+        prompt.contains("[7] @solver: B(g,10^18) = 79414112"),
+        "{prompt}"
+    );
     assert!(
         prompt.contains("[8] system/workspace: @solver wrote psi_sublinear.py"),
         "{prompt}"

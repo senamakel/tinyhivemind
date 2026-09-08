@@ -20,8 +20,8 @@ mod chat;
 mod deskfile;
 mod digest;
 mod log;
-mod memory;
 mod mcp;
+mod memory;
 
 use std::{
     collections::{HashMap, VecDeque},
@@ -35,7 +35,7 @@ use std::{
 use tinyhivemind::{
     BrevityPolicy, BriefedTeammate, ChannelDigest, Conversation, DigestOutcome, DigestPolicy,
     EnqueueOutcome, MentionDispatchOutcome, MentionTurnFuture, MentionTurnQueue, Sequence,
-    SessionAuthor, SessionMessage, SessionQuery, TeamBriefing, apply_digest, refold,
+    SessionAuthor, SessionMessage, SessionQuery, TeamBriefing, apply_digest,
     aside::{AsideDecision, AsideInput, AsidePolicy, Audience, Viewer, aside},
     desk::{Desk, DeskSet, ResponderMode},
     dispatch::{
@@ -44,6 +44,7 @@ use tinyhivemind::{
     },
     initialize_session,
     mention::{Mention, MentionAuthor, MentionTarget, resolve},
+    refold,
     responder::{ResponderRequest, SelectionPolicy, choose_responder},
     roster::{Person, Roster, RosterMember},
     sharing::{SharingPlan, SharingQuery, SharingState, initialized_state, prepare_delta},
@@ -312,8 +313,10 @@ async fn main() -> Result<(), BoxError> {
             options.opencode_config.as_deref(),
         )),
         Err(error) => {
-            println!("!! cannot find this binary to serve the desk tools ({error}); seats will \
-                      fall back to the post fence");
+            println!(
+                "!! cannot find this binary to serve the desk tools ({error}); seats will \
+                      fall back to the post fence"
+            );
             options.opencode_config.clone()
         }
     };
@@ -547,7 +550,9 @@ async fn main() -> Result<(), BoxError> {
         // one.
         match refold(
             &transcript,
-            folder.as_ref().map(|folder| folder as &dyn tinyhivemind::Digester),
+            folder
+                .as_ref()
+                .map(|folder| folder as &dyn tinyhivemind::Digester),
             &conversation,
             account.as_ref(),
             Sequence(transcript.len() as u64),
@@ -650,10 +655,7 @@ async fn main() -> Result<(), BoxError> {
         // window is spent on the live conversation.
         // A seat that is only being caught up already holds the older history
         // in its own session, so the account is not repeated to it.
-        let composed = apply_digest(
-            if catching_up { None } else { account.as_ref() },
-            &window,
-        );
+        let composed = apply_digest(if catching_up { None } else { account.as_ref() }, &window);
         let history = composed.messages;
         let notebook = read_notebook(&options.workspace, &seat.id);
         let prompt = compose_prompt(
@@ -942,10 +944,7 @@ fn settle(outbox: &Path, output: &mut agent::TurnOutput) -> Vec<String> {
         return Vec::new();
     };
     if said.len() > 1 {
-        println!(
-            "   {} messages this turn; the last one stands",
-            said.len()
-        );
+        println!("   {} messages this turn; the last one stands", said.len());
     }
     output.message = utterance.message().to_string();
     output.posted = true;
