@@ -7,6 +7,7 @@ use super::support::{
     MEMBERS, Room, converging, conversation, operator, run, said, speaking, state,
 };
 use crate::attention::BidReason;
+use tinyhivemind::Sequence;
 use tinyhivemind::aside::Audience;
 
 #[test]
