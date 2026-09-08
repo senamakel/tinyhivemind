@@ -3,8 +3,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::super::*;
-use super::support::state;
+use super::support::{engineering, state};
+use crate::SessionAuthor;
 use std::collections::BTreeSet;
+use tinyhivemind_core::aside::Audience;
 
 #[test]
 fn sharing_values_pin_deterministic_wire_shapes() {
