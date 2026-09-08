@@ -26,7 +26,7 @@ use std::{
     error::Error as StdError,
     fmt::Write as _,
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex, PoisonError},
     time::Duration,
 };
