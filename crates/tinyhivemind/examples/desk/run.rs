@@ -135,7 +135,7 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
     let brief = fs::read_to_string(&options.task)?;
     let mut sequence = transcript.append(
         Some(spec.id.clone()),
-        tinyhivemind::SessionAuthor::Person {
+        SessionAuthor::Person {
             id: spec.person_id.clone(),
             label: spec.person_label.clone(),
         },
