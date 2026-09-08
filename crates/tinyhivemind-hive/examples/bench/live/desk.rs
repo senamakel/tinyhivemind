@@ -12,6 +12,7 @@ use tinyhivemind_hive::referral::{Referral, ReferralKind};
 
 use super::AgentPrompt;
 use super::agent::LiveAgent;
+use crate::run::Participant;
 use crate::swarm::SwarmMember;
 
 /// The one extra move a member of a *federation* has.
