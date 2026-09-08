@@ -163,7 +163,6 @@ async fn sparse_pages_continue_until_any_raw_row_crosses_watermark() {
     assert_eq!(log.calls(), 3);
 }
 
-
 #[tokio::test]
 async fn read_errors_propagate_without_mutating_input() {
     let log = FakeLog::failing();
@@ -303,4 +302,3 @@ async fn simulated_compare_and_swap_commits_only_the_winning_next_state() {
 // ---------------------------------------------------------------------------
 // Private asides
 // ---------------------------------------------------------------------------
-

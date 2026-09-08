@@ -83,7 +83,6 @@ fn sharing_values_pin_deterministic_wire_shapes() {
     );
 }
 
-
 #[test]
 fn sharing_state_deserialization_rejects_an_oversized_present_set() {
     let mut value = serde_json::to_value(state(10)).expect("serializes");
@@ -92,4 +91,3 @@ fn sharing_state_deserialization_rejects_an_oversized_present_set() {
     let error = serde_json::from_value::<SharingState>(value).expect_err("rejects 65 entries");
     assert!(error.to_string().contains("present set has 65 entries"));
 }
-

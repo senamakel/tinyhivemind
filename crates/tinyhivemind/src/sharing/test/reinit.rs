@@ -80,7 +80,6 @@ async fn equal_bound_is_empty_and_keeps_state_without_reading() {
     assert_eq!(log.calls(), 0);
 }
 
-
 #[tokio::test]
 async fn exhaustion_above_watermark_requests_reinitialization() {
     let log = FakeLog::new(vec![page(
@@ -113,4 +112,3 @@ async fn scan_cap_above_watermark_requests_gap_reinitialization() {
         }
     );
 }
-

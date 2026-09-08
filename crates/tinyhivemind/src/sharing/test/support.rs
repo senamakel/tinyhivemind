@@ -75,7 +75,12 @@ pub(super) fn engineering() -> Conversation {
 }
 
 /// A raw agent-authored row at `sequence`, addressed to `chat` and `parent`.
-pub(super) fn raw(sequence: u64, chat: Option<&str>, parent: Option<u64>, content: &str) -> LogMessage {
+pub(super) fn raw(
+    sequence: u64,
+    chat: Option<&str>,
+    parent: Option<u64>,
+    content: &str,
+) -> LogMessage {
     LogMessage {
         sequence: Sequence(sequence),
         chat_id: chat.map(str::to_owned),

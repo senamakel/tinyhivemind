@@ -73,7 +73,6 @@ fn note_present_rejects_an_already_oversized_manual_state_atomically() {
     assert_eq!(state, before);
 }
 
-
 #[tokio::test]
 async fn prepare_delta_rejects_an_oversized_manual_state_without_reading() {
     let log = FakeLog::new(Vec::new());
@@ -89,4 +88,3 @@ async fn prepare_delta_rejects_an_oversized_manual_state_without_reading() {
     ));
     assert_eq!(log.calls(), 0);
 }
-
