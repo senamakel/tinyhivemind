@@ -471,7 +471,7 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
                 None => "none".to_string(),
             }
         );
-        let Some((output, dm_to)) = turn::deliver(
+        let Some((output, said)) = turn::deliver(
             &turn::Delivery {
                 runner: &runner,
                 wrapup: &wrapup,
@@ -509,7 +509,8 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
         // A message sent through `desk_dm` addresses its recipients whether or
         // not its text also names them, and the grammar rather than this host
         // is what turns those names into targets.
-        let addressed_to = dm_to
+        let addressed_to = said
+            .dm_to
             .iter()
             .map(|id| format!("@{id}"))
             .collect::<Vec<_>>()
