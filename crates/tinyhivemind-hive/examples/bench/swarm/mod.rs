@@ -300,7 +300,7 @@ pub(crate) fn drive_swarm(
     let count = channels.len();
     let mut board = Board::new(channels, referrals, keep_trace);
     for desk in 0..count {
-        board.host().operator(desk, task);
+        board.host_mut().operator(desk, task);
     }
 
     let mut states: Vec<EpisodeState> = (0..count)
