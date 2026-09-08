@@ -250,7 +250,10 @@ fn settle(outbox: &Path, output: &mut agent::TurnOutput) -> Said {
         };
     };
     if spoken.len() > 1 {
-        println!("   {} messages this turn; the last one stands", spoken.len());
+        println!(
+            "   {} messages this turn; the last one stands",
+            spoken.len()
+        );
     }
     output.message = utterance.message().to_string();
     output.posted = true;

@@ -61,9 +61,7 @@ impl Utterance {
     /// The text of the message, whoever it is for.
     pub(crate) fn message(&self) -> &str {
         match self {
-            Self::Post { message }
-            | Self::Dm { message, .. }
-            | Self::Close { message } => message,
+            Self::Post { message } | Self::Dm { message, .. } | Self::Close { message } => message,
         }
     }
 }
