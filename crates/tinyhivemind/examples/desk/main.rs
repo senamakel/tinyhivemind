@@ -75,6 +75,20 @@ const LANDING_TIMEOUT: Duration = Duration::from_secs(720);
 /// How long a seat gets to write the message it never got round to writing.
 const WRAP_UP_TIMEOUT: Duration = Duration::from_secs(600);
 
+/// How much of its own notebook a seat is handed back.
+///
+/// The notebook is the fold a seat carries between turns — what it
+/// established, what it is mid-way through, what it would tell itself next —
+/// read verbatim at the top of its next turn. It is what a continuously
+/// contexted seat has for free and what a fresh process per turn lacks. The
+/// budget is stated to the seat and enforced on read, keeping the tail: a seat
+/// that rewrites has no age gradient and loses nothing that fits, and a seat
+/// that appended instead has its oldest material fall off first.
+const NOTEBOOK_CHARS: usize = 6000;
+
+/// Where a seat's notebook lives, under the shared workspace.
+const NOTEBOOK_DIR: &str = "notebooks";
+
 /// The error every host-side call in this example returns.
 type BoxError = Box<dyn StdError + Send + Sync + 'static>;
 
@@ -286,17 +300,29 @@ async fn main() -> Result<(), BoxError> {
 
     // The chair opens the room. A person's message cannot dispatch a turn —
     // only an agent reply can — so the responder ladder chooses who answers it.
+    //
+    // Appended once. A resumed transcript already opens with it, and every
+    // seat's prompt carries the standing brief regardless of what scrolled,
+    // so appending it again spends a window row on a thing that was already
+    // unavoidable — by run 26 five copies filled half of every seat's window.
     let brief = fs::read_to_string(&options.task)?;
-    let mut sequence = transcript.append(
-        Some(spec.id.clone()),
-        SessionAuthor::Person {
-            id: spec.person_id.clone(),
-            label: spec.person_label.clone(),
-        },
-        &brief,
-        Audience::Desk,
-    )?;
-    println!("[{sequence:?}] {} opened the desk", spec.person_label);
+    let mut sequence = if transcript.len() == 0 {
+        let sequence = transcript.append(
+            Some(spec.id.clone()),
+            SessionAuthor::Person {
+                id: spec.person_id.clone(),
+                label: spec.person_label.clone(),
+            },
+            &brief,
+            Audience::Desk,
+        )?;
+        println!("[{sequence:?}] {} opened the desk", spec.person_label);
+        sequence
+    } else {
+        let sequence = Sequence(transcript.len() as u64);
+        println!("[{sequence:?}] resumed; the brief is already the opening row");
+        sequence
+    };
 
     let opening_mentions = resolve(
         &brief,
@@ -512,14 +538,26 @@ async fn main() -> Result<(), BoxError> {
             .map(|store| store.recall(&job.trigger))
             .unwrap_or_default();
 
-        let prompt = compose_prompt(briefing_text.as_deref(), &history, seat, &job, &recalled);
+        let notebook = read_notebook(&options.workspace, &seat.id);
+        let prompt = compose_prompt(
+            briefing_text.as_deref(),
+            &history,
+            seat,
+            &job,
+            &recalled,
+            &notebook,
+        );
         println!(
-            "[turn {turns}] @{} ({} chars of prompt, {} {} message(s){})",
+            "[turn {turns}] @{} ({} chars of prompt, {} {} message(s){}, notebook {})",
             seat.id,
             prompt.len(),
             history.len(),
             if catching_up { "new" } else { "of history" },
-            if resumed.is_some() { ", resumed" } else { "" }
+            if resumed.is_some() { ", resumed" } else { "" },
+            match &notebook {
+                Some(text) => format!("{} chars", text.chars().count()),
+                None => "none".to_string(),
+            }
         );
         let mut output = runner.run(
             &prompt,
@@ -648,9 +686,10 @@ async fn main() -> Result<(), BoxError> {
             output.message = salvage;
         }
         println!(
-            "   {:?}, {} tokens, tools: {}",
+            "   {:?}, {} tokens, {} read(s), tools: {}",
             output.elapsed,
             output.tokens,
+            output.reads,
             if output.tools.is_empty() {
                 "none".to_string()
             } else {
@@ -696,6 +735,24 @@ async fn main() -> Result<(), BoxError> {
         )?;
         if let Some(store) = store.as_ref() {
             store.capture(&seat.id, sequence.0, &output.message);
+        }
+        // Feedthrough: the room is told what the turn wrote, by the host, in
+        // one row. A peer can then open the file instead of asking, and a
+        // result that missed the post is still pointed at. The notebook is the
+        // seat's own and is not announced.
+        let written = files_written(&output.files_written, &seat.id);
+        if !written.is_empty() {
+            let note = format!("@{} wrote {}", seat.id, written.join(", "));
+            println!("   {note}");
+            sequence = transcript.append(
+                Some(spec.id.clone()),
+                SessionAuthor::System {
+                    kind: "workspace".into(),
+                    label: "workspace".into(),
+                },
+                &note,
+                Audience::Desk,
+            )?;
         }
 
         let outcome = dispatch_mention(
@@ -744,6 +801,7 @@ fn compose_prompt(
     seat: &deskfile::AgentSpec,
     job: &PendingTurn,
     recalled: &str,
+    notebook: &Option<String>,
 ) -> String {
     let mut prompt = match briefing {
         Some(text) => text.to_string(),
@@ -758,6 +816,17 @@ fn compose_prompt(
     if !recalled.trim().is_empty() {
         prompt.push_str("\n\n## Desk memory (CortexDB)\n");
         prompt.push_str(recalled.trim());
+    }
+    // The seat's own prior context goes where prior context would have been:
+    // after who it is, before what the room said.
+    let _ = write!(
+        prompt,
+        "\n\n## Your notebook (private — `{NOTEBOOK_DIR}/{}.md`, carried from your last turn)\n",
+        seat.id
+    );
+    match notebook {
+        Some(text) => prompt.push_str(text),
+        None => prompt.push_str("(empty — you have not written one yet; start it this turn)"),
     }
     prompt.push_str(match briefing {
         Some(_) => "\n\n## The room so far\n",
@@ -783,15 +852,21 @@ fn compose_prompt(
     prompt.push_str("You were addressed by this message:\n\n");
     prompt.push_str(job.trigger.trim());
     prompt.push_str("\n\n");
-    prompt.push_str(
+    let _ = write!(
+        prompt,
         "Do the work first — use your tools, write and run code in this workspace, check \
          what you claim. Then post ONE message to the room.\n\n\
          You are stateless between turns. This process ends when you post, and the \
-         next turn starts a fresh one. Only three things survive: files in this \
-         workspace (shared with every seat), what you post to the room, and the \
-         desk memory. Before you post, write your working code and your notes to \
-         files — NOTES.md for what you established, and named .py files for code \
-         another seat can run — and say in your message which files you wrote.\n\n\
+         next turn starts a fresh one. Four things survive: your notebook, files in \
+         this workspace (shared with every seat), what you post to the room, and the \
+         desk memory. Before you post:\n\
+         - REWRITE `{dir}/{id}.md` — do not append to it. Write it as the message you \
+           want to receive from yourself next turn: what you established, what you \
+           are mid-way through, what you would do next, and which files hold what. \
+           You will be handed its last {budget} characters verbatim. Nobody else reads it.\n\
+         - Write working code to named .py files another seat can run, and what the \
+           room established to NOTES.md. The room is told which files you wrote; you \
+           do not have to list them.\n\n\
          Rules of the room:\n\
          - Exactly one seat speaks per message. Mentioning a teammate with @id runs \
            their turn next, and only the FIRST @mention in your message does that. \
@@ -808,8 +883,50 @@ fn compose_prompt(
            until you surface it.\n\
          - Wrap the message you want posted in <<<POST and POST>>>. Anything \
            outside those markers is not posted.\n",
+        dir = NOTEBOOK_DIR,
+        id = seat.id,
+        budget = NOTEBOOK_CHARS,
     );
     prompt
+}
+
+/// Read back the tail of a seat's notebook, within budget.
+///
+/// `None` when the seat has not written one. The file is never rewritten by
+/// the host: an overrun is truncated on read and reported in the first line,
+/// so the seat sees its own overrun and the file stays what the seat wrote.
+fn read_notebook(workspace: &Path, seat_id: &str) -> Option<String> {
+    let path = workspace.join(NOTEBOOK_DIR).join(format!("{seat_id}.md"));
+    let text = fs::read_to_string(path).ok()?;
+    let text = text.trim();
+    if text.is_empty() {
+        return None;
+    }
+    let total = text.chars().count();
+    if total <= NOTEBOOK_CHARS {
+        return Some(text.to_string());
+    }
+    let dropped = total - NOTEBOOK_CHARS;
+    let start = text
+        .char_indices()
+        .nth(dropped)
+        .map_or(text.len(), |(at, _)| at);
+    Some(format!(
+        "(your notebook is {total} characters against a budget of {NOTEBOOK_CHARS}; the first \
+         {dropped} were dropped — rewrite it shorter)\n{}",
+        &text[start..]
+    ))
+}
+
+/// The base names a turn wrote, with the seat's own notebook left out.
+fn files_written(paths: &[String], seat_id: &str) -> Vec<String> {
+    let own = format!("{NOTEBOOK_DIR}/{seat_id}.md");
+    paths
+        .iter()
+        .filter(|path| !path.ends_with(&own))
+        .filter_map(|path| Path::new(path).file_name())
+        .map(|name| name.to_string_lossy().into_owned())
+        .collect()
 }
 
 /// Decide who one authored line is addressed to.
