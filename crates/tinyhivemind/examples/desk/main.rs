@@ -648,8 +648,10 @@ async fn main() -> Result<(), BoxError> {
 
         // A row the account already stands for is not also shown in full. The
         // window is spent on the live conversation.
+        // A seat that is only being caught up already holds the older history
+        // in its own session, so the account is not repeated to it.
         let composed = apply_digest(
-            catching_up.then_some(None).flatten().or(account.as_ref()),
+            if catching_up { None } else { account.as_ref() },
             &window,
         );
         let history = composed.messages;
@@ -821,15 +823,22 @@ async fn main() -> Result<(), BoxError> {
             println!("   | {line}");
         }
 
-        let mentions = resolve(
-            &output.message,
-            None,
-            &MentionAuthor::Agent {
-                id: seat.id.clone(),
-            },
-            &roster,
-            &desks,
-        );
+        let author = MentionAuthor::Agent {
+            id: seat.id.clone(),
+        };
+        let mut mentions = resolve(&output.message, None, &author, &roster, &desks);
+        // A message sent through `desk_dm` addresses its recipients whether or
+        // not its text also names them, and the grammar rather than this host
+        // is what turns those names into targets.
+        let addressed_to = dm_to
+            .iter()
+            .map(|id| format!("@{id}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let dm_mentions = resolve(&addressed_to, None, &author, &roster, &desks);
+        if !dm_mentions.is_empty() && addressed(&mentions, &seat.id).is_empty() {
+            mentions = dm_mentions.clone();
+        }
         // Who the line reaches is the library's decision, not this host's
         // reading of the marker: `aside` resolves the audience and refuses
         // with a named reason, and a refusal leaves the row desk-visible.
@@ -838,7 +847,12 @@ async fn main() -> Result<(), BoxError> {
             &spec.id,
             &seat.id,
             &output.message,
-            &mentions,
+            if dm_mentions.is_empty() {
+                &mentions
+            } else {
+                &dm_mentions
+            },
+            !dm_mentions.is_empty(),
             &roster,
             &desks,
         )?;
@@ -1062,10 +1076,11 @@ fn address(
     author_id: &str,
     line: &str,
     mentions: &[Mention],
+    private: bool,
     roster: &tinyhivemind::roster::Roster<'_>,
     desks: &tinyhivemind::desk::DeskSet<'_>,
 ) -> Result<Audience, BoxError> {
-    if !line.trim_start().starts_with("!aside") {
+    if !private && !line.trim_start().starts_with("!aside") {
         return Ok(Audience::Desk);
     }
     let rows = transcript.rows();
