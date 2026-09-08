@@ -363,6 +363,24 @@ mod test {
     fn falls_back_to_the_whole_text_when_unmarked() {
         assert_eq!(extract_post("  plain answer \n"), "plain answer");
     }
+
+    #[test]
+    fn reads_a_symmetric_fence_a_seat_wrote_instead() {
+        let raw = "<<<POST>>>\n@checker the recursion is sublinear\n<<<POST>>>";
+        assert_eq!(extract_post(raw), "@checker the recursion is sublinear");
+    }
+
+    #[test]
+    fn takes_the_last_block_when_a_seat_posts_twice() {
+        let raw = "<<<POST\nfirst draft\nPOST>>>\n<<<POST\nsecond and final\nPOST>>>";
+        assert_eq!(extract_post(raw), "second and final");
+    }
+
+    #[test]
+    fn keeps_an_unterminated_block_rather_than_dropping_it() {
+        let raw = "narration\n<<<POST\n@lead ran out of room";
+        assert_eq!(extract_post(raw), "@lead ran out of room");
+    }
 }
 
 /// Trim a turn's work log to the tail a wrap-up can actually read.
