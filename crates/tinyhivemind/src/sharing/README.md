@@ -30,3 +30,20 @@ merge, because the earlier half is already in the agent's context and this
 crate holds no memory of having sent it. Note also that a narrow-audience
 viewer crosses `SCAN_LIMIT` sooner — the walk counts raw rows, not delivered
 ones — so `GapTooLarge` and its full re-seed arrive more often.
+
+## Layout
+
+- `mod.rs` — `initialized_state`, `note_present`, and `prepare_delta`.
+- `types.rs` — the wire records: `SharingState` (with its bound-checked
+  `Deserialize`), `SharingQuery`, `SessionDelta`, `ReinitializeReason`, and
+  `SharingPlan`.
+- `test/` — unit tests grouped by behavior area, with fixtures factored into
+  `test/support.rs` rather than duplicated per file:
+  - `wire.rs` — serde round-trips, including the oversized-present-set
+    rejection.
+  - `state.rs` — `initialized_state` and `note_present` bookkeeping.
+  - `reinit.rs` — `Conversation::equivalent_to` and the three conditions that
+    send `prepare_delta` back to a full P4 initialization.
+  - `delta.rs` — the delta walk itself: attribution, chronological order,
+    desk/thread scoping, paging mechanics, and the retry/CAS contract.
+  - `visibility.rs` — private-aside narrowing applied to a delta.

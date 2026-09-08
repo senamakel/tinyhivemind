@@ -1,0 +1,282 @@
+//! The scheduler for one federation-wide run: the journals, the referrals in
+//! flight, and the tally.
+//!
+//! [`Board`] is the piece of [`super::drive_swarm`] that turns "run one
+//! episode per desk" into "run a federation of them": it owns the
+//! [`SwarmHost`], the referrals each desk has queued for another channel, and
+//! the running [`SwarmReport`]. Its methods are the whole surface the driving
+//! loop touches — everything else is `#[cfg]`-free arithmetic and the real
+//! `referral` fold doing the routing.
+
+use std::collections::VecDeque;
+use std::time::Duration;
+
+use tinyhivemind_hive::{
+    HiveTurn, Sequence,
+    dispatch::{DispatchConversation, DispatchKey},
+    mention::{MentionAuthor, resolve as resolve_mentions},
+    project_for,
+    referral::{
+        Referral, ReferralDecision, ReferralInput, ReferralOrigin, ReferralPolicy, referral,
+    },
+};
+
+use super::{Channel, SwarmHost, SwarmMember, SwarmReport, format};
+
+/// The scheduler's own state: the journals, what is in flight, and the tally.
+pub(super) struct Board<'a> {
+    /// The desks-and-journals host every episode runs against.
+    host: SwarmHost,
+    /// The channels this run was started with, in federation order.
+    channels: &'a [Channel],
+    /// Whether a member may spend a turn asking another channel, and how deep
+    /// a chain of such asks may run.
+    referrals: ReferralPolicy,
+    /// Whether to record a human-readable line per message for the trace view.
+    keep_trace: bool,
+    /// Referrals routed to each desk and not yet run.
+    pending: Vec<VecDeque<Referral>>,
+    /// Peer channels each desk has already asked.
+    asks: Vec<usize>,
+    /// What this run has decided and spent so far.
+    report: SwarmReport,
+}
+
+impl<'a> Board<'a> {
+    /// Set up a fresh scheduler for one federation-wide run.
+    pub(super) fn new(
+        channels: &'a [Channel],
+        referrals: ReferralPolicy,
+        keep_trace: bool,
+    ) -> Self {
+        let count = channels.len();
+        Self {
+            host: SwarmHost::new(channels),
+            channels,
+            referrals,
+            keep_trace,
+            pending: vec![VecDeque::new(); count],
+            // Asks are counted per desk rather than per member, and capped at one
+            // per peer channel. The answer lands in the desk's own transcript,
+            // where every member of it reads the same line — which is what a shared
+            // medium is for, and what makes a second member asking the same desk
+            // the same question pure cost. `referral` bounds how *deep* a chain
+            // goes; bounding how *wide* one desk may go is the host's job, and this
+            // is it.
+            asks: vec![0; count],
+            report: SwarmReport::default(),
+        }
+    }
+
+    /// A read-only view of the desks-and-journals host.
+    pub(super) fn host(&self) -> &SwarmHost {
+        &self.host
+    }
+
+    /// A mutable view of the desks-and-journals host.
+    pub(super) fn host_mut(&mut self) -> &mut SwarmHost {
+        &mut self.host
+    }
+
+    /// Take the next referral queued for a desk, if one is waiting.
+    pub(super) fn pop_pending(&mut self, desk: usize) -> Option<Referral> {
+        self.pending[desk].pop_front()
+    }
+
+    /// Charge time spent inside the library to this run's report.
+    pub(super) fn add_library_time(&mut self, elapsed: Duration) {
+        self.report.library_time += elapsed;
+        self.report.step_calls = self.report.step_calls.saturating_add(1);
+    }
+
+    /// Consume the board and hand back the report it has been keeping.
+    pub(super) fn into_report(self) -> SwarmReport {
+        self.report
+    }
+
+    /// Give up on everything routed to a desk that has already finished.
+    ///
+    /// An answer that arrives after the desk that asked has closed is
+    /// information the federation paid for and cannot use. It is counted rather
+    /// than quietly dropped.
+    pub(super) fn strand(&mut self, desk: usize) {
+        self.report.stranded = self
+            .report
+            .stranded
+            .saturating_add(u32::try_from(self.pending[desk].len()).unwrap_or(0));
+        self.pending[desk].clear();
+    }
+
+    /// Run one turn caused by a message that arrived from another channel.
+    pub(super) fn deliver(
+        &mut self,
+        members: &mut [&mut dyn SwarmMember],
+        desk: usize,
+        incoming: &Referral,
+    ) -> Result<(), String> {
+        let seat = seat_of(members, &incoming.target_id)?;
+        let content = {
+            let visible = self.host.journals[desk].clone();
+            members[seat].answer(incoming, &visible)?
+        };
+        let sequence = self.commit(members, desk, &incoming.target_id, &content);
+        // Consider the back edge. A reply committed under a crossing referral,
+        // carrying no mention of its own, is exactly the case `referral`
+        // answers with one `Return`.
+        self.route(
+            desk,
+            &incoming.target_id,
+            &content,
+            sequence,
+            incoming.child_hop,
+            incoming.origin.clone(),
+        )?;
+        Ok(())
+    }
+
+    /// Run one turn the episode authorized, which the member may spend asking.
+    pub(super) fn take_turn(
+        &mut self,
+        members: &mut [&mut dyn SwarmMember],
+        desk: usize,
+        turn: &HiveTurn,
+    ) -> Result<(), String> {
+        let seat = seat_of(members, &turn.agent_id)?;
+        let peers: Vec<&str> = self
+            .channels
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| *index != desk)
+            .map(|(_, channel)| channel.id.as_str())
+            .skip(self.asks[desk])
+            .collect();
+        let budget =
+            self.referrals.enabled && self.asks[desk] < self.channels.len().saturating_sub(1);
+        let mut offered = false;
+        let content = {
+            let visible = project_for(turn, &self.host.journals[desk]);
+            let ask = if budget {
+                members[seat].ask(&peers)
+            } else {
+                None
+            };
+            match ask {
+                Some(body) => {
+                    offered = true;
+                    body
+                }
+                None => members[seat].speak(turn, &visible)?,
+            }
+        };
+        let sequence = self.commit(members, desk, &turn.agent_id, &content);
+        let routed = budget && self.route(desk, &turn.agent_id, &content, sequence, 0, None)?;
+        // A turn spent asking is spent whether or not the question found its
+        // way out, so the budget is charged either way.
+        if offered || routed {
+            self.asks[desk] = self.asks[desk].saturating_add(1);
+        }
+        Ok(())
+    }
+
+    /// Append one reply, offer it to everybody on the desk, and count the turn.
+    fn commit(
+        &mut self,
+        members: &mut [&mut dyn SwarmMember],
+        desk: usize,
+        agent_id: &str,
+        content: &str,
+    ) -> Sequence {
+        let sequence = self.host.agent(desk, agent_id, content.to_owned());
+        for member in &self.channels[desk].members {
+            if let Ok(seat) = seat_of(members, member) {
+                members[seat].absorb(content);
+            }
+        }
+        self.report.turns = self.report.turns.saturating_add(1);
+        if content.trim_start().starts_with("!defer") {
+            self.report.defers = self.report.defers.saturating_add(1);
+        }
+        if self.keep_trace {
+            self.report.trace.push(format::line(
+                self.channels,
+                desk,
+                sequence,
+                agent_id,
+                content,
+            ));
+        }
+        sequence
+    }
+
+    /// Ask `referral` whether this reply owes one turn to another channel.
+    ///
+    /// Returns whether one was queued. The mention is read out of the authored
+    /// text by the real grammar and the routing decision is the real fold:
+    /// nothing here shortcuts either, and nothing here knows whether a model or
+    /// a table of numbers wrote the line.
+    fn route(
+        &mut self,
+        desk: usize,
+        author_id: &str,
+        content: &str,
+        sequence: Sequence,
+        hop: u32,
+        origin: Option<ReferralOrigin>,
+    ) -> Result<bool, String> {
+        if !self.referrals.enabled {
+            return Ok(false);
+        }
+        let one = {
+            let roster = self.host.roster();
+            let desk_set = self.host.desks();
+            let mentions = resolve_mentions(
+                content,
+                None,
+                &MentionAuthor::Agent {
+                    id: author_id.to_owned(),
+                },
+                &roster,
+                &desk_set,
+            );
+            let input = ReferralInput {
+                key: DispatchKey {
+                    trigger_sequence: sequence.0,
+                },
+                conversation: DispatchConversation {
+                    desk_id: self.channels[desk].id.clone(),
+                    thread_root: None,
+                },
+                author_id: author_id.to_owned(),
+                content: content.to_owned(),
+                mentions,
+                hop,
+                origin,
+            };
+            match referral(self.referrals, &input, &roster, &desk_set)
+                .map_err(|error| error.to_string())?
+            {
+                ReferralDecision::One { referral: one } => *one,
+                ReferralDecision::None { .. } => return Ok(false),
+            }
+        };
+        // A referral that would not have left the desk changes nothing here:
+        // the reply is already appended where the target can read it.
+        if !one.crosses() {
+            return Ok(false);
+        }
+        let Some(target) = self.host.index_of(&one.to.desk_id) else {
+            return Err(format!("referral to unknown desk {}", one.to.desk_id));
+        };
+        self.report.crossings = self.report.crossings.saturating_add(1);
+        self.pending[target].push_back(one);
+        Ok(true)
+    }
+}
+
+/// Find a member by id.
+fn seat_of(members: &[&mut dyn SwarmMember], agent_id: &str) -> Result<usize, String> {
+    members
+        .iter()
+        .position(|member| member.id() == agent_id)
+        .ok_or_else(|| format!("no member named {agent_id}"))
+}

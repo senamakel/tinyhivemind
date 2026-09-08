@@ -43,3 +43,21 @@ silence as disagreement rather than as absence.
 projection elided something, rather than the nominal one. Only a projection
 that actually elided is restated, so a young desk still reports the window it
 will grow into.
+
+## Layout
+
+- `mod.rs` — `TeamBriefing::from_snapshots`, `system_text`/
+  `system_text_with_dispatch`, `SessionContext::system_text`, and
+  `initialize_session`/`initialize_session_with_context`.
+- `types.rs` — the wire records: `TeamBriefing`, `BriefedTeammate`,
+  `BrevityPolicy`, `MentionDispatchContext`, `BriefingNote`, `SessionContext`,
+  and `SessionInitialization`.
+- `test/` — unit tests grouped by behavior area, with fixtures factored into
+  `test/support.rs` rather than duplicated per file:
+  - `wire.rs` — serde round-trips for every briefing payload type.
+  - `snapshots.rs` — `from_snapshots` desk-order filtering, General's roster
+    order, error propagation, and construction without host role types.
+  - `rendering.rs` — `system_text` output: coordination rules, the brevity
+    overrun report, aside-grammar teaching, and the mention-dispatch offer.
+  - `context.rs` — `SessionContext` rendering and the two `initialize_session*`
+    entry points, including the stated-window restatement.

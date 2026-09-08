@@ -27,7 +27,7 @@ The measured costs, from runs 21–27:
 
 The fix that was tried — resuming the CLI session — made the request payload
 grow without bound until every call stalled. It is off, and the comment in
-`main.rs` says why.
+`run.rs` says why.
 
 The desk does not need an orchestrator that holds everything. The reading in
 [`multi-context.md`](../research/multi-context.md) is that no shipping design

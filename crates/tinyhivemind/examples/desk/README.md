@@ -19,11 +19,29 @@ Everything that waits on something is here, and none of it is in the library:
 | the host (this example) | the library |
 | --- | --- |
 | `log.rs` — the transcript, as JSONL on disk | `SessionLog`, the paging port it satisfies |
-| `DeskQueue` in `main.rs` — the turn queue and its idempotency | `MentionTurnQueue`, and `dispatch_mention` deciding *whether* to enqueue |
+| `queue.rs` — `DeskQueue`, the turn queue and its idempotency | `MentionTurnQueue`, and `dispatch_mention` deciding *whether* to enqueue |
 | `agent.rs` — one `opencode run` per turn | nothing: the library never starts a process |
 | `memory.rs` — CortexDB recall and capture | nothing: the library holds no memory |
-| the chair's nudge when the room falls quiet | `choose_responder`, deciding who answers the chair |
-| `compose_prompt` | `TeamBriefing::system_text` and `project_session`, which say what a seat may see |
+| the chair's nudge when the room falls quiet, in `run.rs` | `choose_responder`, deciding who answers the chair |
+| `prompt.rs` — `compose_prompt` | `TeamBriefing::system_text` and `project_session`, which say what a seat may see |
+| `aside.rs` — this desk's aside policy and its bookkeeping | `tinyhivemind_core::aside::aside`, deciding who a `!aside` line reaches |
+
+### File layout
+
+| file | holds |
+| --- | --- |
+| `main.rs` | the entry point: parse options, run the desk loop |
+| `cli.rs` | `Options` and its parsing |
+| `run.rs` | the desk loop itself — open the desk, choose who answers, run a turn, post it, route the reply. One function on purpose; see the module doc |
+| `queue.rs` | `DeskQueue`, the host's `MentionTurnQueue` |
+| `aside.rs` | this desk's aside policy, `address`, and the aside bookkeeping folded from the transcript |
+| `prompt.rs` | `compose_prompt`, turning a seat's briefing, history, and trigger into one prompt |
+| `notebook.rs` | the notebook a seat carries between turns: reading back its tail within budget, and naming what a turn wrote |
+| `agent.rs` | one `opencode run` per turn, and its output |
+| `chat.rs` | the tool-less wrap-up channel |
+| `deskfile.rs` | parsing the plain-text desk file |
+| `log.rs` | the JSONL-backed `SessionLog` |
+| `memory.rs` | CortexDB recall and capture |
 
 The rule the whole thing turns on is **one message, one turn**. A reply may
 mention four teammates; only the first one runs. That is `mention_dispatch`

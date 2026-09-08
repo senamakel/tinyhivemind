@@ -4,7 +4,7 @@ Split out of [`README.md`](README.md), which is capped at 500 lines. That
 file says what the arms are and what they scored; this one says how to read
 the columns under them and what the intervals do and do not license.
 
-A second table is printed under the first, in `metrics.rs`:
+A second table is printed under the first, in `metrics/mod.rs`:
 
 ```text
 arm       correct %          95% CI  fact %  to-fact  knows %  defers/ep  route %  cost/ep    rho
