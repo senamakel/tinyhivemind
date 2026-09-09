@@ -6,7 +6,7 @@
 //! including the standing brief from the desk file and whatever the memory
 //! store recalled for this turn.
 
-use std::fmt::Write as _;
+use std::{collections::BTreeMap, fmt::Write as _};
 
 use tinyhivemind::{SessionAuthor, SessionMessage};
 
@@ -28,6 +28,8 @@ pub(crate) fn compose_prompt(
     job: &PendingTurn,
     recalled: &str,
     notebook: Option<&str>,
+    seats: &[deskfile::AgentSpec],
+    spoken: &BTreeMap<String, u64>,
 ) -> String {
     let mut prompt = match briefing {
         Some(text) => text.to_string(),
@@ -37,6 +39,7 @@ pub(crate) fn compose_prompt(
             seat.id
         ),
     };
+    prompt.push_str(&who_is_here(seats, &seat.id, spoken));
     prompt.push_str("\n\n## Your standing brief\n");
     prompt.push_str(seat.brief.trim());
     if !recalled.trim().is_empty() {
@@ -87,6 +90,40 @@ pub(crate) fn compose_prompt(
     prompt.push_str("\n\n");
     prompt.push_str(&house_rules(&seat.id));
     prompt
+}
+
+/// Who is on this desk right now, and what each of them has done.
+///
+/// The briefing already lists the seats, but as a static roster: names and
+/// roles, with no indication of who is actually carrying the work. A seat
+/// deciding who to hand the turn to needs the other half — who has spoken,
+/// when, and who has not spoken at all — and deriving that from a bounded
+/// window is exactly the thing a window cannot be relied on for. In run 28 the
+/// desk spent nine of twelve turns inside one seat while three sat idle, and
+/// `desk_dm` went unused across the whole run.
+///
+/// `spoken` maps a seat id to the sequence number of its most recent message.
+fn who_is_here(
+    seats: &[deskfile::AgentSpec],
+    me: &str,
+    spoken: &BTreeMap<String, u64>,
+) -> String {
+    let mut text = String::from("\n\n## Who is on this desk right now\n");
+    for seat in seats {
+        let mine = if seat.id == me { " (you)" } else { "" };
+        let state = match spoken.get(&seat.id) {
+            Some(at) => format!("last spoke at [{at}]"),
+            None => "has not spoken yet".to_string(),
+        };
+        let _ = write!(text, "- @{}{mine} — {} — {state}\n", seat.id, seat.role);
+    }
+    text.push_str(
+        "\nNaming one of them with @id is what runs them next; naming nobody ends \
+         the chain and the chair has to restart the room. Pick the seat whose role \
+         fits the open step, not whoever spoke last, and prefer a seat that has not \
+         spoken when the work is theirs to do.\n",
+    );
+    text
 }
 
 /// How a seat speaks, what survives its turn, and the rules of the room.
