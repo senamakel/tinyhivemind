@@ -37,7 +37,7 @@ Everything that waits on something is here, and none of it is in the library:
 | `run.rs` | the desk loop itself — open the desk, choose who answers, run a turn, post it, route the reply. One function on purpose; see the module doc |
 | `queue.rs` | `DeskQueue`, the host's `MentionTurnQueue` |
 | `aside.rs` | this desk's aside policy, `address`, and the aside bookkeeping folded from the transcript |
-| `prompt.rs` | `compose_prompt`, turning a seat's briefing, history, and trigger into one prompt |
+| `prompt.rs` | `compose_prompt`, turning a seat's briefing, roster, history, and trigger into one prompt; `who_is_here` is the live roster |
 | `notebook.rs` | the notebook a seat carries between turns: reading back its tail within budget, and naming what a turn wrote |
 | `agent.rs` | one `opencode run` per turn, and its output |
 | `chat.rs` | the tool-less wrap-up channel |
