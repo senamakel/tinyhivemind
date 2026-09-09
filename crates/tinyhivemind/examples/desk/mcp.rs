@@ -110,11 +110,31 @@ fn parse_utterance(line: &str) -> Option<Utterance> {
     }
 }
 
+/// Where one seat's requests to speak are collected, under the workspace.
+///
+/// A seat argument gives that seat a file of its own. It is not a nicety: the
+/// desk normally has one agent process alive at a time, so a single outbox
+/// could not be ambiguous, but a *watched* desk holds three live terminals at
+/// once and any of them can call a desk tool at any moment — including while
+/// another seat's turn is open. Sharing one file there means the host drains
+/// whatever it finds at the end of a turn and attributes it to whoever's turn
+/// it was: a message typed into `@solver`'s terminal is posted as `@theory`.
+///
+/// A file per seat makes that impossible. A call made outside a seat's turn
+/// lands in that seat's own outbox and is cleared when its turn next opens,
+/// which is the safe direction to lose a message in.
+pub(crate) fn outbox_path(workspace: &Path, seat: Option<&str>) -> PathBuf {
+    match seat {
+        Some(seat) => workspace.join(format!(".desk/outbox-{seat}.jsonl")),
+        None => workspace.join(".desk/outbox.jsonl"),
+    }
+}
+
 /// The MCP block to merge into the agent CLI's configuration.
 ///
 /// The server is this same binary, re-executed. Nothing about it varies per
 /// turn — the outbox is one file the host truncates before each turn — so the
-/// configuration is built once.
+/// configuration is built once per seat that has a server of its own.
 pub(crate) fn config_block(
     exe: &Path,
     outbox: &Path,
