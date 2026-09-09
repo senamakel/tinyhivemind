@@ -65,7 +65,7 @@ fn stacks_the_panes_rather_than_letting_tmux_halve_them() {
 }
 
 #[test]
-fn splits_the_pane_below_so_pane_order_is_seat_order() {
+fn splits_a_named_pane_so_pane_order_is_seat_order() {
     let plan = tmux::layout("desk", "/ws", None, &three());
     let targets: Vec<String> = plan
         .iter()

@@ -19,11 +19,11 @@ pub(crate) struct Attach {
 
 /// The `tmux` invocations that build the window, in order.
 ///
-/// Three seats become three stacked panes — the 3x1 the room is read in —
-/// because a desk is a column of messages and a column of panes is the same
-/// shape. `even-vertical` is applied after the splits rather than relied on
-/// during them: splitting three ways without it leaves the last pane half the
-/// height of the first.
+/// Three seats become three side-by-side panes — the 3x1 the room is read in
+/// — so every seat is a column of its own and a hand-off reads left to right.
+/// `even-horizontal` is applied after the splits rather than relied on during
+/// them: splitting three ways without it leaves the last pane half the width
+/// of the first.
 ///
 /// Pane order is the seat order, and it has to be: the host reads a pane back
 /// by index to check the terminal in it is listening, so a window whose panes
@@ -46,20 +46,20 @@ pub(crate) fn layout(
                 "-n".into(),
                 "desk".into(),
                 // A detached session is 80x24 until something attaches, which
-                // is four rows a pane. The seats are read while they run, so
+                // is 26 columns a seat. The seats are read while they run, so
                 // the window is sized for reading rather than for whichever
                 // terminal happens to attach to it later.
                 "-x".into(),
-                "220".into(),
+                "360".into(),
                 "-y".into(),
-                "60".into(),
+                "50".into(),
             ]
         } else {
-            // Split the pane *below*, not the window. `split-window` against a
-            // window splits whatever pane is active, which after the first
-            // split is still the first one — so the third seat lands between
-            // the first two and every pane index is one seat off from the
-            // terminal sitting in it.
+            // Split the pane to the *left*, not the window. `split-window`
+            // against a window splits whatever pane is active, which after the
+            // first split is still the first one — so the third seat lands
+            // between the first two and every pane index is one seat off from
+            // the terminal sitting in it.
             vec![
                 "split-window".into(),
                 "-d".into(),
@@ -70,7 +70,7 @@ pub(crate) fn layout(
         argv.push("-c".into());
         argv.push(workspace.into());
         if index > 0 {
-            argv.push("-v".into());
+            argv.push("-h".into());
         }
         if let Some(config) = config {
             // Through tmux's environment rather than the command line: the
@@ -87,7 +87,7 @@ pub(crate) fn layout(
         "select-layout".into(),
         "-t".into(),
         format!("{session}:desk"),
-        "even-vertical".into(),
+        "even-horizontal".into(),
     ]);
     plan.push(vec![
         "set-option".into(),
