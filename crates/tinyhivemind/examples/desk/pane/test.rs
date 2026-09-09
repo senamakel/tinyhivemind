@@ -65,11 +65,27 @@ fn stacks_the_panes_rather_than_letting_tmux_halve_them() {
 }
 
 #[test]
+fn splits_the_pane_below_so_pane_order_is_seat_order() {
+    let plan = tmux::layout("desk", "/ws", None, &three());
+    let targets: Vec<String> = plan
+        .iter()
+        .filter(|argv| argv.first().is_some_and(|verb| verb == "split-window"))
+        .filter_map(|argv| {
+            let at = argv.iter().position(|arg| arg == "-t")?;
+            argv.get(at + 1).cloned()
+        })
+        .collect();
+    // Splitting the window rather than a named pane splits whichever pane is
+    // active, which puts the third seat between the first two.
+    assert_eq!(targets, vec!["desk:desk.0", "desk:desk.1"]);
+}
+
+#[test]
 fn titles_every_pane_with_the_seat_that_sits_in_it() {
     let plan = tmux::layout("desk", "/ws", None, &three());
     let titles: Vec<String> = plan
         .iter()
-        .filter(|argv| argv.first().is_some_and(|verb| verb == "select-pane"))
+        .filter(|argv| argv.iter().any(|arg| arg == "@seat"))
         .filter_map(|argv| argv.last().cloned())
         .collect();
     assert_eq!(titles, vec!["@theory", "@solver", "@checker"]);

@@ -24,6 +24,11 @@ pub(crate) struct Attach {
 /// shape. `even-vertical` is applied after the splits rather than relied on
 /// during them: splitting three ways without it leaves the last pane half the
 /// height of the first.
+///
+/// Pane order is the seat order, and it has to be: the host reads a pane back
+/// by index to check the terminal in it is listening, so a window whose panes
+/// are in a different order than its seats types into one seat and watches
+/// another.
 pub(crate) fn layout(
     session: &str,
     workspace: &str,
