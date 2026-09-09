@@ -77,6 +77,7 @@ pub(crate) fn deliver(
         &delivery.label,
         delivery.runner.timeout(),
         delivery.resumed,
+        delivery.seat_id,
     )?;
     *tokens += output.tokens;
     if output.timed_out || output.stalled {
@@ -103,6 +104,7 @@ pub(crate) fn deliver(
                 &format!("{}-retry", delivery.label),
                 delivery.runner.timeout(),
                 output.session.as_deref().or(delivery.resumed),
+                delivery.seat_id,
             )?;
             *tokens += output.tokens;
         }
@@ -123,6 +125,7 @@ pub(crate) fn deliver(
             &format!("{}-restart{restarts}", delivery.label),
             delivery.runner.timeout(),
             None,
+            delivery.seat_id,
         )?;
         *tokens += output.tokens;
     }
@@ -188,6 +191,7 @@ fn land(
         &format!("{}-landing", delivery.label),
         LANDING_TIMEOUT,
         output.session.as_deref().or(delivery.resumed),
+        delivery.seat_id,
     )?;
     if !landed.posted && landed.tokens == 0 {
         // Nothing at all came back — no events, no complaint. Resuming
@@ -201,6 +205,7 @@ fn land(
             &format!("{}-landing-fresh", delivery.label),
             LANDING_TIMEOUT,
             None,
+            delivery.seat_id,
         )?;
     }
     *tokens += landed.tokens;
