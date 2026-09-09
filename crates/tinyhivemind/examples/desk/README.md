@@ -40,6 +40,7 @@ Everything that waits on something is here, and none of it is in the library:
 | `prompt.rs` | `compose_prompt`, turning a seat's briefing, roster, history, and trigger into one prompt; `who_is_here` is the live roster |
 | `notebook.rs` | the notebook a seat carries between turns: reading back its tail within budget, and naming what a turn wrote |
 | `agent.rs` | one `opencode run` per turn, and its output |
+| `pane.rs` | the same turn taken in a watched tmux pane, driven over the agent server's own HTTP API |
 | `chat.rs` | the tool-less wrap-up channel |
 | `deskfile.rs` | parsing the plain-text desk file |
 | `log.rs` | the JSONL-backed `SessionLog` |
@@ -89,6 +90,9 @@ information.
 | `--no-digest` | do not fold older messages into the room's account |
 | `--fold-after N` | rows past the window before a fold is spent; lower it to exercise the account on a short desk |
 | `--mcp-server --outbox PATH` | serve the desk tools over stdio; the binary re-execs itself into this mode and takes no turn |
+| `--tmux NAME` | run the room watched: one `opencode serve` and one live agent terminal per seat, in a tmux window of that name. See [`pane/README.md`](pane/README.md) |
+| `--pane-port N` | the first localhost port the watched seats take, one each in order (default 4830) |
+| `--pane-compact-at N` | tokens a watched seat's conversation may reach before the host asks its server to summarize (default 150000) |
 
 `OPENCODE_CONFIG_CONTENT` is passed through to the agent process, which is how
 a run pins one model — for instance a ladder rung that only ever serves
