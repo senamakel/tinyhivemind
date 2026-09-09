@@ -39,7 +39,7 @@ use std::{
 /// exhausted the ladder carried 48k of context and 374 output tokens, while
 /// probes answered in 3s throughout; it was a dead call, not a slow one, and
 /// doubling the cap only doubled what its death cost the turn.
-const STALL_AFTER: Duration = Duration::from_secs(900);
+pub(crate) const STALL_AFTER: Duration = Duration::from_secs(900);
 
 /// What one turn produced.
 #[derive(Clone, Debug, Default)]
@@ -92,6 +92,12 @@ pub(crate) struct TurnOutput {
 }
 
 /// A configured agent CLI: one process per turn.
+///
+/// Or, when the desk is being watched, one long-lived terminal per seat in a
+/// tmux pane. The two are the same contract — a prompt goes in, a
+/// [`TurnOutput`] comes out, `session` says whether the seat keeps the
+/// conversation it was in — so everything above this, the recovery ladder
+/// included, is written once.
 pub(crate) struct AgentRunner {
     program: String,
     args: Vec<String>,
@@ -99,6 +105,7 @@ pub(crate) struct AgentRunner {
     config: Option<String>,
     timeout: Duration,
     raw_dir: Option<PathBuf>,
+    panes: Option<crate::pane::PaneDesk>,
 }
 
 impl AgentRunner {
@@ -119,7 +126,15 @@ impl AgentRunner {
             config,
             timeout,
             raw_dir,
+            panes: None,
         }
+    }
+
+    /// Run every turn in a watched terminal instead of a fresh child process.
+    #[must_use]
+    pub(crate) fn watched(mut self, panes: crate::pane::PaneDesk) -> Self {
+        self.panes = Some(panes);
+        self
     }
 
     /// Run one turn.
@@ -134,7 +149,11 @@ impl AgentRunner {
         label: &str,
         timeout: Duration,
         session: Option<&str>,
+        seat: &str,
     ) -> Result<TurnOutput, Box<dyn std::error::Error + Send + Sync>> {
+        if let Some(panes) = &self.panes {
+            return panes.run(seat, prompt, label, timeout, session);
+        }
         let started = Instant::now();
         let mut command = Command::new(&self.program);
         command.args(&self.args);
@@ -345,7 +364,7 @@ fn parse_events(stdout: &str) -> TurnOutput {
 }
 
 /// Keep the head of a long string, marking what was dropped.
-fn truncate(text: &str, limit: usize) -> String {
+pub(crate) fn truncate(text: &str, limit: usize) -> String {
     let mut end = limit.min(text.len());
     while end > 0 && !text.is_char_boundary(end) {
         end -= 1;
