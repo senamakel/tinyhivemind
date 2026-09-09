@@ -68,7 +68,10 @@ fn puts_the_account_first_and_says_it_is_lossy() {
     let text = desk_so_far(Some("  Psi(3)=20302 verified at [4].  "), &[]);
     assert!(text.starts_with("\n\n## The desk so far (read this first)\n"));
     assert!(text.contains("Psi(3)=20302 verified at [4]."), "{text}");
-    assert!(text.contains("is lossy"), "a seat must not trust it blindly");
+    assert!(
+        text.contains("is lossy"),
+        "a seat must not trust it blindly"
+    );
     assert!(
         text.contains("desk_read(limit)"),
         "and must be told how to reach the real messages: {text}"
