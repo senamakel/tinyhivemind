@@ -39,7 +39,7 @@ use crate::{
     cli::Options,
     deskfile, digest, log, mcp, memory,
     notebook::{files_written, read_notebook},
-    prompt::compose_prompt,
+    prompt::{TurnPrompt, compose_prompt},
     queue::{DeskQueue, PendingTurn},
     turn,
 };
