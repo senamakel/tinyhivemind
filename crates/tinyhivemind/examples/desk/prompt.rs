@@ -122,30 +122,27 @@ pub(crate) fn compose_prompt(turn: &TurnPrompt<'_>) -> String {
 /// it re-derive work somebody already did.
 fn desk_so_far(account: Option<&str>, history: &[SessionMessage]) -> String {
     let mut text = String::from("\n\n## The desk so far (read this first)\n");
-    match account {
-        Some(summary) => {
-            text.push_str(summary.trim());
-            text.push_str(
-                "\n\nThat account is written from the desk's own messages and is lossy. \
-                 Every message it stands for is still in the transcript at the number it \
-                 cites, and `desk_read(limit)` gets you the messages themselves. Read it \
-                 before you start work: it is how you avoid re-deriving something the room \
-                 has already settled.",
-            );
-        }
-        None => {
-            let from = history.first().map_or_else(
-                || "the opening message".to_string(),
-                |m| format!("[{}]", m.sequence.0),
-            );
-            let _ = write!(
-                text,
-                "No standing account has been written yet — the desk is still short \
-                 enough that everything it has said is below, starting at {from}. Read \
-                 the room before you start work, and use `desk_read(limit)` if you need \
-                 further back than you were handed."
-            );
-        }
+    if let Some(summary) = account {
+        text.push_str(summary.trim());
+        text.push_str(
+            "\n\nThat account is written from the desk's own messages and is lossy. \
+             Every message it stands for is still in the transcript at the number it \
+             cites, and `desk_read(limit)` gets you the messages themselves. Read it \
+             before you start work: it is how you avoid re-deriving something the room \
+             has already settled.",
+        );
+    } else {
+        let from = history.first().map_or_else(
+            || "the opening message".to_string(),
+            |message| format!("[{}]", message.sequence.0),
+        );
+        let _ = write!(
+            text,
+            "No standing account has been written yet — the desk is still short \
+             enough that everything it has said is below, starting at {from}. Read \
+             the room before you start work, and use `desk_read(limit)` if you need \
+             further back than you were handed."
+        );
     }
     text
 }
