@@ -7,12 +7,17 @@
 //! without chasing five helpers. `crosstalk` makes the same trade with
 //! `too_many_arguments`.
 
-use std::{collections::{BTreeMap, HashMap}, fs, sync::PoisonError, time::Duration};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fs,
+    sync::PoisonError,
+    time::Duration,
+};
 
 use tinyhivemind::{
     BrevityPolicy, BriefedTeammate, ChannelDigest, Conversation, DigestOutcome, DigestPolicy,
-    Digester, MentionDispatchContext, MentionDispatchOutcome, Sequence, SessionAuthor, SessionQuery, TeamBriefing,
-    apply_digest,
+    Digester, MentionDispatchContext, MentionDispatchOutcome, Sequence, SessionAuthor,
+    SessionQuery, TeamBriefing, apply_digest,
     aside::{Audience, Viewer},
     desk::{Desk, DeskSet, ResponderMode},
     dispatch::{

@@ -103,11 +103,7 @@ pub(crate) fn compose_prompt(
 /// `desk_dm` went unused across the whole run.
 ///
 /// `spoken` maps a seat id to the sequence number of its most recent message.
-fn who_is_here(
-    seats: &[deskfile::AgentSpec],
-    me: &str,
-    spoken: &BTreeMap<String, u64>,
-) -> String {
+fn who_is_here(seats: &[deskfile::AgentSpec], me: &str, spoken: &BTreeMap<String, u64>) -> String {
     let mut text = String::from("\n\n## Who is on this desk right now\n");
     for seat in seats {
         let mine = if seat.id == me { " (you)" } else { "" };
@@ -144,7 +140,11 @@ fn house_rules(seat_id: &str) -> String {
          - `desk_dm(to, message)` — say it to named seats instead, when you need one \
            peer to settle something and the room does not need to watch. It still \
            costs your one message for the turn, and the room is told the exchange \
-           happened.\n\
+           happened. This is the same mechanism the shared-session rules above call \
+           `!aside @peer`; call the tool rather than writing the marker. Use it for \
+           a two-seat disagreement, a correction that would otherwise embarrass the \
+           room's record, or a question only one seat can answer — not for a result, \
+           which belongs to everyone.\n\
          - `desk_read(limit)` — read further back than the window you were handed.\n\
          - `desk_close(message)` — say one last thing AND report the work finished. \
            Use it instead of `desk_post` only when the task is genuinely delivered \
