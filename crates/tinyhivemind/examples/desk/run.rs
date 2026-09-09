@@ -105,7 +105,7 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
     // The room is a tool the seat calls, not a fence it writes. The server is
     // this binary re-executed; the outbox is one file, truncated per turn.
     let outbox = options.workspace.join(OUTBOX);
-    let agent_config = match std::env::current_exe() {
+    let with_tools = match std::env::current_exe() {
         Ok(exe) => Some(mcp::config_block(
             &exe,
             &outbox,
@@ -120,6 +120,13 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
             options.opencode_config.clone()
         }
     };
+    // Nobody is at a seat's keyboard, so a confirmation prompt is not a
+    // safety boundary — it is a turn that stops with no output and reads, from
+    // here, exactly like a model thinking.
+    let agent_config = with_tools
+        .as_deref()
+        .map(agent::grant_every_tool)
+        .or(with_tools);
     let raw_dir = options
         .transcript
         .parent()

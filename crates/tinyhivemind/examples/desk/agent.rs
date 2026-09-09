@@ -363,6 +363,33 @@ fn parse_events(stdout: &str) -> TurnOutput {
     turn
 }
 
+/// Say yes to every tool, once, in the agent CLI's configuration.
+///
+/// A seat runs with nobody at its keyboard. Left on `ask`, the agent CLI
+/// stops on the first command it considers worth confirming and waits for a
+/// human, and from the desk's side that is indistinguishable from a model
+/// thinking: the event stream simply stops. Run 30 lost `@solver`'s whole turn
+/// to it — six `permission.asked` events, no output for fifteen minutes, and
+/// the stall detector firing on a seat that was not stalled but blocked.
+///
+/// The grant is deliberate rather than incidental. A desk seat is given a
+/// shared workspace to write code in and run it; that is the job, and a
+/// confirmation prompt is not a safety boundary when there is no one to read
+/// it. The boundary that does hold is the workspace the host hands it.
+pub(crate) fn grant_every_tool(config: &str) -> String {
+    let mut value =
+        serde_json::from_str::<serde_json::Value>(config).unwrap_or_else(|_| serde_json::json!({}));
+    if !value.is_object() {
+        value = serde_json::json!({});
+    }
+    if let Some(object) = value.as_object_mut() {
+        // The bare string form of the CLI's permission config, which is its
+        // own way of spelling "every tool, without asking".
+        object.insert("permission".into(), serde_json::json!("allow"));
+    }
+    value.to_string()
+}
+
 /// Keep the head of a long string, marking what was dropped.
 pub(crate) fn truncate(text: &str, limit: usize) -> String {
     let mut end = limit.min(text.len());
