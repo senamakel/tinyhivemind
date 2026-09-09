@@ -62,6 +62,7 @@ pub(crate) fn compose_prompt(turn: &TurnPrompt<'_>) -> String {
         ),
     };
     prompt.push_str(&who_is_here(seats, &seat.id, spoken));
+    prompt.push_str(&desk_so_far(account, history));
     prompt.push_str("\n\n## Your standing brief\n");
     prompt.push_str(seat.brief.trim());
     if !recalled.trim().is_empty() {
@@ -78,13 +79,6 @@ pub(crate) fn compose_prompt(turn: &TurnPrompt<'_>) -> String {
     match notebook {
         Some(text) => prompt.push_str(text),
         None => prompt.push_str("(empty — you have not written one yet; start it this turn)"),
-    }
-    // Everything older than the live window, as one account the room keeps and
-    // rewrites. It is derived and lossy: the messages themselves are still in
-    // the transcript at the numbers it cites, and `desk_read` reaches them.
-    if let Some(account) = account {
-        prompt.push_str("\n\n## The room before that (the desk's standing account)\n");
-        prompt.push_str(account);
     }
     prompt.push_str(match briefing {
         Some(_) => "\n\n## The room so far\n",
@@ -112,6 +106,48 @@ pub(crate) fn compose_prompt(turn: &TurnPrompt<'_>) -> String {
     prompt.push_str("\n\n");
     prompt.push_str(&house_rules(&seat.id));
     prompt
+}
+
+/// The desk in one place, before any of the detail below it.
+///
+/// A seat opens a fresh process every turn and reads the last thing best, so
+/// the first thing it sees should be where the desk *is*, not where it left
+/// its own notes. Everything older than the live window is folded into one
+/// standing account and placed here; the window itself follows further down.
+///
+/// It always says something. When no fold has happened yet the section states
+/// that plainly and says where the room actually starts, because a seat told
+/// nothing about the desk's history cannot tell the difference between "there
+/// is none" and "you were not shown it" — and the second is the one that makes
+/// it re-derive work somebody already did.
+fn desk_so_far(account: Option<&str>, history: &[SessionMessage]) -> String {
+    let mut text = String::from("\n\n## The desk so far (read this first)\n");
+    match account {
+        Some(summary) => {
+            text.push_str(summary.trim());
+            text.push_str(
+                "\n\nThat account is written from the desk's own messages and is lossy. \
+                 Every message it stands for is still in the transcript at the number it \
+                 cites, and `desk_read(limit)` gets you the messages themselves. Read it \
+                 before you start work: it is how you avoid re-deriving something the room \
+                 has already settled.",
+            );
+        }
+        None => {
+            let from = history.first().map_or_else(
+                || "the opening message".to_string(),
+                |m| format!("[{}]", m.sequence.0),
+            );
+            let _ = write!(
+                text,
+                "No standing account has been written yet — the desk is still short \
+                 enough that everything it has said is below, starting at {from}. Read \
+                 the room before you start work, and use `desk_read(limit)` if you need \
+                 further back than you were handed."
+            );
+        }
+    }
+    text
 }
 
 /// Who is on this desk right now, and what each of them has done.
