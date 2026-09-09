@@ -90,7 +90,7 @@ information.
 | `--no-digest` | do not fold older messages into the room's account |
 | `--fold-after N` | rows past the window before a fold is spent; lower it to exercise the account on a short desk |
 | `--mcp-server --outbox PATH` | serve the desk tools over stdio; the binary re-execs itself into this mode and takes no turn |
-| `--tmux NAME` | run the room watched: one `opencode serve` and one live agent terminal per seat, in a tmux window of that name. See [`pane/README.md`](pane/README.md) |
+| `--tmux NAME` | run the room watched: one `opencode serve` and one live agent terminal per seat, side by side in a tmux window of that name. See [`pane/README.md`](pane/README.md) |
 | `--pane-port N` | the first localhost port the watched seats take, one each in order (default 4830) |
 | `--pane-compact-at N` | tokens a watched seat's conversation may reach before the host asks its server to summarize (default 150000) |
 

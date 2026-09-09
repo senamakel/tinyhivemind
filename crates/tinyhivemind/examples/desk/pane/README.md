@@ -7,9 +7,10 @@ telemetry twenty minutes later, after the seat has already spoken. Run 28 spent
 forty minutes in a turn whose only visible symptom was a cursor.
 
 This module is the same turn made watchable. Each seat gets its own
-`opencode serve` and its own real terminal attached to it in a tmux pane, and
-the host takes the turn the way a person would — put the prompt in the box,
-press enter — over that server's `/tui` endpoints.
+`opencode serve` and its own real terminal attached to it in a tmux pane — three
+seats side by side, a column each — and the host takes the turn the way a person
+would — put the prompt in the box, press enter — over that server's `/tui`
+endpoints.
 
 ```sh
 cargo run --release -p tinyhivemind --example desk -- \
@@ -37,10 +38,20 @@ tmux attach -t pe1006
 | `../pane.rs` | `PaneDesk`: start a server per seat, drive one turn, tear down |
 | `http.rs` | the three calls a pane needs, over `curl`, as [`../chat.rs`](../chat.rs) does |
 | `events.rs` | folding a server's event stream into one `TurnOutput` |
-| `tmux.rs` | the window: three seats become three stacked panes |
+| `tmux.rs` | the window: three seats become three side-by-side panes |
 | `test.rs` | the layout it would build and the feeds it would fold |
 
-## Two things that are easy to get wrong
+## Three things that are easy to get wrong
+
+**Nobody is at the seat's keyboard.** Left on the agent CLI's default `ask`
+permissions, a seat stops on the first command worth confirming and waits for a
+human — and from the desk's side that is indistinguishable from a model
+thinking, because the event stream simply stops. Run 30 lost `@solver`'s whole
+turn that way: six `permission.asked` events, no output, and the stall detector
+firing on a seat that was not stalled but blocked. The host now sets
+`permission: "allow"` in the configuration it hands every server. The boundary
+that still holds is the workspace the host hands the seat, not a prompt with no
+one to read it.
 
 **A part is republished, not emitted once.** `opencode run --format json` prints
 each tool part once, finished. A server publishes the same part id again every
