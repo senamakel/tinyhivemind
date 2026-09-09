@@ -64,18 +64,30 @@ pub(crate) struct PaneConfig {
     pub(crate) session: String,
     /// The directory every seat reads, writes, and runs code in.
     pub(crate) workspace: PathBuf,
-    /// `OPENCODE_CONFIG_CONTENT` for the servers: provider block and the
-    /// desk's own MCP block, exactly what the child process would have been
-    /// given.
+    /// `OPENCODE_CONFIG_CONTENT` for the terminals attached to the servers.
+    ///
+    /// The provider block only: a terminal renders, it does not serve tools,
+    /// and the desk's MCP block belongs to the server behind it — which gets
+    /// its own, naming its own seat's outbox.
     pub(crate) config: Option<String>,
     /// The first port to use; seats take one each, in order.
     pub(crate) base_port: u16,
-    /// The seat ids, in pane order.
-    pub(crate) seats: Vec<String>,
+    /// The seats, in pane order, each with the configuration its server runs
+    /// on.
+    pub(crate) seats: Vec<SeatPane>,
     /// Tokens a seat's session may reach before it is summarized.
     pub(crate) compact_at: u64,
     /// Where each turn's raw event feed and prompt are filed.
     pub(crate) raw_dir: Option<PathBuf>,
+}
+
+/// One seat and the configuration the server behind its terminal runs on.
+pub(crate) struct SeatPane {
+    /// The seat id.
+    pub(crate) seat: String,
+    /// `OPENCODE_CONFIG_CONTENT` for that seat's server: the provider block
+    /// and an MCP block naming this seat's own outbox.
+    pub(crate) config: Option<String>,
 }
 
 /// One seat's terminal: a server, a feed of its events, and where it is read.
@@ -120,14 +132,19 @@ impl PaneDesk {
         for (index, seat) in config.seats.iter().enumerate() {
             let port = config.base_port + u16::try_from(index)?;
             let base = format!("http://127.0.0.1:{port}");
-            let server = serve(config, port, &logs.join(format!("{seat}.server.log")))?;
-            let feed = logs.join(format!("{seat}.events.jsonl"));
+            let server = serve(
+                config,
+                seat.config.as_deref(),
+                port,
+                &logs.join(format!("{}.server.log", seat.seat)),
+            )?;
+            let feed = logs.join(format!("{}.events.jsonl", seat.seat));
             let _ = fs::remove_file(&feed);
-            wait_until_up(&base, config.config.is_some())?;
+            wait_until_up(&base, seat.config.is_some())?;
             let follower = http::follow_events(&base, &feed)?;
-            println!("   pane {index}: @{seat} on {base}");
+            println!("   pane {index}: @{} on {base}", seat.seat);
             panes.push(Pane {
-                seat: seat.clone(),
+                seat: seat.seat.clone(),
                 index,
                 base,
                 feed,
@@ -297,7 +314,12 @@ fn interrupt(pane: &Pane, session: Option<&str>) {
 }
 
 /// Start one seat's server in the shared workspace.
-fn serve(config: &PaneConfig, port: u16, log: &Path) -> Result<Child, BoxError> {
+fn serve(
+    config: &PaneConfig,
+    seat_config: Option<&str>,
+    port: u16,
+    log: &Path,
+) -> Result<Child, BoxError> {
     let file = fs::File::create(log)?;
     let errors = file.try_clone()?;
     let mut command = Command::new("opencode");
@@ -313,7 +335,7 @@ fn serve(config: &PaneConfig, port: u16, log: &Path) -> Result<Child, BoxError> 
         .stdin(Stdio::null())
         .stdout(Stdio::from(file))
         .stderr(Stdio::from(errors));
-    if let Some(content) = &config.config {
+    if let Some(content) = seat_config {
         command.env("OPENCODE_CONFIG_CONTENT", content);
     }
     Ok(command.spawn()?)

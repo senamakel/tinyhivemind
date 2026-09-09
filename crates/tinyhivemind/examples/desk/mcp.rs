@@ -27,7 +27,7 @@
 use std::{
     fs::{self, OpenOptions},
     io::{BufRead, Write},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 /// What a seat asked the room for during one turn.
