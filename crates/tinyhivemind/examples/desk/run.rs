@@ -436,7 +436,18 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
                 seat.id.clone(),
                 initialized_state(conversation.clone(), sequence),
             );
-            let text = session.briefing.system_text();
+            // The dispatch-aware form, because this host knows both halves
+            // the plain one has to withhold: the policy in force and the hop
+            // this turn is at. Without it a seat is never told that naming a
+            // teammate is what runs them next, which is the whole hand-off
+            // mechanism — and it is told nothing at all when it is at the cap,
+            // which is also correct.
+            let text = session
+                .briefing
+                .system_text_with_dispatch(MentionDispatchContext {
+                    policy,
+                    hop: job.hop,
+                });
             (session.history, Some(text), false)
         };
         let recalled = store
