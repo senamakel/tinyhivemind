@@ -7,7 +7,7 @@
 //! without chasing five helpers. `crosstalk` makes the same trade with
 //! `too_many_arguments`.
 
-use std::{collections::HashMap, fs, sync::PoisonError, time::Duration};
+use std::{collections::{BTreeMap, HashMap}, fs, sync::PoisonError, time::Duration};
 
 use tinyhivemind::{
     BrevityPolicy, BriefedTeammate, ChannelDigest, Conversation, DigestOutcome, DigestPolicy,
@@ -462,6 +462,17 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
         let composed = apply_digest(if catching_up { None } else { account.as_ref() }, &window);
         let history = composed.messages;
         let notebook = read_notebook(&options.workspace, &seat.id);
+        // Who has spoken and when, folded from the transcript rather than
+        // read out of the window: the window is bounded and a seat that fell
+        // out of it is exactly the seat nobody thinks to call on.
+        let spoken: BTreeMap<String, u64> = transcript
+            .rows()
+            .into_iter()
+            .filter_map(|row| match row.author {
+                SessionAuthor::Agent { id, .. } => Some((id, row.sequence.0)),
+                _ => None,
+            })
+            .collect();
         let prompt = compose_prompt(
             briefing_text.as_deref(),
             composed.digest.as_deref(),
@@ -470,6 +481,8 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
             &job,
             &recalled,
             notebook.as_deref(),
+            &spec.agents,
+            &spoken,
         );
         println!(
             "[turn {turns}] @{} ({} chars of prompt, {} {} message(s){}, notebook {})",
