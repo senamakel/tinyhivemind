@@ -156,6 +156,7 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
     });
     let account_policy = DigestPolicy {
         keep_live: options.window,
+        fold_after: options.fold_after,
         budget_chars: ACCOUNT_CHARS,
         ..DigestPolicy::DEFAULT
     };
