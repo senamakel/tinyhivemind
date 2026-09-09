@@ -4,6 +4,8 @@
 //! run, and the feed is a file of `data:` frames, so both halves of this
 //! module test the interesting decisions without a terminal in sight.
 
+#![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
+
 use super::{
     events::Watch,
     tail,

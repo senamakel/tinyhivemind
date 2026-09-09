@@ -191,9 +191,9 @@ impl PaneDesk {
             std::thread::sleep(Duration::from_secs(1));
         }
         let started = Instant::now();
-        let from = fs::metadata(&pane.feed).map(|meta| meta.len()).unwrap_or(0);
+        let from = fs::metadata(&pane.feed).map_or(0, |meta| meta.len());
         submit(&pane.base, prompt)?;
-        let mut turn = self.watch(pane, from, started, timeout);
+        let mut turn = watch(pane, from, started, timeout);
         turn.elapsed = started.elapsed();
         self.file_raw(pane, label, prompt, from);
         if let Some(id) = turn.session.clone()
@@ -211,39 +211,6 @@ impl PaneDesk {
             );
         }
         Ok(turn)
-    }
-
-    /// Read the pane's feed until the turn ends, times out, or goes quiet.
-    fn watch(&self, pane: &Pane, from: u64, started: Instant, timeout: Duration) -> TurnOutput {
-        let mut watch = events::Watch::default();
-        let mut read = from;
-        let mut last_growth = Instant::now();
-        loop {
-            std::thread::sleep(POLL);
-            let (lines, at) = tail(&pane.feed, read);
-            if at > read {
-                read = at;
-                last_growth = Instant::now();
-            }
-            for line in lines.lines() {
-                watch.absorb(line);
-            }
-            if watch.done() {
-                return watch.finish();
-            }
-            if started.elapsed() >= timeout {
-                interrupt(pane, watch.session());
-                let mut turn = watch.finish();
-                turn.timed_out = true;
-                return turn;
-            }
-            if last_growth.elapsed() >= crate::agent::STALL_AFTER {
-                interrupt(pane, watch.session());
-                let mut turn = watch.finish();
-                turn.stalled = true;
-                return turn;
-            }
-        }
     }
 
     /// Keep the turn's own slice of the feed, and the prompt that caused it.
@@ -271,6 +238,39 @@ impl Drop for PaneDesk {
             "   panes left up for reading: tmux attach -t {}",
             self.session
         );
+    }
+}
+
+/// Read the pane's feed until the turn ends, times out, or goes quiet.
+fn watch(pane: &Pane, from: u64, started: Instant, timeout: Duration) -> TurnOutput {
+    let mut watch = events::Watch::default();
+    let mut read = from;
+    let mut last_growth = Instant::now();
+    loop {
+        std::thread::sleep(POLL);
+        let (lines, at) = tail(&pane.feed, read);
+        if at > read {
+            read = at;
+            last_growth = Instant::now();
+        }
+        for line in lines.lines() {
+            watch.absorb(line);
+        }
+        if watch.done() {
+            return watch.finish();
+        }
+        if started.elapsed() >= timeout {
+            interrupt(pane, watch.session());
+            let mut turn = watch.finish();
+            turn.timed_out = true;
+            return turn;
+        }
+        if last_growth.elapsed() >= crate::agent::STALL_AFTER {
+            interrupt(pane, watch.session());
+            let mut turn = watch.finish();
+            turn.stalled = true;
+            return turn;
+        }
     }
 }
 
