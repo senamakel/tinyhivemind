@@ -83,14 +83,18 @@ pub(crate) fn layout(
         "-t".into(),
         session.into(),
         "pane-border-format".into(),
-        " #{pane_title} ".into(),
+        " #{@seat} ".into(),
     ]);
     for (index, seat) in seats.iter().enumerate() {
+        // A pane-scoped user option rather than `select-pane -T`: the agent
+        // terminal sets its own pane title the moment it draws, so a title
+        // the host set is gone by the time anybody looks at it.
         plan.push(vec![
-            "select-pane".into(),
+            "set-option".into(),
+            "-p".into(),
             "-t".into(),
             format!("{session}:desk.{index}"),
-            "-T".into(),
+            "@seat".into(),
             format!("@{}", seat.seat),
         ]);
     }
@@ -132,6 +136,25 @@ pub(crate) fn build(
         }
     }
     Ok(())
+}
+
+/// Read back what a pane is currently showing.
+///
+/// This is how the host checks that a terminal is listening rather than
+/// merely running: a server answers its health endpoint some seconds before
+/// the terminal attached to it will accept a prompt, and a prompt submitted
+/// into that gap is silently lost.
+pub(crate) fn capture(session: &str, index: usize) -> Option<String> {
+    let output = Command::new("tmux")
+        .args(["capture-pane", "-p", "-t", &format!("{session}:desk.{index}")])
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .ok()?;
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&output.stdout).to_string())
 }
 
 /// Tear down a session, ignoring one that is not there.
