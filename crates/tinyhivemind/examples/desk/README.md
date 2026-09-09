@@ -87,6 +87,7 @@ information.
 | `--library-scope` `--session-scope` | the durable and per-run memory scopes |
 | `--no-memory` | run with no recall and no capture |
 | `--no-digest` | do not fold older messages into the room's account |
+| `--fold-after N` | rows past the window before a fold is spent; lower it to exercise the account on a short desk |
 | `--mcp-server --outbox PATH` | serve the desk tools over stdio; the binary re-execs itself into this mode and takes no turn |
 
 `OPENCODE_CONFIG_CONTENT` is passed through to the agent process, which is how
