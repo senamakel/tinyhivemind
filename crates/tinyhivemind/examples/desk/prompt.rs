@@ -231,9 +231,11 @@ fn house_rules(seat_id: &str) -> String {
            you must finish by calling `desk_post` or `desk_dm`: a turn that never \
            posts is a turn the room never happened, and the work in it reaches \
            nobody.\n\
-         - Older messages reach you as the desk's standing account rather than in \
-           full. It is written from the messages and can be thin; `desk_read` gets \
-           you the messages themselves.\n\
+         - Start by reading `## The desk so far` at the top. It is the desk's \
+           standing account of everything older than the window, and it is there so \
+           you do not spend your turn re-deriving something the room already \
+           settled. It is written from the messages and can be thin; `desk_read` \
+           gets you the messages themselves, at the numbers it cites.\n\
          - If the desk tools are not attached to this session, fall back to wrapping \
            the message in <<<POST and POST>>> and say so in it.\n",
     );

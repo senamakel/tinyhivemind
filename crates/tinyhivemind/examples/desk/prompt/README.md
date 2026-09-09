@@ -24,6 +24,19 @@ too, but only through `system_text_with_dispatch`, and only when the run's
 policy and hop actually allow a child turn; `run.rs` passes both so a seat at
 the hop cap is not offered something that would refuse it.
 
+## The desk before the detail
+
+`desk_so_far` is the first section after the roster, and it always says
+something. When a fold has happened it carries the standing account; when none
+has, it says so and names the sequence the room actually starts at. The
+distinction matters: a seat told nothing about the desk's history cannot tell
+"there is none" from "you were not shown it", and the second reading is the one
+that makes it re-derive work somebody already finished.
+
+It is placed above the seat's own notebook deliberately. A fresh process reads
+the last thing best and the first thing next best, and where the *desk* is
+should outrank where this seat left its notes.
+
 ## One private channel, two names
 
 The shared-session rules call a private message `!aside @peer`; the desk's own
