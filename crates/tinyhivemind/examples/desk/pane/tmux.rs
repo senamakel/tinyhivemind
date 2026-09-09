@@ -146,7 +146,12 @@ pub(crate) fn build(
 /// into that gap is silently lost.
 pub(crate) fn capture(session: &str, index: usize) -> Option<String> {
     let output = Command::new("tmux")
-        .args(["capture-pane", "-p", "-t", &format!("{session}:desk.{index}")])
+        .args([
+            "capture-pane",
+            "-p",
+            "-t",
+            &format!("{session}:desk.{index}"),
+        ])
         .stdin(Stdio::null())
         .stderr(Stdio::null())
         .output()

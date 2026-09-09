@@ -82,6 +82,8 @@ pub(crate) struct PaneConfig {
 struct Pane {
     /// The seat this pane belongs to.
     seat: String,
+    /// Which pane of the window it is, so the host can read it back.
+    index: usize,
     /// The root URL of the seat's server.
     base: String,
     /// The file `curl` appends this server's event stream to.
@@ -121,11 +123,12 @@ impl PaneDesk {
             let server = serve(config, port, &logs.join(format!("{seat}.server.log")))?;
             let feed = logs.join(format!("{seat}.events.jsonl"));
             let _ = fs::remove_file(&feed);
-            wait_until_up(&base)?;
+            wait_until_up(&base, config.config.is_some())?;
             let follower = http::follow_events(&base, &feed)?;
             println!("   pane {index}: @{seat} on {base}");
             panes.push(Pane {
                 seat: seat.clone(),
+                index,
                 base,
                 feed,
                 server,
@@ -145,6 +148,9 @@ impl PaneDesk {
             config.config.as_deref(),
             &attachments,
         )?;
+        for pane in &panes {
+            wait_until_listening(&config.session, pane)?;
+        }
         println!("   watch it with: tmux attach -t {}", config.session);
         Ok(Self {
             session: config.session.clone(),
@@ -313,16 +319,62 @@ fn serve(config: &PaneConfig, port: u16, log: &Path) -> Result<Child, BoxError> 
     Ok(command.spawn()?)
 }
 
-/// Block until a server answers, or give up.
-fn wait_until_up(base: &str) -> Result<(), BoxError> {
+/// Block until a server is answering *and* holding the desk's own tools.
+///
+/// Health alone is answered while the process is still loading plugins and
+/// connecting MCP servers. A turn submitted in that window runs a seat with no
+/// `desk_post` to call, which the seat then reports as the room being broken.
+fn wait_until_up(base: &str, wants_tools: bool) -> Result<(), BoxError> {
     let deadline = Instant::now() + BOOT_TIMEOUT;
     while Instant::now() < deadline {
-        if http::get(base, "/global/health", Duration::from_secs(5)).is_some() {
+        if http::get(base, "/global/health", Duration::from_secs(5)).is_some()
+            && (!wants_tools || desk_tools_connected(base))
+        {
             return Ok(());
         }
         std::thread::sleep(Duration::from_millis(400));
     }
     Err(format!("{base} did not come up within {BOOT_TIMEOUT:?}").into())
+}
+
+/// Whether the server reports the desk's MCP server as connected.
+fn desk_tools_connected(base: &str) -> bool {
+    http::get(base, "/mcp", Duration::from_secs(5))
+        .and_then(|body| serde_json::from_str::<serde_json::Value>(&body).ok())
+        .and_then(|status| {
+            status
+                .pointer("/desk/status")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+        })
+        .is_some_and(|status| status == "connected")
+}
+
+/// Block until a terminal accepts what the host types into it.
+///
+/// The check is the thing itself: type a sentinel, read the pane back, and
+/// only continue once it is on screen. A server answers its health endpoint
+/// several seconds before the terminal attached to it is listening, and the
+/// first turn's prompt lands in that gap and is never seen again — which
+/// reads, from the desk's side, as a seat that said nothing.
+fn wait_until_listening(session: &str, pane: &Pane) -> Result<(), BoxError> {
+    let sentinel = format!("desk-ready-{}", pane.seat);
+    let deadline = Instant::now() + BOOT_TIMEOUT;
+    while Instant::now() < deadline {
+        http::post(&pane.base, "/tui/clear-prompt", "{}", CONTROL_TIMEOUT);
+        http::post(
+            &pane.base,
+            "/tui/append-prompt",
+            &serde_json::json!({ "text": sentinel }).to_string(),
+            CONTROL_TIMEOUT,
+        );
+        std::thread::sleep(Duration::from_millis(600));
+        if tmux::capture(session, pane.index).is_some_and(|shown| shown.contains(&sentinel)) {
+            http::post(&pane.base, "/tui/clear-prompt", "{}", CONTROL_TIMEOUT);
+            return Ok(());
+        }
+    }
+    Err(format!("the terminal for @{} never took a prompt", pane.seat).into())
 }
 
 /// Put the prompt in the terminal's box and press enter.
