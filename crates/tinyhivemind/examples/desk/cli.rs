@@ -72,6 +72,20 @@ pub(crate) struct Options {
     /// spending a completion on. Lower it to exercise the account on a short
     /// desk; the default only pays off on a long one.
     pub(crate) fold_after: usize,
+    /// The tmux session to watch the room in, one pane per seat.
+    ///
+    /// `None` runs the desk the invisible way: one child process per turn,
+    /// reading its stdout. Naming a session instead gives every seat its own
+    /// live agent terminal and drives it through that terminal.
+    pub(crate) tmux: Option<String>,
+    /// The first localhost port the watched seats take, one each in order.
+    pub(crate) pane_port: u16,
+    /// Tokens a watched seat's conversation may reach before it is summarized.
+    ///
+    /// A watched seat keeps its terminal across turns, so its context does not
+    /// reset the way a fresh child process's did. This is the ceiling that
+    /// keeps that from becoming the unbounded growth `README.md` records.
+    pub(crate) pane_compact_at: u64,
 }
 
 impl Options {
@@ -108,6 +122,9 @@ impl Options {
             outbox: None,
             fold_account: true,
             fold_after: DigestPolicy::DEFAULT.fold_after,
+            tmux: None,
+            pane_port: 4830,
+            pane_compact_at: 150_000,
         };
         let mut args = std::env::args().skip(1);
         while let Some(flag) = args.next() {
@@ -134,6 +151,9 @@ impl Options {
                 "--outbox" => options.outbox = Some(PathBuf::from(value()?)),
                 "--no-digest" => options.fold_account = false,
                 "--fold-after" => options.fold_after = value()?.parse()?,
+                "--tmux" => options.tmux = Some(value()?),
+                "--pane-port" => options.pane_port = value()?.parse()?,
+                "--pane-compact-at" => options.pane_compact_at = value()?.parse()?,
                 "--no-memory" => {
                     options.cortex_base = None;
                 }

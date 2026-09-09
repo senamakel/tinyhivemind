@@ -37,7 +37,7 @@ use crate::{
     aside::{self, Addressed},
     chat,
     cli::Options,
-    deskfile, digest, log, mcp, memory,
+    deskfile, digest, log, mcp, memory, pane,
     notebook::{files_written, read_notebook},
     prompt::{TurnPrompt, compose_prompt},
     queue::{DeskQueue, PendingTurn},
@@ -119,19 +119,32 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
             options.opencode_config.clone()
         }
     };
-    let runner = agent::AgentRunner::new(
+    let raw_dir = options
+        .transcript
+        .parent()
+        .unwrap_or(std::path::Path::new("."))
+        .join("desk-raw");
+    let mut runner = agent::AgentRunner::new(
         &options.agent_cmd,
         &options.workspace.to_string_lossy(),
-        agent_config,
+        agent_config.clone(),
         options.timeout,
-        Some(
-            options
-                .transcript
-                .parent()
-                .unwrap_or(std::path::Path::new("."))
-                .join("desk-raw"),
-        ),
+        Some(raw_dir.clone()),
     );
+    if let Some(session) = &options.tmux {
+        // Watched: every seat gets its own terminal in a pane, and a turn is
+        // taken in it rather than in a child process nobody can see.
+        println!("building the window {session}");
+        runner = runner.watched(pane::PaneDesk::start(&pane::PaneConfig {
+            session: session.clone(),
+            workspace: options.workspace.clone(),
+            config: agent_config,
+            base_port: options.pane_port,
+            seats: spec.agents.iter().map(|seat| seat.id.clone()).collect(),
+            compact_at: options.pane_compact_at,
+            raw_dir: Some(raw_dir),
+        })?);
+    }
     let store = match (&options.cortex_base, &options.cortex_key) {
         (Some(base), Some(key)) => Some(memory::Memory::new(
             base,

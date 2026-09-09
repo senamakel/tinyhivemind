@@ -30,6 +30,7 @@
 //! | `digest.rs` | the host side of the `Digester` port: the room's account |
 //! | `notebook.rs` | the notebook a seat carries between turns |
 //! | `agent.rs` | one `opencode run` per turn, and its output |
+//! | `pane.rs` | the same turn in a watched tmux pane, driven over HTTP |
 //! | `chat.rs` | the tool-less wrap-up channel |
 //! | `deskfile.rs` | parsing the plain-text desk file |
 //! | `log.rs` | the JSONL-backed `SessionLog` |
@@ -45,6 +46,7 @@ mod log;
 mod mcp;
 mod memory;
 mod notebook;
+mod pane;
 mod prompt;
 mod queue;
 mod run;
