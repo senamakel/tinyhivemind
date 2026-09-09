@@ -20,11 +20,10 @@ pub(crate) fn get(base: &str, path: &str, timeout: Duration) -> Option<String> {
         .stdin(Stdio::null())
         .output()
         .ok()?;
-    output.status.success().then(|| {
-        String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .to_string()
-    })
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
 /// `POST` a JSON body to a path on a pane's server.
@@ -53,11 +52,10 @@ pub(crate) fn post(base: &str, path: &str, body: &str, timeout: Duration) -> Opt
         .ok()?;
     child.stdin.take()?.write_all(body.as_bytes()).ok()?;
     let output = child.wait_with_output().ok()?;
-    output.status.success().then(|| {
-        String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .to_string()
-    })
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
 /// Start a detached `curl` that appends a server's event stream to a file.

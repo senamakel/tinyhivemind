@@ -214,9 +214,11 @@ fn fold_tool(part: &Value, turn: &mut TurnOutput) {
         .and_then(Value::as_str)
         .unwrap_or_default();
     turn.work_log.push_str("\n$ ");
-    turn.work_log.push_str(&crate::agent::truncate(&input, 1200));
+    turn.work_log
+        .push_str(&crate::agent::truncate(&input, 1200));
     turn.work_log.push('\n');
-    turn.work_log.push_str(&crate::agent::truncate(output, 1200));
+    turn.work_log
+        .push_str(&crate::agent::truncate(output, 1200));
     turn.work_log.push('\n');
 }
 

@@ -199,7 +199,10 @@ impl PaneDesk {
         if let Some(id) = turn.session.clone()
             && turn.tokens > self.compact_at
         {
-            println!("   pane at {} tokens; summarizing before the next turn", turn.tokens);
+            println!(
+                "   pane at {} tokens; summarizing before the next turn",
+                turn.tokens
+            );
             http::post(
                 &pane.base,
                 &format!("/session/{id}/summarize"),
@@ -264,7 +267,10 @@ impl Drop for PaneDesk {
         // The window is left standing on purpose. Its panes hold the last
         // thing each seat did, which is the reason to have watched at all;
         // `tmux kill-session -t <name>` is the one line that reclaims it.
-        println!("   panes left up for reading: tmux attach -t {}", self.session);
+        println!(
+            "   panes left up for reading: tmux attach -t {}",
+            self.session
+        );
     }
 }
 

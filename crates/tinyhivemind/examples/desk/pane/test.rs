@@ -47,14 +47,17 @@ fn stacks_the_panes_rather_than_letting_tmux_halve_them() {
     let plan = tmux::layout("desk", "/ws", None, &three());
     for argv in &plan {
         if argv.first().map(String::as_str) == Some("split-window") {
-            assert!(argv.iter().any(|arg| arg == "-v"), "{argv:?} is not vertical");
+            assert!(
+                argv.iter().any(|arg| arg == "-v"),
+                "{argv:?} is not vertical"
+            );
         }
     }
     assert!(
-        plan.iter().any(|argv| argv
-            .first()
-            .is_some_and(|verb| verb == "select-layout")
-            && argv.last().is_some_and(|layout| layout == "even-vertical")),
+        plan.iter().any(
+            |argv| argv.first().is_some_and(|verb| verb == "select-layout")
+                && argv.last().is_some_and(|layout| layout == "even-vertical")
+        ),
         "the splits are never evened out"
     );
 }
@@ -266,11 +269,7 @@ fn a_frame_still_being_written_is_left_for_the_next_read() {
     std::fs::write(&path, "data: {\"type\":\"a\"}\ndata: {\"type\"").expect("write");
     let (whole, at) = tail(&path, 0);
     assert_eq!(whole, "data: {\"type\":\"a\"}\n");
-    std::fs::write(
-        &path,
-        "data: {\"type\":\"a\"}\ndata: {\"type\":\"b\"}\n",
-    )
-    .expect("rewrite");
+    std::fs::write(&path, "data: {\"type\":\"a\"}\ndata: {\"type\":\"b\"}\n").expect("rewrite");
     let (rest, _) = tail(&path, at);
     assert_eq!(rest, "data: {\"type\":\"b\"}\n");
     std::fs::remove_dir_all(&dir).ok();

@@ -42,7 +42,12 @@ pub(crate) fn layout(
                 "desk".into(),
             ]
         } else {
-            vec!["split-window".into(), "-d".into(), "-t".into(), format!("{session}:desk")]
+            vec![
+                "split-window".into(),
+                "-d".into(),
+                "-t".into(),
+                format!("{session}:desk"),
+            ]
         };
         argv.push("-c".into());
         argv.push(workspace.into());
@@ -111,7 +116,12 @@ pub(crate) fn build(
             .args(&argv)
             .stdin(Stdio::null())
             .output()
-            .map_err(|error| format!("tmux {}: {error}", argv.first().cloned().unwrap_or_default()))?;
+            .map_err(|error| {
+                format!(
+                    "tmux {}: {error}",
+                    argv.first().cloned().unwrap_or_default()
+                )
+            })?;
         if !output.status.success() {
             return Err(format!(
                 "tmux {} failed: {}",
