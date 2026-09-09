@@ -206,3 +206,6 @@ fn house_rules(seat_id: &str) -> String {
     );
     prompt
 }
+
+#[cfg(test)]
+mod test;
