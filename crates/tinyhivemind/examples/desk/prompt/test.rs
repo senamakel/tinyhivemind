@@ -58,6 +58,8 @@ fn message(sequence: u64, text: &str) -> SessionMessage {
             label: "Theory".into(),
         },
         content: text.into(),
+        audience: tinyhivemind::aside::Audience::Desk,
+        elided: None,
     }
 }
 
