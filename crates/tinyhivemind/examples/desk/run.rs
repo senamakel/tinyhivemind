@@ -48,13 +48,6 @@ use crate::{
 /// How long a seat gets to write the message it never got round to writing.
 const WRAP_UP_TIMEOUT: Duration = Duration::from_secs(600);
 
-/// Where a turn's tool calls to the room are collected, under the workspace.
-///
-/// One file, truncated before every turn, so a turn drains only its own calls.
-/// It is not a second journal: the transcript is still the only record, and
-/// the host is still what writes it.
-const OUTBOX: &str = ".desk/outbox.jsonl";
-
 /// How long the room's standing account may be, in characters.
 ///
 /// Roughly a page: enough to carry what has been established and by whom, and
@@ -103,30 +96,34 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
     };
     let transcript = log::JsonlLog::open(&options.transcript)?;
     // The room is a tool the seat calls, not a fence it writes. The server is
-    // this binary re-executed; the outbox is one file, truncated per turn.
-    let outbox = options.workspace.join(OUTBOX);
-    let with_tools = match std::env::current_exe() {
-        Ok(exe) => Some(mcp::config_block(
-            &exe,
-            &outbox,
-            &options.transcript,
-            options.opencode_config.as_deref(),
-        )),
-        Err(error) => {
-            println!(
-                "!! cannot find this binary to serve the desk tools ({error}); seats will fall \
-                 back to the post fence"
-            );
-            options.opencode_config.clone()
-        }
+    // this binary re-executed, and each seat that has a server of its own gets
+    // an outbox of its own with it — see `mcp::outbox_path` for why sharing one
+    // stops being safe the moment more than one terminal is alive.
+    let exe = std::env::current_exe().ok();
+    if exe.is_none() {
+        println!(
+            "!! cannot find this binary to serve the desk tools; seats will fall back to the \
+             post fence"
+        );
+    }
+    // Nobody is at a seat's keyboard, so a confirmation prompt is not a safety
+    // boundary — it is a turn that stops with no output and reads, from here,
+    // exactly like a model thinking.
+    let configure = |seat: Option<&str>| -> String {
+        let base = match &exe {
+            Some(exe) => mcp::config_block(
+                exe,
+                &mcp::outbox_path(&options.workspace, seat),
+                &options.transcript,
+                options.opencode_config.as_deref(),
+            ),
+            None => options
+                .opencode_config
+                .clone()
+                .unwrap_or_else(|| "{}".to_string()),
+        };
+        agent::grant_every_tool(&base)
     };
-    // Nobody is at a seat's keyboard, so a confirmation prompt is not a
-    // safety boundary — it is a turn that stops with no output and reads, from
-    // here, exactly like a model thinking.
-    let agent_config = with_tools
-        .as_deref()
-        .map(agent::grant_every_tool)
-        .or(with_tools);
     let raw_dir = options
         .transcript
         .parent()
@@ -135,7 +132,7 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
     let mut runner = agent::AgentRunner::new(
         &options.agent_cmd,
         &options.workspace.to_string_lossy(),
-        agent_config.clone(),
+        Some(configure(None)),
         options.timeout,
         Some(raw_dir.clone()),
     );
@@ -146,9 +143,18 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
         runner = runner.watched(pane::PaneDesk::start(&pane::PaneConfig {
             session: session.clone(),
             workspace: options.workspace.clone(),
-            config: agent_config,
+            // The terminals only render, so they get the provider block and
+            // not the desk's tools; their servers get those.
+            config: options.opencode_config.clone(),
             base_port: options.pane_port,
-            seats: spec.agents.iter().map(|seat| seat.id.clone()).collect(),
+            seats: spec
+                .agents
+                .iter()
+                .map(|seat| pane::SeatPane {
+                    seat: seat.id.clone(),
+                    config: Some(configure(Some(&seat.id))),
+                })
+                .collect(),
             compact_at: options.pane_compact_at,
             raw_dir: Some(raw_dir),
         })?);
@@ -526,7 +532,10 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
             &turn::Delivery {
                 runner: &runner,
                 wrapup: &wrapup,
-                outbox: &outbox,
+                outbox: &mcp::outbox_path(
+                    &options.workspace,
+                    options.tmux.as_ref().map(|_| seat.id.as_str()),
+                ),
                 label: format!("turn-{turns:03}-{}", seat.id),
                 seat_id: &seat.id,
                 resumed: resumed.as_deref(),
