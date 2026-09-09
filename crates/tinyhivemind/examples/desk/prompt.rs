@@ -20,17 +20,39 @@ use crate::{
 ///
 /// The order matters: who it is, what the desk knows, what the room has said,
 /// then what it was actually asked. A model reads the last thing best.
-pub(crate) fn compose_prompt(
-    briefing: Option<&str>,
-    account: Option<&str>,
-    history: &[SessionMessage],
-    seat: &deskfile::AgentSpec,
-    job: &PendingTurn,
-    recalled: &str,
-    notebook: Option<&str>,
-    seats: &[deskfile::AgentSpec],
-    spoken: &BTreeMap<String, u64>,
-) -> String {
+pub(crate) struct TurnPrompt<'a> {
+    /// The library's briefing, or `None` when the seat is only being caught up.
+    pub(crate) briefing: Option<&'a str>,
+    /// The desk's standing account of everything older than the window.
+    pub(crate) account: Option<&'a str>,
+    /// The live window of messages this seat may see.
+    pub(crate) history: &'a [SessionMessage],
+    /// Whose turn it is.
+    pub(crate) seat: &'a deskfile::AgentSpec,
+    /// What triggered the turn.
+    pub(crate) job: &'a PendingTurn,
+    /// Whatever the memory store recalled for this turn.
+    pub(crate) recalled: &'a str,
+    /// The seat's own notebook, carried from its last turn.
+    pub(crate) notebook: Option<&'a str>,
+    /// Every seat on the desk, in desk-file order.
+    pub(crate) seats: &'a [deskfile::AgentSpec],
+    /// Each seat's most recent sequence number, for seats that have spoken.
+    pub(crate) spoken: &'a BTreeMap<String, u64>,
+}
+
+pub(crate) fn compose_prompt(turn: &TurnPrompt<'_>) -> String {
+    let &TurnPrompt {
+        briefing,
+        account,
+        history,
+        seat,
+        job,
+        recalled,
+        notebook,
+        seats,
+        spoken,
+    } = turn;
     let mut prompt = match briefing {
         Some(text) => text.to_string(),
         None => format!(
@@ -111,7 +133,7 @@ fn who_is_here(seats: &[deskfile::AgentSpec], me: &str, spoken: &BTreeMap<String
             Some(at) => format!("last spoke at [{at}]"),
             None => "has not spoken yet".to_string(),
         };
-        let _ = write!(text, "- @{}{mine} — {} — {state}\n", seat.id, seat.role);
+        let _ = writeln!(text, "- @{}{mine} — {} — {state}", seat.id, seat.role);
     }
     text.push_str(
         "\nNaming one of them with @id is what runs them next; naming nobody ends \

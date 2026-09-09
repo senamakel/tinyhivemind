@@ -478,17 +478,17 @@ pub(crate) async fn run(options: Options) -> Result<(), BoxError> {
                 _ => None,
             })
             .collect();
-        let prompt = compose_prompt(
-            briefing_text.as_deref(),
-            composed.digest.as_deref(),
-            &history,
+        let prompt = compose_prompt(&TurnPrompt {
+            briefing: briefing_text.as_deref(),
+            account: composed.digest.as_deref(),
+            history: &history,
             seat,
-            &job,
-            &recalled,
-            notebook.as_deref(),
-            &spec.agents,
-            &spoken,
-        );
+            job: &job,
+            recalled: &recalled,
+            notebook: notebook.as_deref(),
+            seats: &spec.agents,
+            spoken: &spoken,
+        });
         println!(
             "[turn {turns}] @{} ({} chars of prompt, {} {} message(s){}, notebook {})",
             seat.id,
