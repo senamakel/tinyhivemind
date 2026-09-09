@@ -45,13 +45,26 @@ pub(crate) fn layout(
                 session.into(),
                 "-n".into(),
                 "desk".into(),
+                // A detached session is 80x24 until something attaches, which
+                // is four rows a pane. The seats are read while they run, so
+                // the window is sized for reading rather than for whichever
+                // terminal happens to attach to it later.
+                "-x".into(),
+                "220".into(),
+                "-y".into(),
+                "60".into(),
             ]
         } else {
+            // Split the pane *below*, not the window. `split-window` against a
+            // window splits whatever pane is active, which after the first
+            // split is still the first one — so the third seat lands between
+            // the first two and every pane index is one seat off from the
+            // terminal sitting in it.
             vec![
                 "split-window".into(),
                 "-d".into(),
                 "-t".into(),
-                format!("{session}:desk"),
+                format!("{session}:desk.{}", index - 1),
             ]
         };
         argv.push("-c".into());
