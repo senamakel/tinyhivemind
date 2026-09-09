@@ -41,7 +41,17 @@ tmux attach -t pe1006
 | `tmux.rs` | the window: three seats become three side-by-side panes |
 | `test.rs` | the layout it would build and the feeds it would fold |
 
-## Three things that are easy to get wrong
+## Four things that are easy to get wrong
+
+**Every terminal is live, all the time.** The desk normally has one agent
+process alive at a time, so a single outbox could not be ambiguous about whose
+message it held. Three long-lived terminals can each call a desk tool at any
+moment, including while another seat's turn is open — and a shared outbox is
+drained at the end of *that* turn and attributed to whoever's turn it was. Typing
+into `@solver`'s terminal got a DM posted as `@theory`. Each seat's server is
+now configured with an outbox of its own (`mcp::outbox_path`), so a call made
+outside a seat's turn lands in that seat's file and is cleared when its turn
+next opens — the safe direction to lose a message in.
 
 **Nobody is at the seat's keyboard.** Left on the agent CLI's default `ask`
 permissions, a seat stops on the first command worth confirming and waits for a
