@@ -293,3 +293,58 @@ fn a_close_with_no_message_is_refused_while_the_seat_can_still_fix_it() {
     );
     assert!(drain_outbox(&outbox).is_empty());
 }
+
+#[test]
+fn a_seat_with_a_terminal_of_its_own_gets_an_outbox_of_its_own() {
+    let workspace = std::path::Path::new("/ws");
+    let shared = super::outbox_path(workspace, None);
+    let solver = super::outbox_path(workspace, Some("solver"));
+    let theory = super::outbox_path(workspace, Some("theory"));
+    assert_eq!(shared, workspace.join(".desk/outbox.jsonl"));
+    assert_ne!(
+        solver, theory,
+        "two live terminals sharing one outbox is how a message typed into one \
+         seat is posted as another"
+    );
+    assert_eq!(solver, workspace.join(".desk/outbox-solver.jsonl"));
+}
+
+#[test]
+fn each_seats_configuration_names_that_seats_outbox() {
+    let exe = std::path::Path::new("/bin/desk");
+    let workspace = std::path::Path::new("/ws");
+    let transcript = std::path::Path::new("/ws/transcript.jsonl");
+    let for_seat = |seat: &str| {
+        let config = super::config_block(
+            exe,
+            &super::outbox_path(workspace, Some(seat)),
+            transcript,
+            None,
+        );
+        let value: serde_json::Value = serde_json::from_str(&config).expect("valid json");
+        value
+            .pointer("/mcp/desk/command")
+            .and_then(|command| command.as_array())
+            .map(|command| {
+                command
+                    .iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .map(str::to_string)
+                    .collect::<Vec<_>>()
+            })
+            .expect("a command")
+    };
+    let solver = for_seat("solver");
+    let checker = for_seat("checker");
+    assert!(
+        solver
+            .iter()
+            .any(|arg| arg.ends_with("outbox-solver.jsonl"))
+    );
+    assert!(
+        checker
+            .iter()
+            .any(|arg| arg.ends_with("outbox-checker.jsonl"))
+    );
+    assert_ne!(solver, checker);
+}
