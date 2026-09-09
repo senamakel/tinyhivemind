@@ -45,20 +45,22 @@ fn opens_one_session_and_splits_it_once_per_further_seat() {
 }
 
 #[test]
-fn stacks_the_panes_rather_than_letting_tmux_halve_them() {
+fn ranks_the_panes_side_by_side_rather_than_letting_tmux_halve_them() {
     let plan = tmux::layout("desk", "/ws", None, &three());
     for argv in &plan {
         if argv.first().map(String::as_str) == Some("split-window") {
             assert!(
-                argv.iter().any(|arg| arg == "-v"),
-                "{argv:?} is not vertical"
+                argv.iter().any(|arg| arg == "-h"),
+                "{argv:?} is not horizontal"
             );
         }
     }
     assert!(
         plan.iter().any(
             |argv| argv.first().is_some_and(|verb| verb == "select-layout")
-                && argv.last().is_some_and(|layout| layout == "even-vertical")
+                && argv
+                    .last()
+                    .is_some_and(|layout| layout == "even-horizontal")
         ),
         "the splits are never evened out"
     );

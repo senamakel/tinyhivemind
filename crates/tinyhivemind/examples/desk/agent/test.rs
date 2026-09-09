@@ -59,3 +59,37 @@ fn keeps_an_unterminated_block_rather_than_dropping_it() {
     let raw = "narration\n<<<POST\n@lead ran out of room";
     assert_eq!(extract_post(raw), "@lead ran out of room");
 }
+
+#[test]
+fn says_yes_to_every_tool_so_a_seat_is_never_waiting_on_a_keyboard() {
+    let granted = super::grant_every_tool("{}");
+    let value: serde_json::Value = serde_json::from_str(&granted).expect("valid json");
+    assert_eq!(
+        value.get("permission").and_then(|at| at.as_str()),
+        Some("allow")
+    );
+}
+
+#[test]
+fn granting_permission_keeps_the_configuration_it_was_given() {
+    let granted = super::grant_every_tool(r#"{"model":"ladder/max-reasoning","mcp":{"desk":{}}}"#);
+    let value: serde_json::Value = serde_json::from_str(&granted).expect("valid json");
+    assert_eq!(
+        value.get("model").and_then(|at| at.as_str()),
+        Some("ladder/max-reasoning")
+    );
+    assert!(
+        value.pointer("/mcp/desk").is_some(),
+        "the desk's tools were dropped"
+    );
+}
+
+#[test]
+fn a_configuration_that_is_not_an_object_is_replaced_rather_than_trusted() {
+    let granted = super::grant_every_tool("not json at all");
+    let value: serde_json::Value = serde_json::from_str(&granted).expect("valid json");
+    assert_eq!(
+        value.get("permission").and_then(|at| at.as_str()),
+        Some("allow")
+    );
+}
