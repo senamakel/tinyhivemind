@@ -72,7 +72,11 @@ impl Watch {
             return;
         }
         match event.get("type").and_then(Value::as_str) {
-            Some("session.status") => self.started = true,
+            Some("session.status") => {
+                if properties.pointer("/status/type").and_then(Value::as_str) == Some("busy") {
+                    self.started = true;
+                }
+            }
             Some("session.idle") => self.finished = true,
             Some("message.updated") => self.note_message(properties),
             Some("message.part.updated") => self.note_part(properties),
@@ -147,9 +151,11 @@ impl Watch {
     ///
     /// Both halves matter. `finished` alone would be true before the session
     /// ever went busy, which is every moment between the submit and the
-    /// provider's first token.
-    pub(crate) const fn done(&self) -> bool {
-        self.started && self.finished
+    /// provider's first token. A turn that failed before it started is still
+    /// over, which is why an error or any part of a reply counts as having
+    /// begun.
+    pub(crate) fn done(&self) -> bool {
+        self.finished && (self.started || !self.order.is_empty() || self.error.is_some())
     }
 
     /// The session this turn is running in, once one event has named it.

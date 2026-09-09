@@ -229,35 +229,18 @@ impl PaneDesk {
                 return watch.finish();
             }
             if started.elapsed() >= timeout {
-                self.interrupt(pane, watch.session());
+                interrupt(pane, watch.session());
                 let mut turn = watch.finish();
                 turn.timed_out = true;
                 return turn;
             }
             if last_growth.elapsed() >= crate::agent::STALL_AFTER {
-                self.interrupt(pane, watch.session());
+                interrupt(pane, watch.session());
                 let mut turn = watch.finish();
                 turn.stalled = true;
                 return turn;
             }
         }
-    }
-
-    /// Stop a turn that will not stop itself.
-    ///
-    /// The pane is not closed and the terminal is not restarted: the seat's
-    /// work is in the shared workspace either way, and the next rung of the
-    /// ladder wants the same terminal to land it.
-    fn interrupt(&self, pane: &Pane, session: Option<&str>) {
-        if let Some(id) = session {
-            http::post(
-                &pane.base,
-                &format!("/session/{id}/abort"),
-                "{}",
-                CONTROL_TIMEOUT,
-            );
-        }
-        let _ = &self.session;
     }
 
     /// Keep the turn's own slice of the feed, and the prompt that caused it.
@@ -282,6 +265,22 @@ impl Drop for PaneDesk {
         // thing each seat did, which is the reason to have watched at all;
         // `tmux kill-session -t <name>` is the one line that reclaims it.
         println!("   panes left up for reading: tmux attach -t {}", self.session);
+    }
+}
+
+/// Stop a turn that will not stop itself.
+///
+/// The pane is not closed and the terminal is not restarted: the seat's work
+/// is in the shared workspace either way, and the next rung of the ladder
+/// wants the same terminal to land it.
+fn interrupt(pane: &Pane, session: Option<&str>) {
+    if let Some(id) = session {
+        http::post(
+            &pane.base,
+            &format!("/session/{id}/abort"),
+            "{}",
+            CONTROL_TIMEOUT,
+        );
     }
 }
 
@@ -340,13 +339,16 @@ fn tail(path: &Path, from: u64) -> (String, u64) {
         return (String::new(), from);
     };
     let bytes = text.as_bytes();
-    let start = usize::try_from(from).unwrap_or(0).min(bytes.len());
+    let mut start = usize::try_from(from).unwrap_or(0).min(bytes.len());
+    while start < bytes.len() && !text.is_char_boundary(start) {
+        start += 1;
+    }
     let rest = &text[start..];
     let Some(end) = rest.rfind('\n') else {
         return (String::new(), from);
     };
     let whole = &rest[..=end];
-    (whole.to_string(), from + whole.len() as u64)
+    (whole.to_string(), start as u64 + whole.len() as u64)
 }
 
 #[cfg(test)]
