@@ -49,6 +49,19 @@ This harness answers exactly that, and prints its evidence:
    `HopLimitReached`, `NoDirectAgentMention`, `SelfMention`, or a host refusal,
    and the run prints which.
 
+## File layout
+
+| file | holds |
+| --- | --- |
+| `main.rs` | the entry point: parse options, seat the desk, print the report |
+| `cli.rs` | `Options` and its parsing |
+| `selector.rs` | `LadderSelector`, the model-backed ladder rung, and `route_opening`, which asks it who should open the desk |
+| `room.rs` | `Room`, the bundle of seats and storage one run holds |
+| `chain.rs` | `run_chain`, the hand-off loop, plus this desk's aside policy and the bookkeeping `aside` needs to enforce it |
+| `report.rs` | `Report`, what a run established, and the printing and claim-checking on it |
+| `agent.rs` | one seat's last mile: how a prompt becomes a line of text, over HTTP or a CLI |
+| `host.rs` | the host side of one desk: an in-memory journal, its queue, and its roster |
+
 ## A run
 
 ```text

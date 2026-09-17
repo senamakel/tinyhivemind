@@ -27,15 +27,15 @@ describing its behavior, public surface, invariants, and acceptance criteria.
 - [`plans/`](plans/README.md) holds implementation-ordered, test-first steps for
 delivering an approved specification. Plans name exact files and verification
 commands, and are updated as the work progresses.
-- `adr/` holds a dated record per significant decision. Use
+- [`adr/`](adr/README.md) holds a dated record per significant decision. Use
 [`adr/0001-record-architecture-decisions.md`](adr/0001-record-architecture-decisions.md)
 as the template. An accepted ADR is not edited; it is superseded by a later
 one.
 - [`research/`](research/README.md) holds the working notes behind a mechanism —
 the citation, the equation, and what the workspace would have to represent to
 implement it. Research is not a decision; it is the warrant one cites.
-- `experiments/` holds dated records of running the library for real, reported
-run by run so a small sample reads as one.
+- [`experiments/`](experiments/README.md) holds dated records of running the
+library for real, reported run by run so a small sample reads as one.
 
 Complex modules also carry a module-level `README.md` inside `src/<module>/`
 covering their design, public surface, and important constraints.

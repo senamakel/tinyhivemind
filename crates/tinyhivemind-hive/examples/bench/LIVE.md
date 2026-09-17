@@ -135,7 +135,7 @@ posts each turn straight to an HTTP endpoint through the `curl` binary — never
 an HTTP crate, so the pure-crate boundary this repository enforces is never in
 question — with the whole request, headers and API key included, sent over
 `curl`'s own stdin rather than as a process argument. The two share the exact
-same prompt assembly in `live.rs`, so an HTTP seat and a CLI seat parse
+same prompt assembly in `live/mod.rs`, so an HTTP seat and a CLI seat parse
 identically, and a room may even mix the two through `--seat-model` and
 `--seat-cmd`.
 

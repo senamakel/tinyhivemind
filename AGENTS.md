@@ -57,9 +57,11 @@ crates/
 │       ├── lib.rs      # crate docs + the entire public re-export surface
 │       ├── error/mod.rs      # crate-wide `Error` and `Result<T>`
 │       └── <feature>/        # one directory per feature area
+│           ├── README.md     # the module's design, surface, and constraints
 │           ├── mod.rs        # module docs, wiring, smallest useful public API
 │           ├── types.rs      # substantial type definitions
-│           └── test.rs       # module-local unit tests
+│           └── test.rs       # module-local unit tests, or a test/ directory
+│                             # of behavior-grouped submodules once it grows
 ├── tinyhivemind/          # the session runtime: ports, the paging walk, the
 │                       # responder ladder. Lands in P4; see ROADMAP.md.
 └── tinyhivemind-hive/     # bounded group deliberation: traces, salience, quorum
@@ -68,7 +70,9 @@ crates/
 docs/
 ├── specs/              # behavior and architecture specifications
 ├── plans/              # test-first implementation plans
-└── adr/                # immutable architecture decision records
+├── adr/                # immutable architecture decision records
+├── research/           # the reading behind a mechanism, with its equations
+└── experiments/        # what happened when it was actually run
 wiki/                   # the GitHub wiki, checked out as a submodule
 ```
 
@@ -136,10 +140,19 @@ module root with:
 mod test;
 ```
 
+When a `test.rs` outgrows the 700-line file cap, promote it to a `test/`
+directory: a `test/mod.rs` carrying the module doc and the `mod` declarations,
+one submodule per behavior area named for the behavior it covers, and shared
+fixtures in `test/support.rs`. The `#[cfg(test)] mod test;` line in the module
+root is unchanged by that promotion.
+
 Do not accumulate inline `mod tests` blocks in implementation files, and do not
 let a general-purpose `utils.rs` or `helpers.rs` grow — those are a symptom of a
 missing module. Prefer many small modules that each do one thing well over few
 broad ones.
+
+No source file exceeds **700 lines**. Split along a real seam — a cohesive group
+of functions or types — never at an arbitrary line count.
 
 Keep public exports centralized in each crate's `src/lib.rs` so downstream users
 have one predictable surface. Put shared error variants in
@@ -255,8 +268,9 @@ against it, so a clone that skips it still compiles. Run
 
 ## Testing
 
-- Module-local unit tests live in `crates/<crate>/src/<feature>/test.rs` and may
-  touch private items.
+- Module-local unit tests live in `crates/<crate>/src/<feature>/test.rs`, or in
+  a `test/` directory of behavior-grouped submodules once that file would pass
+  700 lines, and may touch private items.
 - Integration tests live in `crates/<crate>/tests/` and exercise only the public
   API — they are the regression suite for the crate's contract.
 - Payload types pin their serde representation in a unit test. That
@@ -291,8 +305,12 @@ Write documentation for the reader who has never seen the code.
   say what the crate deliberately does *not* hold, and why.
 - Prefer concrete examples over vague description. Doc examples are compiled and
   run by `cargo test`, so they cannot drift.
-- Complex modules must include a module-level `README.md` covering their design,
-  public surface, and important operational constraints.
+- Every directory holding source carries a `README.md` saying what the directory
+  is for and what each file in it does. For a feature module that means its
+  design, public surface, and important operational constraints; for a `test/`
+  or example subdirectory a short file-by-file table is enough. A crate root
+  `README.md` and a `src/README.md` index sit above them, and neither duplicates
+  the repository root `README.md` — they link it.
 - Keep `README.md`, `docs/`, `wiki/`, and module docs aligned with code changes
   in the same commit that changes behavior.
 - `README.md` is marketing. It says what the library is, why it is worth using,

@@ -49,32 +49,38 @@
 //! | `--thread` | run the agents' exchange in a thread rooted at the instruction |
 //! | `--aside` | let an agent address one peer privately, and show what the desk sees instead |
 //! | `--window N` | messages projected into one turn (default 30) |
+//!
+//! # File layout
+//!
+//! | file | holds |
+//! | --- | --- |
+//! | `main.rs` | the entry point: parse options, open the desk, print the report |
+//! | `cli.rs` | [`cli::Options`] and its parsing |
+//! | `selector.rs` | [`selector::LadderSelector`], the model-backed ladder rung, and [`selector::route_opening`] |
+//! | `room.rs` | [`room::Room`], the bundle of seats and storage one run holds |
+//! | `chain.rs` | [`chain::run_chain`], the hand-off loop, and the aside audience it resolves each turn |
+//! | `report.rs` | [`report::Report`], what a run established, and printing it |
+//! | `agent.rs` | one seat's last mile: how a prompt becomes a line of text |
+//! | `host.rs` | the host side of one desk: journal, queue, and roster |
 
 mod agent;
+mod chain;
+mod cli;
 mod host;
+mod report;
+mod room;
+mod selector;
 
 use std::process::ExitCode;
 use std::sync::Arc;
 
-use agent::{Ask, Backend, Seat, Thinking, author_label};
+use cli::Options;
 use host::{Cast, DESK_ID, DESK_NAME, Journal, OPERATOR_ID, Queue};
+use room::Room;
+use selector::{LadderSelector, route_opening};
 
-use tinyhivemind::dispatch::{
-    DispatchConversation, DispatchKey, MentionDispatchInput, MentionDispatchOutcome,
-    MentionDispatchPolicy, dispatch_mention,
-};
-use tinyhivemind::responder::{
-    ResponderRequest, SelectionPolicy, Selector, SelectorCandidate, SelectorFuture,
-    choose_responder,
-};
-use tinyhivemind::{
-    Conversation, SESSION_WINDOW, Sequence, SessionAuthor, SessionMessage, SessionQuery,
-    project_session,
-};
-use tinyhivemind_core::aside::{AsideDecision, AsideInput, AsidePolicy, Audience, Viewer, aside};
-use tinyhivemind_core::mention::{
-    Mention, MentionAuthor, MentionTarget, resolve as resolve_mentions,
-};
+use tinyhivemind::responder::Selector;
+use tinyhivemind::{Conversation, SessionAuthor};
 
 /// The desk this harness seats, and what each seat is for.
 ///
@@ -96,23 +102,6 @@ const SEATS: [(&str, &str); 3] = [
         "archivist, who remembers what this team did before and what it cost",
     ),
 ];
-
-/// The aside policy the harness runs under when `--aside` is given.
-///
-/// A pair, four rows, and a settlement owed before another may be opened —
-/// small on purpose, because the point is to watch the mechanism rather than
-/// to give a room somewhere to hide.
-const ASIDES: AsidePolicy = AsidePolicy {
-    enabled: true,
-    max_members: 1,
-    max_messages: 4,
-    must_surface: true,
-    require_thread: false,
-};
-
-/// The default opening instruction.
-const INSTRUCTION: &str = "We need to move the payments table to the new schema this week. \
-Work out how, between you, and tell me the plan and its worst failure mode.";
 
 fn main() -> ExitCode {
     let options = match Options::parse(std::env::args().skip(1)) {
@@ -148,694 +137,17 @@ fn main() -> ExitCode {
     }
 }
 
-/// Everything the run was configured with.
-#[derive(Debug)]
-struct Options {
-    backend: Backend,
-    hops: u32,
-    instruction: String,
-    thread: bool,
-    window: usize,
-    asides: bool,
-}
-
-impl Options {
-    fn parse(args: impl Iterator<Item = String>) -> Result<Self, String> {
-        let mut base = None;
-        let mut key_env = "LADDER_API_KEY".to_owned();
-        let mut model = "flash".to_owned();
-        let mut agent_cmd = None;
-        let mut timeout_secs = 120_u64;
-        let mut thinking = Thinking::Off;
-        let mut hops = 3_u32;
-        let mut instruction = INSTRUCTION.to_owned();
-        let mut thread = false;
-        let mut window = SESSION_WINDOW;
-        let mut asides = false;
-
-        let mut args = args.peekable();
-        while let Some(argument) = args.next() {
-            match argument.as_str() {
-                "--api-base" => base = Some(next(&mut args, "--api-base")?),
-                "--api-key-env" => key_env = next(&mut args, "--api-key-env")?,
-                "--model" => model = next(&mut args, "--model")?,
-                "--agent-cmd" => agent_cmd = Some(next(&mut args, "--agent-cmd")?),
-                "--timeout" => timeout_secs = number(&mut args, "--timeout")?,
-                "--thinking" => {
-                    let value = next(&mut args, "--thinking")?;
-                    thinking = Thinking::parse(&value)
-                        .ok_or_else(|| format!("--thinking takes on or off, not {value}"))?;
-                }
-                "--hops" => {
-                    hops = u32::try_from(number(&mut args, "--hops")?)
-                        .map_err(|_| "--hops is too large".to_owned())?;
-                }
-                "--instruction" => instruction = next(&mut args, "--instruction")?,
-                "--thread" => thread = true,
-                "--aside" => asides = true,
-                "--window" => {
-                    window = usize::try_from(number(&mut args, "--window")?)
-                        .map_err(|_| "--window is too large".to_owned())?;
-                }
-                other => return Err(format!("unknown flag {other}")),
-            }
-        }
-
-        let backend = match (base, agent_cmd) {
-            (Some(_), Some(_)) => {
-                return Err("--api-base and --agent-cmd are alternatives, not a pair".to_owned());
-            }
-            (Some(base), None) => {
-                let key = std::env::var(&key_env).map_err(|_| {
-                    format!("{key_env} must be set, or name another with --api-key-env")
-                })?;
-                Backend::Http {
-                    base: base.trim_end_matches('/').to_owned(),
-                    key,
-                    model,
-                    timeout_secs,
-                    thinking,
-                }
-            }
-            (None, Some(command)) => {
-                let words: Vec<String> = command.split_whitespace().map(str::to_owned).collect();
-                if words.is_empty() {
-                    return Err("--agent-cmd is empty".to_owned());
-                }
-                Backend::Command { argv: words }
-            }
-            (None, None) => {
-                return Err(
-                    "give --api-base URL (with a key in LADDER_API_KEY) or --agent-cmd \"CMD\""
-                        .to_owned(),
-                );
-            }
-        };
-
-        if window == 0 {
-            return Err("--window 0 projects nothing".to_owned());
-        }
-        Ok(Self {
-            backend,
-            hops,
-            instruction,
-            thread,
-            window,
-            asides,
-        })
-    }
-}
-
-fn next(args: &mut impl Iterator<Item = String>, flag: &str) -> Result<String, String> {
-    args.next().ok_or_else(|| format!("{flag} needs a value"))
-}
-
-fn number(args: &mut impl Iterator<Item = String>, flag: &str) -> Result<u64, String> {
-    next(args, flag)?
-        .parse()
-        .map_err(|_| format!("{flag} needs a number"))
-}
-
-/// One model-backed rung of the responder ladder.
-///
-/// This is the same endpoint the seats run on, asked a different and much
-/// smaller question: given the desk's candidates and the operator's message,
-/// name one id. The library validates the answer through `accept_selection`
-/// and falls back deterministically when it is not a candidate, so a wrong
-/// answer here costs a rung rather than the run.
-struct LadderSelector {
-    backend: Backend,
-}
-
-impl std::fmt::Debug for LadderSelector {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("LadderSelector")
-            .field("backend", &self.backend)
-            .finish()
-    }
-}
-
-impl Selector for LadderSelector {
-    fn select<'a>(
-        &'a self,
-        request: &'a tinyhivemind::responder::SelectionRequest,
-    ) -> SelectorFuture<'a> {
-        Box::pin(async move {
-            let candidates = request
-                .candidates
-                .iter()
-                .map(|candidate| {
-                    format!(
-                        "{} — {}{}",
-                        candidate.id,
-                        candidate.role,
-                        candidate
-                            .description
-                            .as_ref()
-                            .map(|text| format!(" ({text})"))
-                            .unwrap_or_default(),
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("\n");
-            let system = "You route one message to one member of a team. \
-                Reply with exactly one member id and nothing else."
-                .to_owned();
-            let user = format!(
-                "Team members:\n{candidates}\n\nMessage:\n{}\n\nWhich one id should answer?",
-                request.message,
-            );
-            let reply = match &self.backend {
-                Backend::Http {
-                    base,
-                    key,
-                    model,
-                    timeout_secs,
-                    thinking,
-                } => agent::http_turn(base, key, model, *timeout_secs, *thinking, &system, &user),
-                // A CLI seat is driven per turn; the selector reuses the same
-                // last mile so a `--agent-cmd` run still exercises this rung.
-                Backend::Command { .. } => Err("no selector on a CLI backend".to_owned()),
-            };
-            reply.map_err(|message| -> tinyhivemind::BoxError { message.into() })
-        })
-    }
-}
-
-/// One committed turn, kept so the run can be printed and checked afterwards.
-#[derive(Debug)]
-struct Turn {
-    sequence: Sequence,
-    audience: Audience,
-    speaker: String,
-    hop: u32,
-    thread_root: Option<Sequence>,
-    content: String,
-    /// The ids this turn's projection showed it, in order. This is the
-    /// evidence for "desk context crossed", and it is taken from the
-    /// projection itself rather than from what the harness believes it wrote.
-    saw: Vec<String>,
-    outcome: MentionDispatchOutcome,
-}
-
-/// What the run established.
-#[derive(Debug)]
-struct Report {
-    backend: String,
-    responder: String,
-    rung: String,
-    disposition: String,
-    thread: bool,
-    turns: Vec<Turn>,
-    channel_view: Vec<String>,
-    thread_view: Vec<String>,
-    /// Whether asides were offered this run.
-    asides: bool,
-    /// Named refusals the `aside` fold returned, if any.
-    refusals: Vec<String>,
-    /// One rendered projection per reader, so the run shows what each of them
-    /// was actually handed rather than what the journal holds.
-    views: Vec<(String, Vec<String>)>,
-}
-
-/// Ask the responder ladder who should answer an unaddressed instruction.
-///
-/// This is the first of the two edges the harness exists to exercise. The
-/// desk runs in `ResponderMode::Auto`, so with more than one effective member
-/// the pure plan asks for a selection rather than deciding, and the model
-/// rung actually runs. A selector that fails or names a non-candidate costs
-/// the rung and not the run: the library falls back deterministically and
-/// records why in the disposition.
-async fn route_opening(
-    options: &Options,
-    selector: Option<&(dyn Selector + '_)>,
-    roster: &tinyhivemind_core::roster::Roster<'_>,
-    desks: &tinyhivemind_core::desk::DeskSet<'_>,
-) -> Result<tinyhivemind::responder::ResponderDecision, String> {
-    let opening_mentions = resolve_mentions(
-        &options.instruction,
-        None,
-        &MentionAuthor::Person {
-            id: OPERATOR_ID.to_owned(),
-        },
-        roster,
-        desks,
-    );
-    let candidates: Vec<SelectorCandidate> = SEATS
-        .iter()
-        .map(|(id, role)| SelectorCandidate {
-            id: (*id).to_owned(),
-            label: (*id).to_owned(),
-            role: (*role).to_owned(),
-            description: None,
-        })
-        .collect();
-    choose_responder(
-        selector,
-        &ResponderRequest {
-            message: options.instruction.clone(),
-            chat: Some(DESK_ID.to_owned()),
-            mentions: opening_mentions,
-            orchestrator_id: "planner".to_owned(),
-            selection_policy: SelectionPolicy::Allowed,
-        },
-        roster,
-        desks,
-        &candidates,
-    )
-    .await
-    .map_err(|error| format!("the responder ladder failed: {error}"))
-}
-
-/// Everything one desk run holds: its seats and the storage they read through.
-///
-/// Bundled rather than passed one by one because the chain needs all of it on
-/// every turn, and a signature that lists six borrows says less about the
-/// shape of a turn than one that says "the room".
-struct Room<'a> {
-    /// One seat per desk member, in seating order.
-    seats: Vec<Seat>,
-    /// The same ids, borrowed for the roster and desk views.
-    ids: Vec<&'a str>,
-    /// The host's journal, shared with the queue that revalidates against it.
-    journal: Arc<Journal>,
-    /// The host's enqueue boundary over that journal.
-    queue: Queue,
-    /// The borrowed roster view.
-    roster: tinyhivemind_core::roster::Roster<'a>,
-    /// The borrowed desk view.
-    desks: tinyhivemind_core::desk::DeskSet<'a>,
-}
-
-impl std::fmt::Debug for Room<'_> {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("Room")
-            .field("ids", &self.ids)
-            .finish()
-    }
-}
-
-/// Run the hand-off chain until the library stops it.
-///
-/// One turn per iteration, and at most one child turn per turn — that bound is
-/// the library's, not this loop's: `mention_dispatch` returns a decision that
-/// can carry exactly one request, and there is no variant that carries two.
-/// The loop ends when a turn addresses nobody, addresses itself, exhausts the
-/// hop budget, or the host's queue refuses it, and the reason is recorded on
-/// the last turn rather than inferred afterwards.
-async fn run_chain(
-    options: &Options,
-    room: &Room<'_>,
-    floor: &Conversation,
-    first: &str,
-) -> Result<(Vec<Turn>, Vec<String>), String> {
-    let Room {
-        seats,
-        ids,
-        journal,
-        queue,
-        roster,
-        desks,
-    } = room;
-    let mut turns: Vec<Turn> = Vec::new();
-    let mut refusals: Vec<String> = Vec::new();
-    let mut speaker = first.to_owned();
-    let mut hop = 0_u32;
-    let mut carried: Option<(String, String)> = None;
-
-    loop {
-        let seat = seats
-            .iter()
-            .find(|seat| seat.id == speaker)
-            .ok_or_else(|| format!("no seat for {speaker}"))?;
-
-        let visible = project_session(
-            journal.as_ref(),
-            &SessionQuery {
-                conversation: floor.clone(),
-                before: None,
-                window: options.window,
-                viewer: Viewer::Agent {
-                    id: seat.id.clone(),
-                },
-            },
-        )
-        .await
-        .map_err(|error| format!("projection failed: {error}"))?;
-
-        let ask = match &carried {
-            Some((from, content)) => Ask::Addressed { from, content },
-            None => Ask::Desk,
-        };
-        let peers: Vec<&str> = ids
-            .iter()
-            .filter(|id| **id != seat.id.as_str())
-            .copied()
-            .collect();
-        let line = seat.speak(&visible, &peers, &ask, options.asides)?;
-
-        let mentions = resolve_mentions(
-            &line,
-            None,
-            &MentionAuthor::Agent {
-                id: seat.id.clone(),
-            },
-            roster,
-            desks,
-        );
-
-        let audience = address(
-            options,
-            floor,
-            roster,
-            desks,
-            &seat.id,
-            &line,
-            &mentions,
-            &turns,
-            &mut refusals,
-        )?;
-
-        let sequence = journal.append_to(
-            floor,
-            SessionAuthor::Agent {
-                id: seat.id.clone(),
-                label: seat.id.clone(),
-            },
-            &line,
-            audience.clone(),
-        );
-        let outcome = hand_off(
-            options, queue, roster, floor, &seat.id, &line, mentions, sequence, hop,
-        )
-        .await?;
-
-        turns.push(Turn {
-            sequence,
-            audience,
-            speaker: seat.id.clone(),
-            hop,
-            thread_root: floor.thread_root,
-            content: line,
-            saw: visible
-                .iter()
-                .map(|message| format!("{}:{}", message.sequence, author_label(&message.author)))
-                .collect(),
-            outcome: outcome.clone(),
-        });
-
-        if !matches!(outcome, MentionDispatchOutcome::Enqueued) {
-            break;
-        }
-        let Some(enqueued) = queue.drain().into_iter().next() else {
-            break;
-        };
-        speaker.clone_from(&enqueued.request.target_id);
-        hop = enqueued.request.child_hop;
-        carried = Some((enqueued.request.source_id, enqueued.request.content));
-    }
-    Ok((turns, refusals))
-}
-
-/// Offer this committed reply to the mention-dispatch edge.
-///
-/// One call, one decision, at most one child turn. The policy is the host's
-/// and is passed explicitly on every call: the library adds no default and no
-/// smaller ceiling of its own.
-#[allow(clippy::too_many_arguments)]
-async fn hand_off(
-    options: &Options,
-    queue: &Queue,
-    roster: &tinyhivemind_core::roster::Roster<'_>,
-    floor: &Conversation,
-    author_id: &str,
-    line: &str,
-    mentions: Vec<tinyhivemind_core::mention::Mention>,
-    sequence: Sequence,
-    hop: u32,
-) -> Result<MentionDispatchOutcome, String> {
-    dispatch_mention(
-        queue,
-        MentionDispatchPolicy {
-            enabled: true,
-            max_hops: options.hops,
-        },
-        &MentionDispatchInput {
-            key: DispatchKey {
-                trigger_sequence: sequence.0,
-            },
-            conversation: DispatchConversation::from(floor),
-            author_id: author_id.to_owned(),
-            content: line.to_owned(),
-            mentions,
-            hop,
-        },
-        roster,
-    )
-    .await
-    .map_err(|error| format!("dispatch failed: {error}"))
-}
-
-/// Decide who one authored line is addressed to.
-///
-/// A line asking for an aside is addressed by the library, not by this harness
-/// reading the marker and believing it: `aside` resolves who it may reach and
-/// refuses with a named reason otherwise. A refusal leaves the row
-/// desk-visible, which is the safe direction to fail in.
-#[allow(clippy::too_many_arguments)]
-fn address(
-    options: &Options,
-    floor: &Conversation,
-    roster: &tinyhivemind_core::roster::Roster<'_>,
-    desks: &tinyhivemind_core::desk::DeskSet<'_>,
-    author_id: &str,
-    line: &str,
-    mentions: &[tinyhivemind_core::mention::Mention],
-    turns: &[Turn],
-    refusals: &mut Vec<String>,
-) -> Result<Audience, String> {
-    if !options.asides || !line.trim_start().starts_with("!aside") {
-        return Ok(Audience::Desk);
-    }
-    let decision = aside(
-        ASIDES,
-        &AsideInput {
-            conversation: DispatchConversation::from(floor),
-            author_id: author_id.to_owned(),
-            mentions: mentions.to_vec(),
-            spent: spent_in_aside(turns),
-            unsettled: unsettled_aside(turns, author_id, mentions),
-        },
-        roster,
-        desks,
-    )
-    .map_err(|error| format!("the aside fold failed: {error}"))?;
-    Ok(match decision {
-        AsideDecision::One { audience } => audience,
-        AsideDecision::None { reason } => {
-            refusals.push(format!("{reason:?}"));
-            Audience::Desk
-        }
-    })
-}
-
-/// How many rows the currently open aside has already spent.
-///
-/// Folded from the turns the run has taken rather than stored, because this
-/// harness holds no state the journal does not already carry. Every row in
-/// the run of consecutive non-desk turns counts, not only the ones this
-/// speaker wrote: two peers alternating inside the same aside share one
-/// budget.
-fn spent_in_aside(turns: &[Turn]) -> usize {
-    turns
-        .iter()
-        .rev()
-        .take_while(|turn| !turn.audience.is_desk())
-        .count()
-}
-
-/// Whether a *different* prior aside among the same participants has not yet
-/// surfaced.
-///
-/// `mentions` is the current line's addressed targets, resolved the same way
-/// [`aside`] resolves them: quiet mentions and the author itself are dropped
-/// before the set is compared. Replying inside the aside already in progress
-/// never counts, no matter how unsettled an earlier one was — otherwise the
-/// very message the policy is meant to allow would refuse itself, and every
-/// demonstrated aside would top out at one row. Walking forward through the
-/// turns already taken, an aside opens the run when its own participant
-/// set — author plus addressed members — matches this line's, and closes it
-/// the first time one of those participants speaks on the desk afterwards.
-/// What is left open at the end, once the current one is excluded, is what
-/// `aside` must refuse to add to.
-fn unsettled_aside(turns: &[Turn], author_id: &str, mentions: &[Mention]) -> bool {
-    let mut participants: Vec<&str> = mentions
-        .iter()
-        .filter(|mention| !mention.quiet)
-        .filter_map(|mention| match &mention.target {
-            MentionTarget::Agent { id } if id != author_id => Some(id.as_str()),
-            _ => None,
-        })
-        .collect();
-    if participants.is_empty() {
-        return false;
-    }
-    participants.push(author_id);
-    participants.sort_unstable();
-    participants.dedup();
-
-    // Replying inside the aside already in progress is not opening another
-    // one — `spent_in_aside`'s own budget is what ends that run, at
-    // `max_messages`. Only starting a *different* aside while an earlier one
-    // among these exact participants has not surfaced should be refused, so a
-    // line whose immediately preceding turn already carries this same
-    // participant set is a continuation, not a candidate to check here.
-    if let Some(Turn {
-        audience: Audience::Aside { members },
-        speaker,
-        ..
-    }) = turns.last()
-    {
-        let mut current: Vec<&str> = members
-            .iter()
-            .map(String::as_str)
-            .chain(std::iter::once(speaker.as_str()))
-            .collect();
-        current.sort_unstable();
-        current.dedup();
-        if current == participants {
-            return false;
-        }
-    }
-
-    let mut open = false;
-    for turn in turns {
-        match &turn.audience {
-            Audience::Aside { members } => {
-                let mut turn_participants: Vec<&str> = members
-                    .iter()
-                    .map(String::as_str)
-                    .chain(std::iter::once(turn.speaker.as_str()))
-                    .collect();
-                turn_participants.sort_unstable();
-                turn_participants.dedup();
-                if turn_participants == participants {
-                    open = true;
-                }
-            }
-            Audience::Desk => {
-                if open && participants.contains(&turn.speaker.as_str()) {
-                    open = false;
-                }
-            }
-        }
-    }
-    open
-}
-
-/// Render one conversation as the sequence-and-author lines it projects to.
-///
-/// The report compares two of these — the desk channel and the thread — which
-/// is how it shows that a thread is a narrower conversation over the same desk
-/// rather than a separate room.
-/// What every reader on this desk, and one person, was handed.
-///
-/// This is the evidence for the whole mechanism: the same rows, at the same
-/// sequences, rendered differently for different readers, with a person able
-/// to read all of it.
-async fn every_view(
-    room: &Room<'_>,
-    floor: &Conversation,
-    window: usize,
-) -> Result<Vec<(String, Vec<String>)>, String> {
-    let mut views = Vec::new();
-    for id in &room.ids {
-        views.push((
-            format!("@{id}"),
-            render_view(
-                &room.journal,
-                floor.clone(),
-                window,
-                Viewer::Agent {
-                    id: (*id).to_owned(),
-                },
-            )
-            .await?,
-        ));
-    }
-    views.push((
-        "Ada (human)".to_owned(),
-        render_view(
-            &room.journal,
-            floor.clone(),
-            window,
-            Viewer::Person {
-                id: OPERATOR_ID.to_owned(),
-            },
-        )
-        .await?,
-    ));
-    Ok(views)
-}
-
-/// Render one conversation as one reader is handed it, line by line.
-async fn render_view(
-    journal: &Arc<Journal>,
-    conversation: Conversation,
-    window: usize,
-    viewer: Viewer,
-) -> Result<Vec<String>, String> {
-    project_session(
-        journal.as_ref(),
-        &SessionQuery {
-            conversation,
-            before: None,
-            window,
-            viewer,
-        },
-    )
-    .await
-    .map(|messages| messages.iter().map(agent::render).collect())
-    .map_err(|error| format!("projection failed: {error}"))
-}
-
-async fn view(
-    journal: &Arc<Journal>,
-    conversation: Conversation,
-    window: usize,
-) -> Result<Vec<String>, String> {
-    project_session(
-        journal.as_ref(),
-        &SessionQuery {
-            conversation,
-            before: None,
-            window,
-            viewer: Viewer::Operator,
-        },
-    )
-    .await
-    .map(|messages| {
-        messages
-            .iter()
-            .map(|message: &SessionMessage| {
-                format!("{}:{}", message.sequence, author_label(&message.author))
-            })
-            .collect::<Vec<_>>()
-    })
-    .map_err(|error| format!("projection failed: {error}"))
-}
-
-async fn run(options: &Options) -> Result<Report, String> {
+/// Run one desk end to end: seat the agents, route the opening instruction,
+/// run the hand-off chain, and assemble the report.
+async fn run(options: &Options) -> Result<report::Report, String> {
     let ids: Vec<&str> = SEATS.iter().map(|(id, _)| *id).collect();
     let cast = Cast::new(&ids);
     let roster = cast.roster();
     let desks = cast.desk_set();
 
-    let seats: Vec<Seat> = SEATS
+    let seats: Vec<agent::Seat> = SEATS
         .iter()
-        .map(|(id, role)| Seat {
+        .map(|(id, role)| agent::Seat {
             id: (*id).to_owned(),
             role: (*role).to_owned(),
             backend: options.backend.clone(),
@@ -876,12 +188,12 @@ async fn run(options: &Options) -> Result<Report, String> {
         backend: options.backend.clone(),
     };
     let selector_ref: Option<&(dyn Selector + '_)> =
-        if matches!(options.backend, Backend::Http { .. }) {
+        if matches!(options.backend, agent::Backend::Http { .. }) {
             Some(&selector)
         } else {
             None
         };
-    let decision = route_opening(options, selector_ref, &room.roster, &room.desks).await?;
+    let decision = route_opening(options, selector_ref, &SEATS, &room.roster, &room.desks).await?;
 
     // Where the agents talk. Under `--thread` that is a sub-conversation of
     // the desk, rooted at the operator's message: the same members, the same
@@ -892,11 +204,12 @@ async fn run(options: &Options) -> Result<Report, String> {
         thread_root: options.thread.then_some(opening),
     };
 
-    let (turns, refusals) = run_chain(options, &room, &floor, &decision.responder_id).await?;
+    let (turns, refusals) =
+        chain::run_chain(options, &room, &floor, &decision.responder_id).await?;
 
-    let channel_view = view(&room.journal, channel, options.window).await?;
+    let channel_view = report::view(&room.journal, channel, options.window).await?;
     let thread_view = if options.thread {
-        view(
+        report::view(
             &room.journal,
             Conversation {
                 desk_id: DESK_ID.to_owned(),
@@ -911,12 +224,12 @@ async fn run(options: &Options) -> Result<Report, String> {
     };
 
     let views = if options.asides {
-        every_view(&room, &floor, options.window).await?
+        report::every_view(&room, &floor, options.window).await?
     } else {
         Vec::new()
     };
 
-    Ok(Report {
+    Ok(report::Report {
         asides: options.asides,
         refusals,
         views,
@@ -929,222 +242,4 @@ async fn run(options: &Options) -> Result<Report, String> {
         channel_view,
         thread_view,
     })
-}
-
-impl Report {
-    /// Print the run and its claims. Returns whether any claim failed.
-    /// The turn-by-turn record: who spoke, what they were shown, what followed.
-    fn print_transcript(&self) {
-        for turn in &self.turns {
-            let scope = turn
-                .thread_root
-                .map_or_else(|| "channel".to_owned(), |root| format!("thread@{root}"));
-            let addressed = if turn.audience.is_desk() {
-                String::new()
-            } else {
-                format!(" → aside with @{}", turn.audience.members().join(", @"))
-            };
-            println!(
-                "[{}] hop {} @{} ({scope}){addressed}\n     saw: {}\n     said: {}\n     then: {}",
-                turn.sequence,
-                turn.hop,
-                turn.speaker,
-                turn.saw.join(", "),
-                turn.content,
-                describe(&turn.outcome),
-            );
-        }
-        println!();
-    }
-
-    fn print(&self) -> bool {
-        println!("backend      {}", self.backend);
-        println!(
-            "instruction  routed to @{} by {} ({})",
-            self.responder, self.rung, self.disposition,
-        );
-        println!(
-            "floor        {}",
-            if self.thread {
-                "a thread rooted at the operator's message"
-            } else {
-                "the desk channel"
-            },
-        );
-        println!();
-
-        self.print_transcript();
-
-        if !self.views.is_empty() {
-            println!("What each reader was handed:");
-            for (who, lines) in &self.views {
-                println!("  {who}");
-                for line in lines {
-                    println!("      {line}");
-                }
-            }
-            println!();
-        }
-        if !self.refusals.is_empty() {
-            println!("aside refusals   {}", self.refusals.join(", "));
-            println!();
-        }
-
-        if self.thread {
-            println!("desk channel sees  {}", self.channel_view.join(", "));
-            println!("the thread sees    {}", self.thread_view.join(", "));
-            println!();
-        }
-
-        let mut failed = false;
-        let mut claim = |ok: bool, text: &str| {
-            println!("{} {text}", if ok { "PASS" } else { "FAIL" });
-            failed |= !ok;
-        };
-
-        claim(
-            self.turns.len() >= 2,
-            "an agent addressed a peer and that peer took a turn",
-        );
-
-        let handoffs = self
-            .turns
-            .iter()
-            .filter(|turn| matches!(turn.outcome, MentionDispatchOutcome::Enqueued))
-            .count();
-        claim(
-            handoffs >= 1,
-            &format!("{handoffs} agent-to-agent hand-off(s) were dispatched"),
-        );
-
-        let saw_the_sender = self.turns.windows(2).all(|pair| {
-            let (before, after) = (&pair[0], &pair[1]);
-            !matches!(before.outcome, MentionDispatchOutcome::Enqueued)
-                || after.saw.iter().any(|line| {
-                    line.starts_with(&format!("{}:@{}", before.sequence, before.speaker))
-                })
-        });
-        claim(
-            saw_the_sender,
-            "every addressed agent saw the addressing message attributed to its author",
-        );
-
-        let distinct = {
-            let mut seen: Vec<&str> = Vec::new();
-            for turn in &self.turns {
-                if !seen.contains(&turn.speaker.as_str()) {
-                    seen.push(&turn.speaker);
-                }
-            }
-            seen.len()
-        };
-        claim(
-            distinct >= 2,
-            &format!("{distinct} distinct agents spoke, so the hand-off left the sender"),
-        );
-
-        let ended = self
-            .turns
-            .last()
-            .map_or_else(|| "no turns ran".to_owned(), |turn| describe(&turn.outcome));
-        claim(
-            self.turns
-                .last()
-                .is_some_and(|turn| !matches!(turn.outcome, MentionDispatchOutcome::Enqueued)),
-            &format!("the chain terminated for a named reason: {ended}"),
-        );
-
-        if self.thread {
-            claim(
-                self.thread_view.len() > self.channel_view.len(),
-                "the thread carried the exchange the desk channel only summarises",
-            );
-        }
-
-        if self.asides {
-            self.print_aside_claims(&mut claim);
-        }
-
-        failed
-    }
-
-    /// The claims that only an `--aside` run can make.
-    fn print_aside_claims(&self, claim: &mut impl FnMut(bool, &str)) {
-        {
-            let private: Vec<&Turn> = self
-                .turns
-                .iter()
-                .filter(|turn| !turn.audience.is_desk())
-                .collect();
-            claim(
-                !private.is_empty(),
-                &format!("{} row(s) were addressed privately", private.len()),
-            );
-
-            // The rows are the same rows for everybody, and a member reads
-            // what a non-member cannot. Every claim below is bound to the
-            // exact row `private.first()` names — a later aside's stub, or a
-            // later aside's member, must not be able to satisfy a claim meant
-            // for the first one.
-            let line_prefix = private.first().map(|turn| format!("[{}", turn.sequence));
-            let member_lines = private
-                .first()
-                .and_then(|turn| {
-                    let member = turn.audience.members().first()?;
-                    self.views
-                        .iter()
-                        .find(|(who, _)| who == &format!("@{member}"))
-                })
-                .map(|(_, lines)| lines.clone())
-                .unwrap_or_default();
-            let outsider = line_prefix.as_deref().and_then(|prefix| {
-                self.views.iter().find_map(|(who, lines)| {
-                    if !who.starts_with('@') {
-                        return None;
-                    }
-                    lines
-                        .iter()
-                        .find(|line| line.starts_with(prefix) && line.contains("· aside,"))
-                        .map(|line| (who.clone(), line.clone()))
-                })
-            });
-            claim(
-                outsider.is_some(),
-                "a non-member was handed a stub instead of the content",
-            );
-            claim(
-                line_prefix.as_deref().is_some_and(|prefix| {
-                    !member_lines
-                        .iter()
-                        .any(|line| line.starts_with(prefix) && line.contains("· aside,"))
-                }),
-                "the addressed member was handed the content in full",
-            );
-            let person = self
-                .views
-                .iter()
-                .find(|(who, _)| who.contains("human"))
-                .map(|(_, lines)| lines.clone())
-                .unwrap_or_default();
-            claim(
-                !person.is_empty() && !person.iter().any(|line| line.contains("· aside,")),
-                "a person read every row in full, so nothing here is unauditable",
-            );
-            claim(
-                outsider.is_some_and(|(_, line)| {
-                    line.contains("settled at [") || line.contains("not settled")
-                }),
-                "the stub says where the aside settled, or that it has not",
-            );
-        }
-    }
-}
-
-fn describe(outcome: &MentionDispatchOutcome) -> String {
-    match outcome {
-        MentionDispatchOutcome::Enqueued => "one child turn enqueued".to_owned(),
-        MentionDispatchOutcome::Already => "already enqueued for this trigger".to_owned(),
-        MentionDispatchOutcome::Refused { reason } => format!("host refused: {reason:?}"),
-        MentionDispatchOutcome::NotDispatched { reason } => format!("no dispatch: {reason:?}"),
-    }
 }

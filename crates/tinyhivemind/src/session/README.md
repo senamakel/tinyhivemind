@@ -26,3 +26,20 @@ messages than one without — the alternative is backfilling from older history,
 which would make two viewers of the same desk disagree about how far back the
 window reaches. `project_as` applies the same narrowing to a transcript a
 caller already holds.
+
+## Layout
+
+- `mod.rs` — the `SessionLog` port, `project_session`, `project_as`, and the
+  channel/thread projection walks and elision-collapsing folds behind them.
+- `types.rs` — the wire records this module hands a host: `SessionAuthor`,
+  `SessionMessage`, `SessionPage`, `SessionQuery`, `Conversation`, `Elision`,
+  and `Sequence`.
+- `test/` — unit tests grouped by behavior area, with fixtures factored into
+  `test/support.rs` rather than duplicated per file:
+  - `wire.rs` — serde round-trips for every payload type, plus the
+    `SessionLog` object-safety check.
+  - `paging.rs` — `validate_page` and the scan-cap behavior of
+    `project_session` under a misbehaving or exhausted host.
+  - `channel.rs` — root-and-first-reply narrowing at the desk level.
+  - `thread.rs` — walking a reply chain back to its root.
+  - `visibility.rs` — private-aside elision, collapsing, and settlement.

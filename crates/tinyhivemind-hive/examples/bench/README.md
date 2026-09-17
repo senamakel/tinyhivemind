@@ -396,75 +396,18 @@ rather than a failure of the harness.
 
 ## The context budget
 
-Every arm above moves information for free. `hive+pooled` is the extreme case:
-it copies every peer's reading straight into every member's state, and it wins
-by a distance because of it. That is a fair *information-theoretic* ceiling and
-a misleading *engineering* one — a participant is a language model with a
-window, "hand it everything" means putting everything in that window, and
-[`../../../../docs/research/long-context.md`](../../../../docs/research/long-context.md)
-is unkind about what that costs.
-
-`--context-sweep` charges for it. Each arm runs across a ladder of window
-capacities under [`context.rs`](context.rs), which models the two published
-effects and nothing else: rows past capacity are **evicted from the middle**,
-and surviving rows are discounted by a **U-curve** with the edges intact.
-`--context N` and `--rot F` set the two directly; `--context 0` is the default
-and is bit-identical to a build without any of this.
-
-### What it found
-
-On the hidden profile, 2000 rooms, `hive+pooled` — the arm that looked
-unbeatable:
-
-| window | rot 0.0 | rot 0.5 | rot 1.0 |
-| --- | --- | --- | --- |
-| unbounded | 91.7 | — | — |
-| 64 | 92.0 | 65.0 | 43.7 |
-| 32 | 92.0 | 65.0 | 43.7 |
-| 16 | 60.0 | 51.9 | 42.3 |
-| 8 | 28.6 | 28.2 | 28.9 |
-| 4 | 29.9 | 29.4 | 28.6 |
-
-It carries **16.8 rows per member**, and it needs a window about twice that to
-deliver what it promises. Give it a window the size of its own payload and it
-loses a third of its lead; halve that again and it loses nearly all of it. At
-64 rows there is *no eviction at all* — every row fits — so the whole fall from
-92.0 to 43.7 across that row is the U-curve alone: pooling buries its own
-decisive fact in the middle of the window it filled.
-
-`hive+` and `hive+along` are flat at 16.2 in every cell, because they carry
-0.0 and 0.1 extra rows. They are insensitive to the window because they barely
-use it.
-
-### What it did **not** find
-
-**A crossover.** `hive+pooled` at its worst (28.6) still beats `hive+` (16.2)
-everywhere, and at eight agents and eight topics — where pooling carries 56.9
-rows per member — it is 18.4 against 7.3. Squeezing the window never makes
-the deliberating room the better choice on this task.
-
-So the honest reading is narrower than "context economy vindicates
-deliberation":
-
-- The pooled ceiling is **soft and window-dependent**, not the fixed 89–92%
-  the other tables imply. Quoting it without a window is quoting telepathy.
-- Deliberation's **insensitivity** to the window is real and is a property
-  worth having.
-- Neither of those makes deliberation *good here*. `hive+` scores 7.3% on an
-  eight-seat hidden profile. The binding constraint on this task is not context
-  at all — it is that the protocol cannot surface a lone dissenting fact, which
-  is what `hive+fact°` (+27.6 over `hive+`) addresses and what a context budget
-  cannot.
-
-Fix the protocol first. Context economy is a second-order argument until the
-first-order one is answered.
-
-### Read the ordering, not the numbers
-
-`context.rs` is a model, not a measurement of any real model's retrieval. That
-is why `--context-sweep` sweeps `rot` rather than picking a value: an ordering
-that holds across the whole block is a claim about the protocols, and one that
-changes hands between blocks is a claim about the model. Both are reported.
+Every arm above moves information for free, and that is a misleading
+*engineering* ceiling once a participant is a language model with a bounded
+window. `--context-sweep` charges for it: each arm runs across a ladder of
+window capacities that evicts rows from the middle and discounts survivors by
+a U-curve. `hive+pooled` — the arm that looks unbeatable — loses a third of
+its lead once its window matches its own payload; `hive+` and `hive+along`
+barely notice, because they barely use the window. No squeeze makes the
+deliberating room the better choice on this task, so the honest reading is
+narrower than "context economy vindicates deliberation": fix the protocol
+first. The full numbers, the two things this experiment did and did not find,
+and why the sweep reports an ordering rather than a value are in
+[`CONTEXT.md`](CONTEXT.md).
 
 ## Flags
 
@@ -520,7 +463,7 @@ channel would be measuring nothing. `--hidden-profile --noise` defaults to ±50
 for the same reason and by the same rule — an explicit `--noise` still wins.
 
 The two constants that shape the hidden profile are bounded on both sides, and
-`sim.rs` writes the arithmetic on each. `HIDDEN_LIFT` is `100`, so the planted
+`sim/mod.rs` writes the arithmetic on each. `HIDDEN_LIFT` is `100`, so the planted
 decoy reads **140** against the true option's **100**: at ±50 the difference of
 two draws is triangular on ±100, so a lay member's own argmax is the decoy
 `1 - (60/100)² / 2 ≈ 82%` of the time and the matched-budget poll scores 15%.
@@ -534,20 +477,9 @@ keep the profile solvable but not trivial.
 
 ## Layout
 
-| file | what it holds |
-| --- | --- |
-| `main.rs` | the command line, the tuned policy, the modes, and the tables |
-| `sim.rs` | the rooms, the private evaluations, what a participant says, the `Expertise` shapes (`--specialists`, `--hidden-profile`) that redistribute those evaluations, and the evidence-first opening (`--blind-evidence`) |
-| `federation.rs` | several desks, each with a correlated bias of its own |
-| `swarm.rs` | one journal per channel, the scheduler, and the referral edge |
-| `run.rs` | the host: a journal, a roster, and the step loop |
-| `arms.rs` | the `ladder`, `vote`, `merged` and federated controls |
-| `sweep.rs` | the policy grid and its ranking |
-| `metrics.rs` | aggregation, formatting, and the confidence-interval, bootstrap and rank-correlation statistics |
-| `live.rs` | the shared prompt state, the external agent CLI backend, and the solo poll |
-| `http.rs` | the direct-HTTP backend: the same prompt state over `curl`, and its usage table |
-| `scenario.rs` | the scenario file format, the briefs, and the recorded answer |
-| `scenarios/` | the scenario files themselves |
-| `DELEGATION.md` | the delegation arms, the three questions they answer, and what they scored |
-| `LIVE.md` | live rooms: the prompt, the scenario format, and the CLI and HTTP backends |
-| `rng.rs` | a seeded `SplitMix64`, so every run reproduces |
+Every module that outgrew a single file is a directory: `mod.rs` holds its
+module doc, its core types, and whatever re-exports the rest of the crate
+actually needs; its siblings hold one cohesive slice of the rest. The `mod
+sim;`-style declaration in `main.rs` is unchanged either way, since Rust
+resolves it to `sim/mod.rs` transparently. [`LAYOUT.md`](LAYOUT.md) has the
+full file-by-file table.

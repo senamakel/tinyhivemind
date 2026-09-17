@@ -35,6 +35,11 @@ what actually happened when it was run goes in
   disagreement about sharing context, hidden profiles, the conformity that full
   visibility buys, the auditability a private channel owes, and the four ways a
   divergent view fails a reader with a sliding window. The reading behind P17.
+- [`multi-context.md`](multi-context.md) — N seats, N windows, one record:
+  why no shipping design gives its orchestrator the full context, what a seat
+  carries between turns instead (context folding, externalized plans), and the
+  feedthrough a shared artifact already emits. The reading behind seat
+  continuity.
 - [`grok-bots/`](grok-bots/README.md) — twelve notes on the open-source Grok
   Bot ecosystem, read at pinned commits: how each one models a roster, what
   makes a message start a turn, and how four of them shipped uncontrolled

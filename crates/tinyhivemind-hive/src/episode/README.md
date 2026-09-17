@@ -112,6 +112,30 @@ That is the whole answer to "but a hive mind needs fan-out". See
 | `HiveStep` | `Speak` \| `Converged` \| `Deadlocked` \| `Exhausted` \| `Idle`. |
 | `Phase`, `Visibility` | The two one-turn modes. |
 
+## File layout
+
+`mod.rs` holds `step`, `project_for`, and the private folds between them;
+`types.rs` holds the stable `EpisodePolicy`, `EpisodeState`, `HiveTurn` and
+`HiveStep` payloads. The unit suite lives under `test/`, one file per behavior
+area rather than one 1,000-plus-line file:
+
+| File | Covers |
+| --- | --- |
+| `test/support.rs` | Shared fixtures: the three-member `Room`, transcript builders, `run`/`speaking`. |
+| `test/wire_forms.rs` | Serde pins for the policy, state, and tagged `HiveStep` variants. |
+| `test/termination.rs` | The single-turn invariant and budget-bounded termination. |
+| `test/quorum_and_convergence.rs` | Quorum, the one-way phase change, and the watermark. |
+| `test/deadlock.rs` | Deadlock and cross-inhibition through the whole machine. |
+| `test/turn_dynamics.rs` | Blind visibility and the threshold charge carried across turns. |
+| `test/failure_paths.rs` | Malformed roster, desk, threshold, and policy inputs. |
+| `test/expert_delegation.rs` | The directory and defer-cap knobs, on and off. |
+| `test/off_floor_asides.rs` | An aside carries information, never support, for every reader alike. |
+| `test/concurrent_asides.rs` | The concurrent-aside cost guarantee and its sequence-shift limit. |
+
+Every submodule is a descendant of `episode`, so each can see the module's
+private items exactly as the old flat `test.rs` could — nothing here changes
+what a test may reach, only where it lives.
+
 ## Operational constraints
 
 - **Commit `next_state` only after the turn is durably appended.** It is
