@@ -29,7 +29,6 @@ use tinytools::Tool;
 use tinytools_agent::dialect::NativeDialect;
 
 use super::Route;
-use super::policy::NoMemory;
 use crate::{Error, Result};
 
 /// The tool-loop ceiling for one turn: think, call, read the receipt, reply.
@@ -44,8 +43,8 @@ pub struct LibraryHost {
     context: Arc<CoreContext>,
     /// What the config resolves `chat` to.
     model: String,
-    /// Where a session is rooted. Nothing is written there -- `auto_save` is
-    /// off -- but the builder wants a directory.
+    /// Where a session is rooted. The builder wants a directory; the host's
+    /// log stays the only log.
     workspace: PathBuf,
 }
 
@@ -134,7 +133,6 @@ impl LibraryHost {
             .model_name(self.model.clone())
             .temperature(0.0)
             .tools(tools)
-            .memory(Arc::new(NoMemory))
             .tool_dispatcher(Box::new(NativeDialect))
             .prompt_builder(SystemPromptBuilder::from_final_body(
                 system_prompt.to_owned(),
@@ -146,9 +144,10 @@ impl LibraryHost {
             })
             .workspace_dir(self.workspace.clone())
             .action_dir(self.workspace.clone())
-            // The host's log is the only log. A session that also wrote
-            // `OpenHuman`'s transcript would be a second one.
-            .auto_save(false)
+            // The episode is a fold over a transcript the host owns, and what a
+            // seat carries between turns is the context this runner seeds it
+            // with -- not OpenHuman's `context.md`.
+            .omit_memory_context(true)
             .agent_definition_name(seat.to_owned())
             .build()
             .map_err(Error::Harness)
