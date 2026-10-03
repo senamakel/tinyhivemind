@@ -11,7 +11,7 @@ use serde_json::json;
 use tinyhivemind_tools::{Dispatch, EpisodeTools};
 use tinytools::PermissionLevel;
 
-use super::policy::{EpisodeGate, NoMemory};
+use super::policy::EpisodeGate;
 use super::tools;
 
 #[test]
@@ -104,34 +104,6 @@ async fn the_gate_admits_the_belt_and_denies_the_rest() {
         gate.check(&request("shell")).await,
         ToolPolicyDecision::Deny { .. }
     ));
-}
-
-#[tokio::test]
-async fn the_memory_keeps_nothing_and_never_errors() {
-    use openhuman_core::memory::{Memory, MemoryCategory, RecallOpts};
-    let memory = NoMemory;
-    assert_eq!(memory.name(), "none");
-    memory
-        .store("ns", "key", "content", MemoryCategory::Core, None)
-        .await
-        .expect("accepted");
-    let recall_found = memory
-        .recall("anything", 10, RecallOpts::default())
-        .await
-        .expect("empty");
-    assert!(recall_found.is_empty(), "{recall_found:?}");
-    assert!(memory.get("ns", "key").await.expect("empty").is_none());
-    let list_found = memory.list(None, None, None).await.expect("empty");
-    assert!(list_found.is_empty(), "{list_found:?}");
-    assert!(!memory.forget("ns", "key").await.expect("nothing to forget"));
-    let namespace_summaries_found = memory.namespace_summaries().await.expect("empty");
-    assert!(
-        namespace_summaries_found.is_empty(),
-        "{namespace_summaries_found:?}"
-    );
-    assert_eq!(memory.count().await.expect("zero"), 0);
-    assert!(memory.health_check().await);
-    assert!(format!("{memory:?}").contains("NoMemory"));
 }
 
 #[tokio::test]

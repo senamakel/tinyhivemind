@@ -16,5 +16,5 @@ builds its seats.
 | `library.rs` | `LibraryHost`: the library-host core, its sessions, and its scope |
 | `seat.rs` | `RawSeat`: one session built, seeded, run and dropped |
 | `tools.rs` | the served definitions as `tinytools::Tool`s whose execute is `EpisodeTools::call` |
-| `policy.rs` | `EpisodeGate`, admitting only the belt, and `NoMemory` |
+| `policy.rs` | `EpisodeGate`, admitting only the belt |
 | `test.rs` | the belt, the gate, the memory, and a refused route |
